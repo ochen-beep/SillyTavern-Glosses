@@ -47,7 +47,7 @@ import { rebindFootnotes, rebindTargeted } from './domain/rebind.js';
 function persistenceError(kind) {
     return (err) => {
         console.warn(`[Glosses] Failed to save ${kind}:`, err);
-        notifyUser('error', t(`Could not save footnote ${kind}. Run /glosses_clear or reload the chat to retry.`), `gls-${kind}-save`);
+        notifyUser('error', t(`Could not save footnote ${kind}. Glosses retries on the next change.`), `gls-${kind}-save`);
     };
 }
 const _metadataWriter = createMetadataWriter({
