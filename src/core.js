@@ -172,6 +172,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // loopback http is allowed with a warning. Persisted so the confirmation
     // survives reloads instead of re-asking on every request.
     customEndpointAllowlist: [],
+    // Debug capture (port of DS Comments debugMode). When false (default),
+    // lastCustomEndpointDebug keeps only metadata (URL, model, char counts) —
+    // full prompt/response bodies would otherwise sit in memory for the whole
+    // page lifetime. Toggled via the Debug Menu "Glosses: Toggle Debug Capture".
+    debugMode: false,
 
     stopWords: '',
     avoidRepeatedAnchors: true,

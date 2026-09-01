@@ -244,10 +244,14 @@ function extractTextFromResponse(resp) {
 
 // ── Custom Endpoint Debug State ──
 // Mirror of the last custom-endpoint request/response, for DevTools inspection.
-// A dedicated Debug Menu reader is out of scope for this change.
+// With settings.debugMode off (the default) only METADATA is captured
+// (messageChars / textChars / status / durations) — full prompt bodies hold
+// scene text and must not sit in memory for the page lifetime. Flip the mode
+// via the Debug Menu ("Glosses: Toggle Debug Capture"). A dedicated Debug Menu
+// reader is out of scope for this change.
 export const lastCustomEndpointDebug = {
-    request: null,   // { url, model, messages, stream, timestamp }
-    response: null,  // { status, data, text, timestamp, durationMs }
+    request: null,   // debug: { url, model, messages, … } | meta: { url, model, messageChars, … }
+    response: null,  // debug: { status, data, text, … } | meta: { status, textChars, … }
     error: null,     // { message, status, timestamp }
 };
 
@@ -347,7 +351,22 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     const body = { messages, stream: false };
     if (model) body.model = model;
 
-    lastCustomEndpointDebug.request = { url, model: model || '(default)', messages, stream: false, timestamp: Date.now() };
+    // Debug capture gate: with debugMode off (default) only metadata is
+    // retained below — full prompt bodies must not sit in memory for the
+    // whole page lifetime (port of DS Comments).
+    const debugFull = S().debugMode === true;
+
+    lastCustomEndpointDebug.request = debugFull
+        ? { url, model: model || '(default)', messages, stream: false, timestamp: Date.now() }
+        // Outside debug mode only metadata is kept — full prompt bodies must
+        // not sit in memory for the whole page lifetime (port of DS Comments).
+        : {
+            url,
+            model: model || '(default)',
+            messageChars: messages.map(m => (m?.content || '').length),
+            stream: false,
+            timestamp: Date.now(),
+        };
     lastCustomEndpointDebug.response = null;
     lastCustomEndpointDebug.error = null;
 
@@ -381,13 +400,20 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     const data = await response.json();
     const text = extractTextFromResponse(data);
 
-    lastCustomEndpointDebug.response = {
-        status: response.status,
-        data,
-        text: text || '(empty)',
-        timestamp: Date.now(),
-        durationMs,
-    };
+    lastCustomEndpointDebug.response = debugFull
+        ? {
+            status: response.status,
+            data,
+            text: text || '(empty)',
+            timestamp: Date.now(),
+            durationMs,
+        }
+        : {
+            status: response.status,
+            textChars: (text || '').length,
+            timestamp: Date.now(),
+            durationMs,
+        };
 
     if (text !== null) return text;
     warn('Custom endpoint: could not extract text from response', data);

@@ -12,6 +12,7 @@ import { state, S, getCtx, saveSettings, log, warn } from './core.js';
 import { clearAll, stats } from './cache.js';
 import { removeHighlights, restoreHighlightsAll } from './renderer.js';
 import { generateFootnotes } from './generator.js';
+import { lastCustomEndpointDebug } from './connection.js';
 import { updatePanel, panelInvalidate } from './ui/window.js';
 import { ensureLauncher } from './ui/launcher.js';
 
@@ -164,7 +165,28 @@ export function registerDebugFunctions() {
             );
             _debugIds.add('gls_clear_cache');
         }
-        _debugRegistered = _debugIds.size === 2;
+        if (!_debugIds.has('gls_toggle_debug_capture')) {
+            registerDebugFunction(
+                'gls_toggle_debug_capture',
+                'Glosses: Toggle Debug Capture',
+                'When ON, lastCustomEndpointDebug keeps full request/response bodies (prompt text included); when OFF (default) only metadata (URL, model, char counts) is kept.',
+                () => {
+                    const next = !(S().debugMode === true);
+                    S().debugMode = next;
+                    saveSettings();
+                    if (!next) {
+                        // Turning capture off drops whatever full bodies the
+                        // last debug-mode request left in memory.
+                        lastCustomEndpointDebug.request = null;
+                        lastCustomEndpointDebug.response = null;
+                        lastCustomEndpointDebug.error = null;
+                    }
+                    return { ok: true, message: `Debug capture ${next ? 'ON — full bodies retained' : 'OFF — metadata only'}.` };
+                },
+            );
+            _debugIds.add('gls_toggle_debug_capture');
+        }
+        _debugRegistered = _debugIds.size === 3;
     } catch (e) { warn('Failed to register debug functions:', e); }
 }
 

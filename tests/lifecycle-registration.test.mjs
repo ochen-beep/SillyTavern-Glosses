@@ -72,7 +72,7 @@ test('registerSlashCommands no-ops gracefully when the host API is missing', () 
 
 // ── Debug-function registration ──
 
-test('registerDebugFunctions registers gls_cache_info and gls_clear_cache', () => {
+test('registerDebugFunctions registers gls_cache_info, gls_clear_cache and gls_toggle_debug_capture', () => {
     resetRegistrations();
     const registered = new Map();
     resetCtx({
@@ -81,6 +81,7 @@ test('registerDebugFunctions registers gls_cache_info and gls_clear_cache', () =
     registerDebugFunctions();
     assert.ok(registered.has('gls_cache_info'));
     assert.ok(registered.has('gls_clear_cache'));
+    assert.ok(registered.has('gls_toggle_debug_capture'));
 });
 
 test('registerDebugFunctions is idempotent per id', () => {
@@ -91,7 +92,7 @@ test('registerDebugFunctions is idempotent per id', () => {
     });
     registerDebugFunctions();
     registerDebugFunctions();
-    assert.deepEqual(calls, ['gls_cache_info', 'gls_clear_cache']);
+    assert.deepEqual(calls, ['gls_cache_info', 'gls_clear_cache', 'gls_toggle_debug_capture']);
 });
 
 // ── Events bind/unbind symmetry ──
