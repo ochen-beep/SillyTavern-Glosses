@@ -64,6 +64,12 @@ export function bindEvents() {
     if (event_types.MORE_MESSAGES_LOADED) {
         on(event_types.MORE_MESSAGES_LOADED, onMoreMessagesLoaded);
     }
+    // Swipe deletion (feature-detected, ported from DS Comments): abort the
+    // in-flight generation of the deleted slot and re-present the surviving
+    // current variant.
+    if (event_types.MESSAGE_SWIPE_DELETED) {
+        on(event_types.MESSAGE_SWIPE_DELETED, onMsgSwipeDeleted);
+    }
 
     _eventsBound = true;
 }
@@ -201,7 +207,18 @@ async function onMsgSwiped(messageId) {
     state.panelFocusMsgId = String(messageId);
     const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
     removeHighlights(mesEl);
+    await presentCurrentSwipe(messageId, mesEl);
+}
 
+/**
+ * Shared tail of the swipe lifecycle handlers (MESSAGE_SWIPED and
+ * MESSAGE_SWIPE_DELETED): re-read the message, apply the false-start guard,
+ * and re-present the CURRENT variant (payload hit, rebind, or auto-generate).
+ * ST has already spliced msg.swipes/swipe_info and clamped swipe_id when a
+ * swipe was deleted, so the current swipe_id is the authoritative slot after
+ * either event.
+ */
+async function presentCurrentSwipe(messageId, mesEl) {
     const ctx = getCtx();
     const msg = ctx.chat?.[parseInt(messageId)];
     if (!msg || msg.is_user || msg.is_system || msg.is_hidden || !S().enabled) {
@@ -227,6 +244,25 @@ async function onMsgSwiped(messageId) {
 
     addRegenButton(messageId);
     await presentVariant(messageId, swipeIdx, mesEl);
+}
+
+/**
+ * MESSAGE_SWIPE_DELETED — a swipe of this message was removed (ported from DS
+ * Comments events.js; feature-detected — hosts without the event keep the
+ * previous behaviour). Payloads live inside the message objects, so the
+ * deleted variant's data dies with the splice; what needs handling is state:
+ * an in-flight generation whose target WAS the deleted variant must be
+ * aborted, stale markers removed from the DOM, and the now-current variant
+ * re-presented (its cached payload restored, or fresh generation kicked off
+ * if it never had one).
+ */
+async function onMsgSwipeDeleted({ messageId } = {}) {
+    if (messageId === undefined || messageId === null) return;
+    generationCoordinator.bumpMessageRevision(messageId);
+    const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
+    removeHighlights(mesEl);
+    panelInvalidate();
+    await presentCurrentSwipe(messageId, mesEl);
 }
 
 function onMsgEdited(messageId) {
