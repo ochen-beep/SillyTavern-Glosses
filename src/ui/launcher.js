@@ -5,8 +5,8 @@
  * A Tⁿ (footnote) button in #qr--bar that toggles the floating footnotes panel
  * on/off. SillyTavern rebuilds #send_form / #qr--bar on chat switch, group
  * change, and quick-reply edits — a MutationObserver on #send_form re-mounts
- * the launcher when that happens. #send_form is lazy-mounted by ST, so we poll
- * briefly if it isn't present yet.
+ * the launcher when that happens. #send_form is lazy-mounted by ST: until it
+ * appears we wait on APP_READY (whenSendFormReady), not a polling timer.
  *
  * v3.1 (spec §6.3 + §6.8): ✕ now hides (not destroys) and the launcher
  * re-shows; the active-state class tracks VISIBILITY (not floatingPanelEnabled
@@ -22,11 +22,15 @@
  */
 
 import { S, saveSettings, t } from '../core.js';
+import { whenSendFormReady } from './dom-ready.js';
 
 let _launcherObserver = null;
-let _launcherPoll = null;
-let _launcherPollStop = null;
 let _launcherDebounce = null;
+// Disposer for the pending APP_READY subscription (when #send_form wasn't
+// mounted yet at attach time). cleanup() → removeLauncher() MUST invoke it,
+// or an extension disabled before APP_READY gets its launcher re-attached by
+// the still-subscribed listener after teardown.
+let _launcherReadyDispose = null;
 
 /** Find the quick-reply bar (#qr--bar). ST mounts it inside #send_form. */
 function getQuickReplyBar() {
@@ -162,39 +166,39 @@ async function toggleLauncherPanel() {
 
 /**
  * Attach the MutationObserver on #send_form so the launcher re-mounts after
- * ST rebuilds the quick-reply bar. Polls for up to 8s if #send_form isn't
- * mounted yet. Safe to call repeatedly (guards on _launcherObserver).
+ * ST rebuilds the quick-reply bar (chat switch, group change, QR edits).
+ * #send_form is lazy-mounted by ST: when it isn't in the DOM yet, wait on
+ * APP_READY via whenSendFormReady (event-driven, no polling deadline) instead
+ * of a setInterval probe. Safe to call repeatedly (guards on _launcherObserver).
  */
 export function observeQrBar() {
-    if (_launcherObserver) return;
-    const tryAttach = () => {
-        const sendForm = document.getElementById('send_form');
-        if (!sendForm) return false;
+    if (_launcherObserver || _launcherReadyDispose) return;
+    const attachObserver = (sendForm) => {
         _launcherObserver = new MutationObserver(() => {
             if (_launcherDebounce) clearTimeout(_launcherDebounce);
             _launcherDebounce = setTimeout(() => { _launcherDebounce = null; if (S().enabled) ensureLauncher(); }, 100);
         });
         _launcherObserver.observe(sendForm, { childList: true, subtree: true });
-        return true;
     };
-    if (!tryAttach()) {
-        _launcherPoll = setInterval(() => { if (tryAttach()) { clearInterval(_launcherPoll); _launcherPoll = null; } }, 500);
-        // Owned stop guard: previously a closure-local timeout leaked past
-        // removeLauncher(), so a disable during the attach window could still
-        // clear the poll after teardown.
-        _launcherPollStop = setTimeout(() => {
-            _launcherPollStop = null;
-            if (_launcherPoll) { clearInterval(_launcherPoll); _launcherPoll = null; }
-        }, 8000);
+    const sendForm = document.getElementById('send_form');
+    if (sendForm) {
+        attachObserver(sendForm);
+        return;
     }
+    // #send_form not mounted yet — subscribe to APP_READY. Store the disposer:
+    // a disable before the event must unsubscribe, or the late event attaches
+    // an orphaned observer + launcher button after teardown.
+    _launcherReadyDispose = whenSendFormReady(attachObserver, {
+        onGiveUp: () => { _launcherReadyDispose = null; },
+    });
 }
 
-/** Tear down: remove button + disconnect observer + cancel all timers. Called from cleanup(). */
+/** Tear down: remove button + disconnect observer + cancel the disposer and
+ *  the debounce timer. Called from cleanup(). */
 export function removeLauncher() {
     document.getElementById('gls_launcher')?.remove();
     document.body.classList.remove('gls-launcher-mounted');
     if (_launcherObserver) { _launcherObserver.disconnect(); _launcherObserver = null; }
     if (_launcherDebounce) { clearTimeout(_launcherDebounce); _launcherDebounce = null; }
-    if (_launcherPoll) { clearInterval(_launcherPoll); _launcherPoll = null; }
-    if (_launcherPollStop) { clearTimeout(_launcherPollStop); _launcherPollStop = null; }
+    if (_launcherReadyDispose) { _launcherReadyDispose(); _launcherReadyDispose = null; }
 }

@@ -27,6 +27,7 @@ import { removeHighlights, injectHighlights, formatFootnoteText } from '../rende
 import { indexToTargetedSymbol, stripLeadingNumber } from '../parser.js';
 import { normalizeAnchorKey } from '../anchor-utils.js';
 import { renumberFootnotes, reindexTargeted } from '../application/footnote-commands.js';
+import { whenSendFormReady } from './dom-ready.js';
 import { createTabController } from './tabs.js';
 import {
     parseTargetLines, generateTargetedFootnotes, clearTargetedState,
@@ -638,8 +639,10 @@ let _viewportBound = false;
 let _viewportTimer = null;
 let _viewportHandler = null;
 let _chromeResizeObserver = null;
-let _viewportAttachPoll = null;
-let _viewportAttachStop = null;
+// Disposer for the pending APP_READY subscription (when #send_form wasn't
+// mounted yet at attach time) — disconnectViewportSync MUST invoke it, or a
+// disable before APP_READY lets the late event attach an orphaned observer.
+let _viewportReadyDispose = null;
 
 /**
  * Bind a debounced resize listener that toggles the panel between desktop and
@@ -666,25 +669,24 @@ export function initViewportSync() {
     window.addEventListener('resize', _viewportHandler);
     // #send_form's height changes at runtime (QR panel expand/collapse, extension
     // toolbar). Track it so the mobile bottom inset stays correct without a
-    // window resize. Poll briefly if #send_form isn't mounted yet (lazy ST mount).
-    // The poll and its 8s stop-timeout are module-owned so disconnectViewportSync
-    // can cancel them — the previous closure-local timeouts leaked past teardown.
+    // window resize. #send_form is lazy-mounted by ST: when it isn't in the DOM
+    // yet, wait on APP_READY (whenSendFormReady — event-driven, no deadline)
+    // instead of a setInterval probe. The disposer is module-owned so
+    // disconnectViewportSync can cancel the pending subscription.
     if (typeof ResizeObserver !== 'undefined') {
-        const attach = () => {
-            const sendForm = document.querySelector(ST_SENDFORM_SEL);
-            if (!sendForm) return false;
+        const attachChromeObserver = (sendForm) => {
             _chromeResizeObserver = new ResizeObserver(() => {
                 if (_floatingPanel && isMobileViewport()) measureStChrome(_floatingPanel);
             });
             _chromeResizeObserver.observe(sendForm);
-            return true;
         };
-        if (!attach()) {
-            _viewportAttachPoll = setInterval(() => { if (attach()) { clearInterval(_viewportAttachPoll); _viewportAttachPoll = null; } }, 500);
-            _viewportAttachStop = setTimeout(() => {
-                _viewportAttachStop = null;
-                if (_viewportAttachPoll) { clearInterval(_viewportAttachPoll); _viewportAttachPoll = null; }
-            }, 8000);
+        const sendForm = document.querySelector(ST_SENDFORM_SEL);
+        if (sendForm) {
+            attachChromeObserver(sendForm);
+        } else {
+            _viewportReadyDispose = whenSendFormReady(attachChromeObserver, {
+                onGiveUp: () => { _viewportReadyDispose = null; },
+            });
         }
     }
 }
@@ -697,8 +699,7 @@ export function disconnectViewportSync() {
     }
     _viewportBound = false;
     if (_chromeResizeObserver) { _chromeResizeObserver.disconnect(); _chromeResizeObserver = null; }
-    if (_viewportAttachPoll) { clearInterval(_viewportAttachPoll); _viewportAttachPoll = null; }
-    if (_viewportAttachStop) { clearTimeout(_viewportAttachStop); _viewportAttachStop = null; }
+    if (_viewportReadyDispose) { _viewportReadyDispose(); _viewportReadyDispose = null; }
 }
 
 /**

@@ -44,6 +44,8 @@ globalThis.document = {
     getElementById: () => null,
     querySelector: () => null,
     querySelectorAll: () => [],
+    // removeLauncher() toggles the launcher-mounted marker class on <body>.
+    body: { classList: { add() {}, remove() {} } },
 };
 
 // ── window shim ──
