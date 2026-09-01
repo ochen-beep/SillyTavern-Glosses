@@ -674,6 +674,40 @@ function getTargetFootnoteCount() {
     return Number.isFinite(n) ? Math.min(20, Math.max(1, n)) : 5;
 }
 
+/**
+ * Build the input consumed by SillyTavern's automatic lore activation
+ * (getWorldInfoPrompt). Ported from DS Comments (src/generator.js).
+ *   - Messages newest-first (ST's scan expects reverse-chronological order)
+ *     with raw m.mes — the same surface ST itself scans.
+ *   - globalScanData carries the 'quiet' trigger plus the persona/character
+ *     fields whose TEXT can activate keyword entries: without them, entries
+ *     keyed on words that appear only in the character description, scenario,
+ *     or persona never activate for the footnote prompt.
+ */
+export function buildLoreScanInput(ctx) {
+    const chatMessages = (ctx.chat || [])
+        .filter(m => m && !m.is_system && !m.is_hidden)
+        .map(m => {
+            const name = m.is_user ? (ctx.name1 || 'User') : (m.name || ctx.name2 || 'Character');
+            return `${name}: ${String(m.mes || '')}`;
+        })
+        .reverse();
+
+    const globalScanData = { trigger: 'quiet' };
+    try {
+        if (ctx.characterId !== undefined && ctx.characters?.[ctx.characterId]) {
+            const ch = ctx.characters[ctx.characterId];
+            if (ch.description) globalScanData.characterDescription = ch.description;
+            if (ch.personality) globalScanData.characterPersonality = ch.personality;
+            if (ch.scenario) globalScanData.scenario = ch.scenario;
+        }
+        const pd = ctx.powerUserSettings?.persona_description;
+        if (pd) globalScanData.personaDescription = pd;
+    } catch { /* skip */ }
+
+    return { chatMessages, globalScanData };
+}
+
 function buildCharBlock(messageId) {
     const ctx = getCtx();
     let ch = null;
@@ -807,10 +841,14 @@ export async function buildContextBlocks(messageId, swipeIdx, opts = {}) {
     if (s.includeLorebook) {
         let wi = '';
         try {
-            const chatMessages = (ctx.chat || [])
-                .filter(m => !m.is_system && !m.is_hidden)
-                .map(m => `${m.is_user ? (ctx.name1 || 'User') : (m.name || 'AI')}: ${extractPlainText(m.mes || '')}`);
-            const wiResult = ctx.getWorldInfoPrompt?.(chatMessages, ctx.maxContext || 4096, false);
+            const { chatMessages, globalScanData } = buildLoreScanInput(ctx);
+            // isDryRun is ALWAYS true (contract ported from DS Comments). A
+            // non-dry-run scan re-emits WORLD_INFO_ACTIVATED and writes
+            // sticky/cooldown timed-effects into chat_metadata OUTSIDE ST's
+            // generation cycle — the footnote prompt must neither consume nor
+            // mutate the main chat's world-info state. Dry-run still returns
+            // worldInfoString as usual.
+            const wiResult = ctx.getWorldInfoPrompt?.(chatMessages, ctx.maxContext || 4096, true, globalScanData);
             wi = coercePromptText(wiResult instanceof Promise ? await wiResult : wiResult);
         } catch { /* WI unavailable */ }
         if (wi) parts.push(`[World info — background only. Do NOT annotate it:\n${wi}]`);
