@@ -374,6 +374,19 @@ export async function setApiKey(key) {
 // Prefer the public ST surface (ctx.Popup / ctx.POPUP_RESULT) over importing
 // ST internals, which break whenever ST reorganises its module layout.
 
+// Deduplicated user notification (ported from DS Comments core.js). Toast
+// storms on recurring events (per-message saves, per-message generation)
+// are unreadable — a dedupeKey-bound 5 s window collapses them into one
+// visible message. Returns true when the toast was actually shown.
+const _notificationTimes = new Map();
+export function notifyUser(level, message, dedupeKey = message) {
+    const now = Date.now();
+    if (now - (_notificationTimes.get(dedupeKey) || 0) < 5000) return false;
+    _notificationTimes.set(dedupeKey, now);
+    globalThis.toastr?.[level]?.(message, DISPLAY_NAME);
+    return true;
+}
+
 export async function showConfirmModal(message) {
     try {
         const ctx = getCtx();

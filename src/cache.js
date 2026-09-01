@@ -24,7 +24,7 @@
  *   clearVariant / clearAll / listFootnoteSets / stats
  */
 
-import { getCtx } from './core.js';
+import { getCtx, t, notifyUser } from './core.js';
 import { createMetadataWriter } from './infrastructure/metadata-writer.js';
 import { createChatWriter } from './infrastructure/chat-writer.js';
 import { createMetadataRepository } from './infrastructure/metadata-repository.js';
@@ -39,12 +39,23 @@ import { rebindFootnotes, rebindTargeted } from './domain/rebind.js';
 // Singleton writers + lists repository. All are stateless except for the
 // coalescing timers; the chat array is re-read from ctx on every access, so
 // the singletons stay correct across chat switches.
+//
+// Persistence failures were console-only: a failed saveMetadata/saveChat
+// silently dropped footnote data until the next successful save. The writers
+// already dedupe onError to once per 5 s; notifyUser adds a visible toast
+// over the same window so a broken save is at least seen.
+function persistenceError(kind) {
+    return (err) => {
+        console.warn(`[Glosses] Failed to save ${kind}:`, err);
+        notifyUser('error', t(`Could not save footnote ${kind}. Run /glosses_clear or reload the chat to retry.`), `gls-${kind}-save`);
+    };
+}
 const _metadataWriter = createMetadataWriter({
     getContext: () => getCtx(),
     debounceMs: 200,
-    onError: (err) => { console.warn('[Glosses] Failed to save metadata:', err); },
+    onError: persistenceError('metadata'),
 });
-const _chatWriter = createChatWriter({});
+const _chatWriter = createChatWriter({ onError: persistenceError('chat') });
 const _lists = createMetadataRepository({ writer: _metadataWriter });
 
 function msgAt(msgId) {
