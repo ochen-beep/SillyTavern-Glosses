@@ -1,0 +1,9 @@
+{
+  "name": "glosses",
+  "version": "3.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node scripts/run-tests.mjs"
+  }
+}

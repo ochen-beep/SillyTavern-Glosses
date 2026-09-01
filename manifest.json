@@ -1,0 +1,24 @@
+{
+    "display_name": "Glosses",
+    "loading_order": 1100,
+    "requires": [],
+    "optional": [],
+    "dependencies": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "AB",
+    "version": "3.4.2",
+    "home_page": "",
+    "auto_update": false,
+    "minimum_client_version": "1.12.10",
+    "i18n": {
+        "ru-ru": "i18n/ru-ru.json"
+    },
+    "hooks": {
+        "activate": "onActivate",
+        "update": "onUpdate",
+        "enable": "onEnable",
+        "disable": "onDisable",
+        "clean": "onClean"
+    }
+}

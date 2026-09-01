@@ -1,0 +1,603 @@
+<div id="gls_settings" class="gls-s">
+
+    <!-- Master row -->
+    <div class="gls-s-toprow">
+        <label class="gls-s-toggle-row gls-s-master">
+            <input type="checkbox" id="gls_enabled" class="checkbox">
+            <span class="gls-s-label-bold" data-i18n="Enable Footnotes">Enable Footnotes</span>
+        </label>
+    </div>
+
+    <!-- ═══ GENERATION ENGINE ═══ -->
+    <div class="gls-s-section gls-s-section--generation">
+        <button class="gls-s-section-header" aria-expanded="false" type="button">
+            <span class="gls-s-section-title">
+                <i class="fa-solid fa-plug gls-s-section-icon" aria-hidden="true"></i>
+                <span data-i18n="Generation Engine">Generation Engine</span>
+            </span>
+            <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
+        </button>
+        <div class="gls-s-section-body" hidden>
+            <div class="gls-s-field-group">
+                <label class="gls-s-field-label" for="gls_source">
+                    <span data-i18n="Source">Source</span>
+                </label>
+                <div class="gls-s-seg" id="gls_source" role="group" aria-label="Source">
+                    <button class="gls-s-seg-btn" type="button" data-gls-src="profile" data-i18n="Connection Profile">Connection Profile</button>
+                    <button class="gls-s-seg-btn" type="button" data-gls-src="custom" data-i18n="Custom (OpenAI-compatible)">Custom (OpenAI-compatible)</button>
+                </div>
+            </div>
+            <div id="gls_panel_profile" class="gls-s-sub-panel" hidden>
+                <div class="gls-s-sub-title" data-i18n="Connection Profile">Connection Profile</div>
+                <div class="gls-s-field-row">
+                    <select id="gls_profile_select" class="gls-s-select gls-s-grow"></select>
+                    <button id="gls_profile_refresh" class="menu_button menu_button_icon" type="button" title="Refresh" data-i18n="[title]Refresh">
+                        <i class="fa-solid fa-rotate fa-fw"></i>
+                    </button>
+                </div>
+                <div id="gls_profile_info" hidden class="gls-s-profile-info">
+                    <span id="gls_profile_model"></span>
+                </div>
+            </div>
+            <div id="gls_panel_custom" class="gls-s-sub-panel" hidden>
+                <div class="gls-s-sub-title" data-i18n="Custom Endpoint">Custom Endpoint</div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_custom_endpoint">
+                        <span data-i18n="Endpoint URL">Endpoint URL</span>
+                    </label>
+                    <input type="url" id="gls_custom_endpoint" class="text_pole" placeholder="https://api.example.com/v1">
+                    <small class="gls-s-hint" data-i18n="Direct browser fetch — the endpoint must send CORS headers, otherwise use Profile.">Direct browser fetch — the endpoint must send CORS headers, otherwise use Profile.</small>
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_custom_apikey">
+                        <span data-i18n="API key">API key</span>
+                    </label>
+                    <input type="password" id="gls_custom_apikey" class="text_pole" placeholder="sk-...">
+                    <!-- §6.9: honesty label — the custom-endpoint API key lives in
+                         browser localforage (visible to any in-page script), not ST's
+                         server-side secret storage. For server-side secrets, the user
+                         should pick the Connection Profile source instead. -->
+                    <small class="gls-s-hint" data-i18n="api-key-stored-in-browser">The key is stored in your browser (localforage), not on the server. For server-side secret storage, use a Connection Profile instead.</small>
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_custom_model">
+                        <span data-i18n="Model ID (optional)">Model ID (optional)</span>
+                    </label>
+                    <input type="text" id="gls_custom_model" class="text_pole" placeholder="(API default)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ PROMPT ═══ -->
+    <div class="gls-s-section gls-s-section--prompt">
+        <button class="gls-s-section-header" aria-expanded="false" type="button">
+            <span class="gls-s-section-title">
+                <i class="fa-solid fa-feather-pointed gls-s-section-icon" aria-hidden="true"></i>
+                <span data-i18n="Prompt">Prompt</span>
+            </span>
+            <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
+        </button>
+        <div class="gls-s-section-body" hidden>
+            <!-- §6.1: Presets — short-name bundles of promptStyle + lang (+CEFR for
+                 the Lang preset). Picked at the top of the Prompt section so the
+                 median user reaches style + language in two clicks, not seven.
+                 '(no preset / manual)' clears selectedPreset without touching other
+                 fields. -->
+            <div class="gls-s-field-group">
+                <label class="gls-s-field-label" for="gls_preset">
+                    <span data-i18n="Preset">Preset</span>
+                </label>
+                <select id="gls_preset" class="gls-s-select">
+                    <option value="" data-i18n="(no preset / manual)">(no preset / manual)</option>
+                    <option value="pratchett50-ru" data-i18n="Pratchett 50 (RU)">Pratchett 50 (RU)</option>
+                    <option value="lang-en-ru-a2" data-i18n="Lang EN → RU · A2">Lang EN → RU · A2</option>
+                    <option value="academic-lore-ru" data-i18n="Academic Lore (RU)">Academic Lore (RU)</option>
+                    <option value="meta-ru" data-i18n="Meta (RU)">Meta (RU)</option>
+                </select>
+            </div>
+            <div class="gls-s-grid-2">
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_prompt_style">
+                        <span data-i18n="Prompt style">Prompt style</span>
+                    </label>
+                    <select id="gls_prompt_style" class="gls-s-select">
+                        <option value="pratchett" data-i18n="Pratchett">Pratchett</option>
+                        <option value="pratchett50" data-i18n="Pratchett 50%">Pratchett 50%</option>
+                        <option value="meta_plus" data-i18n="Meta Narrative+">Meta Narrative+</option>
+                        <option value="academic" data-i18n="Academic">Academic</option>
+                        <option value="language" data-i18n="Language">Language</option>
+                        <option value="custom" data-i18n="Custom">Custom</option>
+                        <option value="hybrid" data-i18n="Hybrid">Hybrid</option>
+                    </select>
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_max_footnotes">
+                        <span data-i18n="Max footnotes per message">Max footnotes per message</span>
+                    </label>
+                    <input id="gls_max_footnotes" type="number" min="1" max="20" class="text_pole gls-s-num">
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_output_language">
+                        <span data-i18n="Footnote language">Footnote language</span>
+                    </label>
+                    <select id="gls_output_language" class="gls-s-select">
+                        <option value="ru" data-i18n="Русский">Русский</option>
+                        <option value="en" data-i18n="English">English</option>
+                    </select>
+                </div>
+            </div>
+            <div id="gls_custom_prompt_wrap" hidden>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_custom_prompt" data-i18n="Custom prompt">Custom prompt</label>
+                    <textarea id="gls_custom_prompt" class="text_pole gls-s-resize-v" rows="6"></textarea>
+                </div>
+            </div>
+            <div id="gls_language_panel" class="gls-s-sub-panel" hidden>
+                <div class="gls-s-sub-title" data-i18n="Language for study">Language for study</div>
+                <div class="gls-s-grid-2">
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_target_language">
+                            <span data-i18n="Target language">Target language</span>
+                        </label>
+                        <select id="gls_target_language" class="gls-s-select">
+                            <optgroup label="Real languages" data-gls-i18n-optgroup="Real languages">
+                                <option value="en">🇬🇧 English</option>
+                                <option value="fr">🇫🇷 Français</option>
+                                <option value="de">🇩🇪 Deutsch</option>
+                                <option value="es">🇪🇸 Español</option>
+                                <option value="it">🇮🇹 Italiano</option>
+                                <option value="pt">🇵🇹 Português</option>
+                                <option value="ja">🇯🇵 日本語</option>
+                                <option value="ko">🇰🇷 한국어</option>
+                                <option value="zh">🇨🇳 中文</option>
+                                <option value="tr">🇹🇷 Türkçe</option>
+                                <option value="pl">🇵🇱 Polski</option>
+                                <option value="nl">🇳🇱 Nederlands</option>
+                            </optgroup>
+                            <optgroup label="Constructed / fictional (advanced)" data-gls-i18n-optgroup="Constructed / fictional (advanced)">
+                                <option value="hvl">🐉 High Valyrian</option>
+                                <option value="tlh">⚔ Klingon</option>
+                                <option value="sin">🍃 Sindarin</option>
+                                <option value="quen">✦ Quenya</option>
+                                <option value="eo">🟢 Esperanto</option>
+                                <option value="tok">🔵 Toki Pona</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_cefr_level">
+                            <span data-i18n="CEFR level">CEFR level</span>
+                        </label>
+                        <select id="gls_cefr_level" class="gls-s-select">
+                            <option value="auto" data-i18n="Auto (from text)">Auto (from text)</option>
+                            <option value="a1a2" data-i18n="A1–A2 Beginner">A1–A2 Beginner</option>
+                            <option value="b1b2" data-i18n="B1–B2 Intermediate">B1–B2 Intermediate</option>
+                            <option value="c1c2" data-i18n="C1–C2 Advanced">C1–C2 Advanced</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <!-- Hybrid style: lens constructor. target/CEFR selectors live in
+                 gls_language_panel above and are co-shown when the Language
+                 lens is on (see updatePromptPanels in settings-sync.js). -->
+            <div id="gls_hybrid_panel" class="gls-s-sub-panel" hidden>
+                <!-- §6.2: collapse the lens toggles + custom-lens editor behind an
+                     Advanced sub-accordion so the median user isn't presented with
+                     5 toggles + an authoring area at the same level as everyday
+                     style/lang selectors. Default collapsed; open-state is not
+                     persisted for v3.1 (click expands, reload resets). The
+                     outer `id="gls_hybrid_panel"` still drives the promptStyle
+                     === 'hybrid' show/hide in updatePromptPanels (unchanged). -->
+                <button class="gls-s-sub-section-toggle gls-s-advanced-toggle" aria-expanded="false" type="button">
+                    <span data-i18n="Advanced lenses">Advanced lenses</span>
+                    <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
+                </button>
+                <div class="gls-s-sub-section-body" hidden>
+                    <div class="gls-s-sub-title" data-i18n="Lenses (constructor)">Lenses (constructor)</div>
+                    <div class="gls-s-grid-2">
+                        <label class="gls-s-toggle-row">
+                            <input type="checkbox" id="gls_hybrid_lens_language" class="checkbox">
+                            <span data-i18n="Language">Language</span>
+                        </label>
+                        <label class="gls-s-toggle-row">
+                            <input type="checkbox" id="gls_hybrid_lens_pratchett" class="checkbox">
+                            <span data-i18n="Pratchett">Pratchett</span>
+                        </label>
+                        <label class="gls-s-toggle-row">
+                            <input type="checkbox" id="gls_hybrid_lens_canon" class="checkbox">
+                            <span data-i18n="Canon">Canon</span>
+                        </label>
+                        <label class="gls-s-toggle-row">
+                            <input type="checkbox" id="gls_hybrid_lens_academic" class="checkbox">
+                            <span data-i18n="Academic">Academic</span>
+                        </label>
+                        <label class="gls-s-toggle-row">
+                            <input type="checkbox" id="gls_hybrid_lens_meta" class="checkbox">
+                            <span data-i18n="Meta">Meta</span>
+                        </label>
+                    </div>
+                    <!-- Custom hybrid lenses (user-authored roles). Each contributes
+                         a "### Lens: <name>\n<role>" block to the assembled hybrid
+                         prompt — voice + when + label + format quirk. \{{OUTPUT_LANGUAGE}}
+                         is substituted; no \{{TARGET_LANG_*}}/\{{CEFR_*}} tokens here.
+                         See _buildHybridPrompt in generator.js. -->
+                    <div class="gls-s-sub-title" data-i18n="Custom lenses">Custom lenses</div>
+                    <div id="gls_custom_lenses_list" class="gls-s-custom-lenses"></div>
+                    <button id="gls_add_custom_lens" class="menu_button" type="button">
+                        <i class="fa-solid fa-plus"></i>
+                        <span data-i18n="Add lens">Add lens</span>
+                    </button>
+                    <small class="gls-s-hint" data-i18n="Compact role: voice + when to footnote + label + format quirk. Supports {{OUTPUT_LANGUAGE}}.">Compact role: voice + when to footnote + label + format quirk. Supports {{OUTPUT_LANGUAGE}}.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ DISPLAY ═══ -->
+    <div class="gls-s-section gls-s-section--display">
+        <button class="gls-s-section-header" aria-expanded="false" type="button">
+            <span class="gls-s-section-title">
+                <i class="fa-solid fa-palette gls-s-section-icon" aria-hidden="true"></i>
+                <span data-i18n="Display">Display</span>
+            </span>
+            <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
+        </button>
+        <div class="gls-s-section-body" hidden>
+            <div class="gls-s-grid-2">
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_display_mode">
+                        <span data-i18n="Display mode">Display mode</span>
+                    </label>
+                    <select id="gls_display_mode" class="gls-s-select">
+                        <option value="inline" data-i18n="Inline only">Inline only</option>
+                        <option value="popup" data-i18n="Popup only">Popup only</option>
+                        <option value="both" data-i18n="Both">Both</option>
+                    </select>
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_highlight_style">
+                        <span data-i18n="Highlight style">Highlight style</span>
+                    </label>
+                    <select id="gls_highlight_style" class="gls-s-select">
+                        <option value="background" data-i18n="Background">Background</option>
+                        <option value="underline" data-i18n="Underline">Underline</option>
+                        <option value="dotted" data-i18n="Dotted">Dotted</option>
+                    </select>
+                </div>
+            </div>
+            <div class="gls-s-field-group">
+                <label class="gls-s-field-label" for="gls_highlight_color_btn">
+                    <span data-i18n="Highlight color">Highlight color</span>
+                </label>
+                <div class="gls-s-field-row gls-s-field-row--anchor">
+                    <!-- Custom HSV picker (hue ring + saturation/value sliders,
+                         src/ui/color-picker.js): the trigger shows the current
+                         color + hex; the popover is appended to this row by
+                         settings-sync and positioned via .gls-color-pop CSS. -->
+                    <button id="gls_highlight_color_btn" class="gls-color-btn" type="button" aria-haspopup="dialog">
+                        <span id="gls_highlight_color_swatch" class="gls-color-swatch" aria-hidden="true"></span>
+                        <span id="gls_highlight_color_hex" class="gls-color-hex">#ffe066</span>
+                    </button>
+                    <span id="gls_highlight_opacity_val" class="gls-s-val">40%</span>
+                    <input id="gls_highlight_opacity" type="range" min="0" max="100" step="5" class="gls-s-range gls-s-grow" aria-label="Highlight opacity">
+                    <!-- Live preview chip: mirrors the chat marker background
+                         (color × opacity over the panel surface) via the same
+                         :root custom properties applyHighlightStyles writes.
+                         Pure CSS — no JS wiring needed. -->
+                    <span class="gls-hl-preview" aria-hidden="true">Aa</span>
+                </div>
+            </div>
+            <!-- Marker snapshot: a real .gls-marker + .gls-sup over the chat
+                 surface, carrying the same gls-hl-* class the chat does. The
+                 marked word is the LAST word and the strip is right-aligned:
+                 the color-picker popover opens below-left (~196px wide), so
+                 the visible right zone keeps the sample chip in view while a
+                 color is being dragged. Color/opacity/size track :root vars;
+                 only the style class + inline flag are swapped by
+                 syncDisplayPreviews(). -->
+            <div class="gls-s-field-group">
+                <div class="gls-s-preview-label" data-i18n="Marker in chat">Marker in chat</div>
+                <div id="gls_marker_preview" class="gls-chat-preview gls-hl-background" aria-hidden="true">
+                    <span data-i18n="Nearby woke the">Nearby woke the</span>
+                    <span class="gls-marker"><span data-i18n="Kraken">Kraken</span><sup class="gls-sup">¹</sup></span>.
+                </div>
+            </div>
+            <div class="gls-s-grid-2">
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_font_family">
+                        <span data-i18n="Popup font family">Popup font family</span>
+                    </label>
+                    <select id="gls_font_family" class="gls-s-select">
+                        <option value="inherit" data-i18n="Inherit">Inherit</option>
+                        <option value="serif" data-i18n="Serif">Serif</option>
+                        <option value="charter" data-i18n="Bookish (Charter / Sitka)">Bookish (Charter / Sitka)</option>
+                        <option value="palatino" data-i18n="Palatino">Palatino</option>
+                        <option value="verdana" data-i18n="Verdana">Verdana</option>
+                        <option value="mono" data-i18n="Monospace">Monospace</option>
+                    </select>
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_font_size">
+                        <span data-i18n="Popup font size">Popup font size</span>
+                    </label>
+                    <!-- Slider (0.70–1.50em, step 0.05) — replaced the old
+                         select + −/+ stepper: same setting format ("0.90em"),
+                         fewer clicks, live preview while dragging. -->
+                    <div class="gls-s-field-row">
+                        <input id="gls_font_size" type="range" min="0.7" max="1.5" step="0.05" class="gls-s-range gls-s-grow" aria-label="Popup font size">
+                        <span id="gls_font_size_val" class="gls-s-val">0.90em</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Floating panel gets its OWN font pair: the panel is dense UI
+                 chrome (tabs, rows, buttons), so users may want it smaller or
+                 plainer than the footnote reading text. Values live in
+                 panelFontFamily / panelFontSize; same stacks as the popup. -->
+            <div class="gls-s-grid-2">
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_panel_font_family">
+                        <span data-i18n="Panel font family">Panel font family</span>
+                    </label>
+                    <select id="gls_panel_font_family" class="gls-s-select">
+                        <option value="inherit" data-i18n="Inherit">Inherit</option>
+                        <option value="serif" data-i18n="Serif">Serif</option>
+                        <option value="charter" data-i18n="Bookish (Charter / Sitka)">Bookish (Charter / Sitka)</option>
+                        <option value="palatino" data-i18n="Palatino">Palatino</option>
+                        <option value="verdana" data-i18n="Verdana">Verdana</option>
+                        <option value="mono" data-i18n="Monospace">Monospace</option>
+                    </select>
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_panel_font_size">
+                        <span data-i18n="Panel font size">Panel font size</span>
+                    </label>
+                    <div class="gls-s-field-row">
+                        <input id="gls_panel_font_size" type="range" min="0.7" max="1.5" step="0.05" class="gls-s-range gls-s-grow" aria-label="Panel font size">
+                        <span id="gls_panel_font_size_val" class="gls-s-val">0.90em</span>
+                    </div>
+                </div>
+            </div>
+            <div class="gls-s-grid-2">
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_marker_size">
+                        <span data-i18n="Marker (sup) font size">Marker (sup) font size</span>
+                    </label>
+                    <select id="gls_marker_size" class="gls-s-select">
+                        <option value="0.60em">0.60em</option>
+                        <option value="0.65em">0.65em</option>
+                        <option value="0.70em">0.70em</option>
+                        <option value="0.75em" selected>0.75em</option>
+                        <option value="0.80em">0.80em</option>
+                        <option value="0.85em">0.85em</option>
+                        <option value="0.90em">0.90em</option>
+                        <option value="1.00em">1.00em</option>
+                    </select>
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_popup_position">
+                        <span data-i18n="Popup position">Popup position</span>
+                    </label>
+                    <select id="gls_popup_position" class="gls-s-select">
+                        <option value="auto" data-i18n="Auto (side with more space)">Auto (side with more space)</option>
+                        <option value="below" data-i18n="Below the marker">Below the marker</option>
+                        <option value="above" data-i18n="Above the marker">Above the marker</option>
+                    </select>
+                </div>
+            </div>
+            <div class="gls-s-field-group">
+                <label class="gls-s-field-label" for="gls_popup_width">
+                    <span data-i18n="Popup max width">Popup max width</span>
+                </label>
+                <div class="gls-s-field-row">
+                    <input id="gls_popup_width" type="range" min="280" max="640" step="20" class="gls-s-range gls-s-grow" aria-label="Popup max width">
+                    <span id="gls_popup_width_val" class="gls-s-val">420px</span>
+                </div>
+            </div>
+            <!-- Popup appearance: skin select (fixed color bundles, applied via
+                 :root .gls-popup-skin-* classes) + three orthogonal knobs.
+                 Radius is a px var; density and shadow are :root classes. The
+                 snapshot below mirrors every one of them live — skins also
+                 restyle the snapshot itself, so what you see is the popup. -->
+            <div class="gls-s-field-group">
+                <label class="gls-s-field-label" for="gls_popup_theme">
+                    <span data-i18n="Popup style">Popup style</span>
+                </label>
+                <select id="gls_popup_theme" class="gls-s-select">
+                    <option value="adaptive" data-i18n="Adaptive (match theme)">Adaptive (match theme)</option>
+                    <option value="paper" data-i18n="Paper note">Paper note</option>
+                    <option value="terminal" data-i18n="Terminal">Terminal</option>
+                    <option value="telegram" data-i18n="Telegram blank">Telegram blank</option>
+                    <option value="bubble" data-i18n="Messenger bubble">Messenger bubble</option>
+                    <option value="glass" data-i18n="Frosted glass">Frosted glass</option>
+                    <option value="codex" data-i18n="Ancient codex">Ancient codex</option>
+                    <option value="neon" data-i18n="Neon">Neon</option>
+                </select>
+            </div>
+            <div class="gls-s-grid-2">
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_popup_density">
+                        <span data-i18n="Popup density">Popup density</span>
+                    </label>
+                    <select id="gls_popup_density" class="gls-s-select">
+                        <option value="comfortable" data-i18n="Comfortable">Comfortable</option>
+                        <option value="compact" data-i18n="Compact">Compact</option>
+                    </select>
+                </div>
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_popup_shadow">
+                        <span data-i18n="Popup shadow">Popup shadow</span>
+                    </label>
+                    <select id="gls_popup_shadow" class="gls-s-select">
+                        <option value="strong" data-i18n="Expressive">Expressive</option>
+                        <option value="soft" data-i18n="Soft">Soft</option>
+                        <option value="none" data-i18n="None">None</option>
+                    </select>
+                </div>
+            </div>
+            <div class="gls-s-field-group">
+                <label class="gls-s-field-label" for="gls_popup_corner">
+                    <span data-i18n="Popup corner radius">Popup corner radius</span>
+                </label>
+                <div class="gls-s-field-row">
+                    <input id="gls_popup_corner" type="range" min="0" max="20" step="1" class="gls-s-range gls-s-grow" aria-label="Popup corner radius">
+                    <span id="gls_popup_corner_val" class="gls-s-val">12px</span>
+                </div>
+            </div>
+            <div class="gls-s-toggles">
+                <label class="gls-s-toggle-row">
+                    <input type="checkbox" id="gls_floating_panel" class="checkbox">
+                    <span data-i18n="Show floating panel">Show floating panel</span>
+                </label>
+                <label class="gls-s-toggle-row">
+                    <input type="checkbox" id="gls_popup_header" class="checkbox">
+                    <span>
+                        <span class="gls-s-label-bold" data-i18n="Show popup header (Copy/Edit/Delete/Close)">Show popup header (Copy/Edit/Delete/Close)</span>
+                        <small class="gls-s-hint" data-i18n="Off = text-only popup. Close with Esc or a click outside; edit and delete stay in the floating panel.">Off = text-only popup. Close with Esc or a click outside; edit and delete stay in the floating panel.</small>
+                    </span>
+                </label>
+            </div>
+            <!-- Popup snapshot: static twin of .gls-popup reading the same
+                 tokens (surface/edge, --gls-shadow-float, font vars,
+                 --gls-popup-maxw, --gls-popup-radius, skin/density/shadow
+                 :root classes). Header visibility is class-swapped by
+                 syncDisplayPreviews(); everything else is pure CSS live.
+                 Decorative: spans, not buttons, and the container is
+                 pointer-events:none + aria-hidden. -->
+            <div class="gls-s-field-group">
+                <div class="gls-s-preview-label" data-i18n="Popup">Popup</div>
+                <div id="gls_popup_preview" class="gls-popup-preview" aria-hidden="true">
+                    <div class="gls-popup-header">
+                        <span class="gls-popup-action-btn"><i class="fa-solid fa-copy fa-fw" aria-hidden="true"></i><span data-i18n="Copy">Copy</span></span>
+                        <span class="gls-popup-action-btn"><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i><span data-i18n="Edit">Edit</span></span>
+                        <span class="gls-popup-action-btn"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i><span data-i18n="Delete">Delete</span></span>
+                        <span class="gls-popup-close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></span>
+                    </div>
+                    <div class="gls-popup-body">
+                        <div class="gls-popup-title"><sup class="gls-popup-title-idx">1</sup><span data-i18n="Kraken">Kraken</span></div>
+                        <p class="gls-popup-text"><span data-i18n="A colossal sea beast; sailors say its arms can crush a whole fleet.">A colossal sea beast; sailors say its arms can crush a whole fleet.</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ BEHAVIOR ═══ -->
+    <div class="gls-s-section gls-s-section--behavior">
+        <button class="gls-s-section-header" aria-expanded="false" type="button">
+            <span class="gls-s-section-title">
+                <i class="fa-solid fa-sliders gls-s-section-icon" aria-hidden="true"></i>
+                <span data-i18n="Behavior">Behavior</span>
+            </span>
+            <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
+        </button>
+        <div class="gls-s-section-body" hidden>
+            <label class="gls-s-toggle-row">
+                <input type="checkbox" id="gls_auto_generate" class="checkbox">
+                <span>
+                    <span class="gls-s-label-bold" data-i18n="Auto-generate on new messages">Auto-generate on new messages</span>
+                    <small class="gls-s-hint" data-i18n="Generate footnotes after each AI reply">Generate footnotes after each AI reply</small>
+                </span>
+            </label>
+            <label class="gls-s-toggle-row">
+                <input type="checkbox" id="gls_gloss_user" class="checkbox">
+                <span>
+                    <span class="gls-s-label-bold" data-i18n="Gloss user messages">Gloss user messages</span>
+                    <small class="gls-s-hint" data-i18n="Add a regenerate button to your own posts">Add a regenerate button to your own posts</small>
+                </span>
+            </label>
+            <div class="gls-s-field-group gls-s-mt-md">
+                <label class="gls-s-field-label" for="gls_stop_words">
+                    <span data-i18n="Stop words (comma separated)">Stop words (comma separated)</span>
+                </label>
+                <textarea id="gls_stop_words" class="text_pole gls-s-resize-v" rows="2" placeholder="word1, word2, phrase three"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ SOUND ═══ -->
+    <div class="gls-s-section gls-s-section--sound">
+        <button class="gls-s-section-header" aria-expanded="false" type="button">
+            <span class="gls-s-section-title">
+                <i class="fa-solid fa-volume-high gls-s-section-icon" aria-hidden="true"></i>
+                <span data-i18n="Sound">Sound</span>
+            </span>
+            <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
+        </button>
+        <div class="gls-s-section-body" hidden>
+            <!-- Enable + volume share the primary row; file selection and
+                 sound actions remain visible below it. -->
+            <div class="gls-s-sound-row">
+                <label class="gls-s-toggle-row">
+                    <input type="checkbox" id="gls_sound_enabled" class="checkbox">
+                    <span data-i18n="Enable sound notification">Enable sound notification</span>
+                </label>
+                <label class="gls-s-field-label gls-s-inline-label" for="gls_sound_volume">
+                    <span data-i18n="Volume">Volume</span>
+                    &nbsp;<span id="gls_sound_volume_val" class="gls-s-val">30%</span>
+                </label>
+                <input id="gls_sound_volume" type="range" min="0" max="100" step="5" class="gls-s-range">
+            </div>
+            <div class="gls-s-file-row">
+                <label class="gls-s-field-label" for="gls_sound_select">
+                    <span data-i18n="Sound file">Sound file</span>
+                </label>
+                <select id="gls_sound_select" class="gls-s-grow"></select>
+            </div>
+            <div class="gls-s-sound-actions">
+                <label class="gls-btn gls-s-upload" title="Upload custom sound" data-i18n="[title]Upload custom sound">
+                    <i class="fa-solid fa-upload fa-fw" aria-hidden="true"></i>
+                    <span data-i18n="Upload">Upload</span>
+                    <input type="file" id="gls_sound_file" accept=".ogg,.mp3,.wav,.m4a,.aac,.webm" hidden>
+                </label>
+                <button id="gls_sound_reset" class="gls-btn" type="button"
+                        title="Remove custom sound" data-i18n="[title]Remove custom sound" style="display:none;">
+                    <i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i>
+                    <span data-i18n="Remove">Remove</span>
+                </button>
+                <button id="gls_sound_test" class="gls-btn" type="button"
+                        title="Preview" data-i18n="[title]Preview">
+                    <i class="fa-solid fa-play fa-fw" aria-hidden="true"></i>
+                    <span data-i18n="Listen">Listen</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ CONTEXT ═══ -->
+    <div class="gls-s-section gls-s-section--context">
+        <button class="gls-s-section-header" aria-expanded="false" type="button">
+            <span class="gls-s-section-title">
+                <i class="fa-solid fa-book-open gls-s-section-icon" aria-hidden="true"></i>
+                <span data-i18n="Context">Context</span>
+            </span>
+            <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
+        </button>
+        <div class="gls-s-section-body" hidden>
+            <div class="gls-s-field-group">
+                <label class="gls-s-field-label" for="gls_context_depth">
+                    <span data-i18n="Include N recent messages (0 = none)">Include N recent messages (0 = none)</span>
+                </label>
+                <input id="gls_context_depth" type="number" min="0" max="50" class="text_pole gls-s-num">
+            </div>
+            <div class="gls-s-context-group">
+                <div class="gls-s-context-title">
+                    <span data-i18n="Include in context">Include in context</span>
+                </div>
+                <label class="gls-s-toggle-row gls-s-toggle-row--indent">
+                    <input type="checkbox" id="gls_inc_card" class="checkbox">
+                    <span data-i18n="Character card">Character card</span>
+                </label>
+                <label class="gls-s-toggle-row gls-s-toggle-row--indent">
+                    <input type="checkbox" id="gls_inc_persona" class="checkbox">
+                    <span data-i18n="User persona">User persona</span>
+                </label>
+                <label class="gls-s-toggle-row gls-s-toggle-row--indent">
+                    <input type="checkbox" id="gls_inc_wi" class="checkbox">
+                    <span data-i18n="Lorebook / World Info">Lorebook / World Info</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+</div>

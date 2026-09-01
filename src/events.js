@@ -1,0 +1,489 @@
+// @ts-check
+/**
+ * Glosses — Events module
+ * ST event handling and scroll observer for "follow the visible message".
+ *
+ * Ported 1:1 from SillyTavern-Footnotes (the Footnotes Database popup was
+ * removed in v3.0 — search/export/clear-all now live in the floating panel
+ * and the /glosses clear slash command).
+ */
+
+import {
+    state, S, getCtx, t, MIN_POST_LENGTH,
+} from './core.js';
+import { generationCoordinator } from './application/generation-coordinator.js';
+import {
+    getVariantPayload, getVariantFootnotes, readRawPayloadFor, rebindVariant,
+} from './cache.js';
+import {
+    injectHighlights, removeHighlights, restoreHighlightsAll, restoreMessage, addRegenButton,
+    installMarkerDelegation, resetLazyInjector, closePopup,
+} from './renderer.js';
+import {
+    updatePanel, setVisiblePost, invalidateAiMsgCache, panelInvalidate, clearTargetedTabState,
+} from './ui/window.js';
+import { ensureLauncher } from './ui/launcher.js';
+import { generateFootnotes } from './generator.js';
+import { checkSourceConfigured } from './connection.js';
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EVENT BINDING
+// ══════════════════════════════════════════════════════════════════════════════
+
+const _eventHandlers = {};
+let _eventsBound = false;
+// Feature-detect MESSAGE_UPDATED (emitted AFTER ST re-renders an edited
+// message — script.js messageEditDone). Min client has it; the fallback for
+// hosts without it rebinds on MESSAGE_EDITED with a deferred DOM injection.
+let _hasUpdatedEvent = false;
+
+export function bindEvents() {
+    if (_eventsBound) return;
+    const { eventSource, event_types } = getCtx();
+    // Bail out without setting the flag if the host contract isn't ready — a
+    // later init pass must still be able to bind.
+    if (!eventSource || !event_types) return;
+
+    const on = (ev, fn) => {
+        eventSource.on(ev, fn);
+        _eventHandlers[ev] = _eventHandlers[ev] || [];
+        _eventHandlers[ev].push(fn);
+    };
+
+    on(event_types.APP_INITIALIZED, onAppReady);
+    on(event_types.CHAT_CHANGED, onChatChanged);
+    on(event_types.CHARACTER_MESSAGE_RENDERED, onCharMsgRendered);
+    on(event_types.MESSAGE_SWIPED, onMsgSwiped);
+    on(event_types.MESSAGE_EDITED, onMsgEdited);
+    on(event_types.MESSAGE_DELETED, onMsgDeleted);
+    _hasUpdatedEvent = !!event_types.MESSAGE_UPDATED;
+    if (_hasUpdatedEvent) on(event_types.MESSAGE_UPDATED, onMsgUpdated);
+    // Lazy-load: ST's "Show more messages" prepends older messages that were
+    // not in the DOM at chat-open → restoreHighlightsAll missed them. Re-run
+    // the per-message restore so markers + regen buttons appear.
+    if (event_types.MORE_MESSAGES_LOADED) {
+        on(event_types.MORE_MESSAGES_LOADED, onMoreMessagesLoaded);
+    }
+
+    _eventsBound = true;
+}
+
+export function unbindEvents() {
+    const { eventSource } = getCtx();
+    for (const [ev, handlers] of Object.entries(_eventHandlers)) {
+        for (const fn of handlers) {
+            try { eventSource?.removeListener?.(ev, fn); } catch { /* host may be gone */ }
+        }
+    }
+    Object.keys(_eventHandlers).forEach(k => delete _eventHandlers[k]);
+    _eventsBound = false;
+}
+
+function onAppReady() {
+    installMarkerDelegation();
+    restoreHighlightsAll();
+}
+
+function onChatChanged() {
+    // Stage 6: invalidate ALL in-flight generations — chat change bumps the
+    // global chatEpoch (so still-running requests whose transports ignore
+    // AbortSignal still discard via isCurrent) and aborts every controller.
+    // This is the ONLY place that bumps the global epoch; swipes/edits of a
+    // single message use bumpMessageRevision instead (scoped).
+    generationCoordinator.invalidateAll();
+    resetGenerationState();
+    state.panelFocusMsgId = null;
+    invalidateAiMsgCache();
+    resetLazyInjector();
+    installMarkerDelegation();
+    setTimeout(() => {
+        restoreHighlightsAll();
+        initScrollObserver();
+    }, 0);
+    // Clear the transient targeted request and state synchronously BEFORE the
+    // panel re-render so an old chat-change continuation cannot cancel a new
+    // chat's targeted request, and the first render of the new chat never
+    // shows the previous chat's draft/result for a frame.
+    clearTargetedTabState();
+    updatePanel();
+    // ST rebuilds #qr--bar on chat switch — re-mount the 📖 launcher so it
+    // doesn't vanish from the quick-reply row.
+    try { ensureLauncher(); } catch { /* non-critical */ }
+}
+
+function resetGenerationState() {
+    for (const k of Object.keys(state.abortControllers)) delete state.abortControllers[k];
+    for (const k of Object.keys(state.isGenerating)) delete state.isGenerating[k];
+}
+
+/**
+ * Shared "the message is now showing variant swipeIdx" flow for rendered and
+ * swiped messages: verified payload → inject; stale payload (text changed
+ * while away — a "continue" or an edit of another slot) → rebind and inject
+ * the survivors; nothing stored → auto-generate.
+ */
+async function presentVariant(messageId, swipeIdx, mesEl) {
+    // Translation-detection guard: the built-in Translate extension writes
+    // `message.mes` with translated text while preserving the original in
+    // `extra.display_text` (translate/index.js:533). The digest mismatch is
+    // intentional — rebind against the translated text would orphan every
+    // footnote, and auto-generation would generate footnotes for the
+    // translation rather than the original. Skip both; when the user
+    // un-translates, the digest re-matches and the cached payload restores.
+    const ctx = getCtx();
+    const msg = ctx.chat?.[parseInt(messageId)];
+    if (msg?.extra?.display_text || msg?.extra?.reasoning_display_text) return;
+
+    const payload = getVariantPayload(messageId, swipeIdx);
+    if (payload) {
+        // Merged read (regular + targeted) so both kinds' markers inject.
+        const merged = getVariantFootnotes(messageId, swipeIdx);
+        if (merged?.length) injectHighlights(mesEl, merged);
+        // Zero-footnote payloads (everything orphaned by an earlier rebind)
+        // fall through to the panel's orphan banner + regenerate CTA.
+        updatePanel();
+        return;
+    }
+    const raw = readRawPayloadFor(messageId, swipeIdx);
+    if (raw) {
+        // Stored for this variant but the digest no longer matches. rebindVariant
+        // distinguishes two causes: the text changed under a native payload
+        // (edit / continue — repair and inject the survivors), or the payload is
+        // FOREIGN — its digest matches another variant of this message, meaning
+        // SillyTavern's extra cloning planted the old swipe's payload in this
+        // slot. A foreign payload is cleared inside rebindVariant; this variant
+        // then behaves as if it never had footnotes and falls through to
+        // auto-generation instead of showing transplanted anchors or a bogus
+        // lost-anchors banner.
+        const result = rebindVariant(messageId, swipeIdx);
+        if (result?.foreign) {
+            await autoGenerateIfConfigured(messageId, swipeIdx, mesEl);
+            return;
+        }
+        const merged = getVariantFootnotes(messageId, swipeIdx);
+        if (merged?.length) injectHighlights(mesEl, merged);
+        updatePanel();
+        return;
+    }
+    await autoGenerateIfConfigured(messageId, swipeIdx, mesEl);
+}
+
+async function onCharMsgRendered(messageId) {
+    const ctx = getCtx();
+    const msg = ctx.chat?.[parseInt(messageId)];
+    if (!msg || msg.is_user || msg.is_system || msg.is_hidden || !S().enabled) return;
+
+    // False-start guard (mirrors DS Comments src/events.js CHARACTER_MESSAGE_RENDERED
+    // handler). SillyTavern leaves mes/swipe text as the `'...'` placeholder (or
+    // empty) while a new post is still being generated. Without this guard the
+    // placeholder would pass as a truthy identity, the payload read misses, and
+    // generateFootnotes fires on a not-yet-written post — burning an API call.
+    const swipeIdx = msg.swipe_id ?? 0;
+    const candidate = Array.isArray(msg.swipes) ? (msg.swipes[swipeIdx] ?? msg.mes) : msg.mes;
+    const postText = (candidate || '').trim();
+    if (!postText || postText === '...' || postText.length < MIN_POST_LENGTH) return;
+
+    const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
+
+    addRegenButton(messageId);
+    // A freshly rendered AI message invalidates the cached AI-id list.
+    invalidateAiMsgCache();
+    state.panelFocusMsgId = String(messageId);
+
+    await presentVariant(messageId, swipeIdx, mesEl);
+}
+
+async function onMsgSwiped(messageId) {
+    // A swipe changes the text identity for THIS message. Bump its per-message
+    // revision (aborting its run) instead of the global epoch, so an unrelated
+    // in-flight generation of another message keeps running.
+    generationCoordinator.bumpMessageRevision(messageId);
+    state.panelFocusMsgId = String(messageId);
+    const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
+    removeHighlights(mesEl);
+
+    const ctx = getCtx();
+    const msg = ctx.chat?.[parseInt(messageId)];
+    if (!msg || msg.is_user || msg.is_system || msg.is_hidden || !S().enabled) {
+        updatePanel();
+        return;
+    }
+
+    const swipeIdx = msg.swipe_id ?? 0;
+    // ⚠ Use swipes[idx] ONLY — do NOT fall back to msg.mes. During an overswipe-
+    // regenerate, ST fires MESSAGE_SWIPED in animateSwipe() BEFORE Generate('swipe')
+    // streams the new variant: swipe_id is already advanced to the empty new slot
+    // (swipes[idx] is undefined / '...'), but msg.mes still holds the OLD swipe's
+    // text. Falling back to that stale msg.mes would pass the false-start guard,
+    // generate footnotes on STALE content and file them under the new variant's
+    // digest. By skipping when the slot is empty we hand generation to the
+    // _RENDERED that fires once streaming ends.
+    const swipeText = Array.isArray(msg.swipes) ? (msg.swipes[swipeIdx] ?? null) : null;
+    const check = (swipeText ?? '').trim();
+    if (!swipeText || check === '...' || check.length < MIN_POST_LENGTH) {
+        updatePanel();
+        return;
+    }
+
+    addRegenButton(messageId);
+    await presentVariant(messageId, swipeIdx, mesEl);
+}
+
+function onMsgEdited(messageId) {
+    // An edit changes the message body. Abort this message's in-flight
+    // generation (scoped revision), close any popup anchored to the old DOM,
+    // and strip the now-stale markers. The payload itself is NOT deleted —
+    // MESSAGE_UPDATED (fired by ST after it re-renders the edited message)
+    // rebinds the anchors to the new text and re-injects the survivors.
+    generationCoordinator.bumpMessageRevision(messageId);
+    closePopup();
+    const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
+    removeHighlights(mesEl);
+    panelInvalidate();
+    updatePanel();
+    // Hosts without MESSAGE_UPDATED: re-render happens synchronously inside
+    // messageEditDone, so a double-rAF lands after the new .mes_text is up.
+    if (!_hasUpdatedEvent) {
+        requestAnimationFrame(() => requestAnimationFrame(() => onMsgUpdated(messageId)));
+    }
+}
+
+/**
+ * MESSAGE_UPDATED — fired by ST AFTER an edited message has been re-rendered
+ * (and before its saveChatConditional), and also when an edit is CANCELLED
+ * (messageEditCancel re-renders the original text). Rebind is idempotent: a
+ * cancelled edit leaves the digest unchanged and this only re-injects.
+ */
+function onMsgUpdated(messageId) {
+    const ctx = getCtx();
+    const msg = ctx.chat?.[parseInt(messageId)];
+    if (!msg || msg.is_system || !S().enabled) return;
+
+    const swipeIdx = msg.swipe_id ?? 0;
+    const result = rebindVariant(messageId, swipeIdx);
+    if (result) {
+        const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
+        if (mesEl) {
+            removeHighlights(mesEl);
+            // Merged read (regular + targeted): injecting result.payload.footnotes
+            // alone dropped the targeted entries' markers and block rows after
+            // an edit. rebindVariant persists its repair, so a fresh verified
+            // read is the same data — now with both kinds.
+            const merged = getVariantFootnotes(messageId, swipeIdx);
+            if (merged?.length) injectHighlights(mesEl, merged);
+        }
+    }
+    panelInvalidate();
+    updatePanel();
+}
+
+function onMsgDeleted(messageId, newLength) {
+    // Payloads live inside the message objects, so deletion disposes of them
+    // with the message and index shifts move surviving data with its message —
+    // no reindex remap is needed (or possible to get wrong) anymore.
+    const ctx = getCtx();
+    const chatLen = Array.isArray(ctx.chat) ? ctx.chat.length
+        : (typeof newLength === 'number' ? newLength : 0);
+    invalidateAiMsgCache();
+
+    // Fix the panel focus pointer: an out-of-range focus is dropped so
+    // updatePanel re-picks the best visible AI post instead of pointing at a
+    // hole. An in-range focus simply follows the position (the occupant's own
+    // payload renders — data is per-message, so it is always the right data).
+    const focus = state.panelFocusMsgId;
+    if (focus) {
+        const fIdx = parseInt(focus);
+        if (isNaN(fIdx) || fIdx >= chatLen) state.panelFocusMsgId = null;
+    }
+    updatePanel();
+}
+
+/**
+ * MORE_MESSAGES_LOADED — ST's lazy-load ("Show more messages") prepended older
+ * .mes nodes that were not in the DOM when restoreHighlightsAll ran at
+ * CHAT_CHANGED. Walk the now-present elements and restore markers + regen
+ * buttons for any message that didn't get them yet. restoreMessage is
+ * idempotent (addRegenButton/injectIfCached/observeForLazyInject all guard
+ * against double work), so re-processing already-restored messages is cheap.
+ */
+function onMoreMessagesLoaded() {
+    document.querySelectorAll('.mes[mesid]').forEach(mesEl => restoreMessage(mesEl));
+}
+
+/**
+ * Auto-generate entry point shared by presentVariant's callers.
+ *
+ * C3: pre-flight the source config BEFORE calling generateFootnotes. If the
+ * source is unconfigured, skip silently and surface ONE info toast per
+ * unconfigured episode (state.configWarned), then stay quiet until a real
+ * generation succeeds (which clears the flag) - instead of toasting on every
+ * new AI message. Manual regenerate (regen button / /glosses regenerate) calls
+ * generateFootnotes directly and is NOT guarded, so manual failures still toast
+ * every time.
+ */
+async function autoGenerateIfConfigured(messageId, swipeIdx, mesEl) {
+    if (!S().autoGenerate || state.isGenerating[messageId]) return;
+    const cfg = await checkSourceConfigured();
+    // §6.4: re-record on every check so the floating panel sees the latest
+    // result (not just the first unconfigured episode) and can show a
+    // persistent "Source not configured" badge instead of silently idling.
+    state.configuredState = cfg;
+    if (!cfg.ok) {
+        if (!state.configWarned) {
+            state.configWarned = true;
+            toastr?.info?.(`[Glosses] Auto-generation paused: ${cfg.reason}`);
+        }
+        return;
+    }
+    state.configWarned = false;
+    await generateFootnotes(messageId, swipeIdx, mesEl);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SCROLL OBSERVER
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _scrollIO = null;
+let _scrollMO = null;
+let _scrollChatEl = null;
+let _scrollHandler = null;
+let _observedIds = new Set();
+let _observedEls = new Map();
+let _visibleRatios = new Map();
+let _scrollRaf = 0;
+let _panelPickRaf = 0;
+
+export function initScrollObserver() {
+    _scrollIO?.disconnect(); _scrollIO = null;
+    _scrollMO?.disconnect(); _scrollMO = null;
+    if (_scrollChatEl && _scrollHandler) {
+        _scrollChatEl.removeEventListener('scroll', _scrollHandler);
+        _scrollChatEl.removeEventListener('touchend', _scrollHandler);
+    }
+    if (_scrollRaf) cancelAnimationFrame(_scrollRaf);
+    if (_panelPickRaf) cancelAnimationFrame(_panelPickRaf);
+    _scrollRaf = 0; _panelPickRaf = 0;
+    _observedIds.clear(); _observedEls.clear(); _visibleRatios.clear();
+
+    if (!S().floatingPanelEnabled) return;
+    const chatEl = document.getElementById('chat');
+    if (!chatEl) return;
+    _scrollChatEl = chatEl;
+
+    _scrollIO = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            const id = entry.target.getAttribute('mesid');
+            if (!id) continue;
+            if (entry.isIntersecting && entry.intersectionRatio > 0) {
+                _visibleRatios.set(id, entry.intersectionRatio);
+            } else {
+                _visibleRatios.delete(id);
+            }
+        }
+        schedulePick();
+    }, { threshold: [0, 0.25, 0.6, 1.0] });
+
+    observeAllAiMessages();
+
+    _scrollHandler = scheduleScrollFallback;
+    chatEl.addEventListener('scroll', _scrollHandler, { passive: true });
+    chatEl.addEventListener('touchend', _scrollHandler, { passive: true });
+
+    // Pick up newly rendered messages without re-scanning the whole chat.
+    _scrollMO = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+            for (const node of m.addedNodes) {
+                if (node.nodeType !== Node.ELEMENT_NODE) continue;
+                if (node.matches?.('.mes[mesid]')) observeAiNode(node);
+                node.querySelectorAll?.('.mes[mesid]').forEach(observeAiNode);
+            }
+        }
+    });
+    _scrollMO.observe(chatEl, { childList: true, subtree: false });
+}
+
+function observeAllAiMessages() {
+    if (!_scrollIO) return;
+    document.querySelectorAll('.mes[mesid]').forEach(observeAiNode);
+}
+
+function observeAiNode(el) {
+    if (!_scrollIO || !el) return;
+    const id = el.getAttribute('mesid');
+    if (!id || _observedIds.has(id)) return;
+    const msg = getCtx().chat?.[parseInt(id)];
+    if (!msg || msg.is_system) return;
+    // User posts are scroll-observed (so the panel can follow them) only when
+    // glossUserMessages is on.
+    if (msg.is_user && !S().glossUserMessages) return;
+    _observedIds.add(id);
+    _observedEls.set(id, el);
+    _scrollIO.observe(el);
+}
+
+function schedulePick() {
+    if (_panelPickRaf) return;
+    _panelPickRaf = requestAnimationFrame(() => {
+        _panelPickRaf = 0;
+        pickMostVisible(_visibleRatios);
+    });
+}
+
+function pickMostVisible(ioMap) {
+    if (!S().floatingPanelEnabled || !ioMap.size) return;
+    let bestId = null, bestRatio = -1;
+    const chat = getCtx().chat;
+    const allowUser = S().glossUserMessages;
+    for (const [id, ratio] of ioMap) {
+        const msg = chat?.[parseInt(id)];
+        if (!msg || msg.is_system) continue;
+        if (msg.is_user && !allowUser) continue;
+        if (ratio > bestRatio) { bestRatio = ratio; bestId = id; }
+    }
+    if (bestId !== null) setVisiblePost(bestId);
+}
+
+function scheduleScrollFallback() {
+    if (_scrollRaf) return;
+    _scrollRaf = requestAnimationFrame(() => {
+        _scrollRaf = 0;
+        scrollFallback();
+    });
+}
+
+function scrollFallback() {
+    if (!S().floatingPanelEnabled) return;
+    const vh = window.innerHeight;
+    const center = vh / 2;
+    let bestId = null, bestDist = Infinity;
+    const chat = getCtx().chat;
+    const allowUser = S().glossUserMessages;
+    for (const id of _observedIds) {
+        const msg = chat?.[parseInt(id)];
+        if (!msg || msg.is_system) continue;
+        if (msg.is_user && !allowUser) continue;
+        const el = _observedEls.get(id);
+        if (!el || !el.isConnected) {
+            _observedIds.delete(id); _observedEls.delete(id); _visibleRatios.delete(id);
+            continue;
+        }
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom < 0 || rect.top > vh) continue;
+        const dist = Math.abs(rect.top + rect.height / 2 - center);
+        if (dist < bestDist) { bestDist = dist; bestId = id; }
+    }
+    if (bestId !== null) setVisiblePost(bestId);
+}
+
+export function disconnectScrollObserver() {
+    _scrollIO?.disconnect(); _scrollIO = null;
+    _scrollMO?.disconnect(); _scrollMO = null;
+    if (_scrollChatEl && _scrollHandler) {
+        _scrollChatEl.removeEventListener('scroll', _scrollHandler);
+        _scrollChatEl.removeEventListener('touchend', _scrollHandler);
+    }
+    if (_scrollRaf) cancelAnimationFrame(_scrollRaf);
+    if (_panelPickRaf) cancelAnimationFrame(_panelPickRaf);
+    _scrollRaf = 0; _panelPickRaf = 0;
+    _observedIds.clear(); _observedEls.clear(); _visibleRatios.clear();
+}

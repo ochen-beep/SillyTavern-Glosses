@@ -1,0 +1,1871 @@
+/* ============================================================
+   Glosses v3.0 — Literary Footnotes for SillyTavern
+   style.css
+   ============================================================
+   Principles:
+   - CSS custom properties for all configurable values
+   - Theme-aware: --SmartTheme* tokens for backgrounds/borders/text
+   - No heavy animations, no backdrop-filter, no gradients
+   - Mobile-first
+   ============================================================ */
+
+:root {
+    --gls-hl-color: #ffe066;
+    --gls-hl-opacity: 1;
+    --gls-font-family: inherit;
+    --gls-font-size: 0.9em;
+    /* Panel font pair — the floating panel chrome (written by
+       applyHighlightStyles from the panelFontFamily/panelFontSize settings). */
+    --gls-panel-font-family: inherit;
+    --gls-panel-font-size: 0.9em;
+    --gls-marker-size: 0.75em;
+    --gls-popup-maxw: 420px;
+    /* Popup corner radius (popupCornerRadius setting, slider 0–20). 12px
+       reproduces the historic --gls-radius-lg look. */
+    --gls-popup-radius: 12px;
+    --gls-accent: var(--SmartThemeQuoteColor, #ffb84d);
+    --gls-accent-dim: color-mix(in srgb, var(--gls-accent) 22%, transparent);
+    --gls-accent-dim2: color-mix(in srgb, var(--gls-accent) 40%, transparent);
+    --gls-border: var(--SmartThemeBorderColor, #444);
+    /* Window/popup background. ST exposes no opaque "chrome" token; the right
+       hue lives in --SmartThemeBlurTintColor, but its alpha is theme-dependent
+       (~0 on transparent themes), which made the popup, inline block and
+       floating panel see-through. Three layers force it opaque, in priority
+       order:
+         1. JS in src/ui/theme-sync.js reads the computed tint, clamps its
+            alpha to 1, and writes a solid color back here as an inline custom
+            property on documentElement — the primary, cross-browser path.
+         2. The @supports (relative color syntax) block below re-derives the
+            same opaque color in pure CSS on modern engines (defense-in-depth).
+         3. The :root default below (translucent tint) is the last-resort
+            fallback for browsers with neither JS nor relative-color support.
+       Hue/lightness is preserved at every layer, so dark themes stay dark and
+       light themes stay light. */
+    --gls-bg: var(--SmartThemeBlurTintColor, #1e1e1e);
+    /* Floating-card surface (popup + panel): theme-sync.js writes the opaque
+       tint shifted one lightness step away from the chat background (darker on
+       dark themes, lighter on light ones), so the card separates from a
+       same-hue chat instead of blending in. Fallbacks (no JS / old tint
+       format): the unshifted opaque tint. */
+    --gls-surface: var(--gls-bg);
+    /* Card edge + lift: derived from the TEXT color, not the theme border, so
+       the outline stays visible on themes whose border matches the chat
+       background (gray-on-gray). Two-layer shadow = tight contact edge + soft
+       elevation, readable on both light and dark themes. */
+    --gls-edge: color-mix(in srgb, var(--gls-text) 24%, transparent);
+    --gls-shadow-lift: 0 2px 8px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.35);
+    /* Popup-only float shadow. Unlike the panel, the footnote popup hovers
+       directly OVER chat lines, so it gets an extra-wide soft halo: the
+       gradient fade around the card reads as empty air between the message
+       text and the footnote text — separation without a heavy frame. Layers:
+       crisp contact edge (defines the rim against text), short elevation,
+       long low-alpha penumbra (the "air"). Neutral black works on any hue;
+       on dark themes, where black shadows dissolve, separation is carried by
+       the surface shift + text-derived edge above. */
+    --gls-shadow-float:
+        0 1px 2px rgba(0, 0, 0, 0.28),
+        0 6px 16px rgba(0, 0, 0, 0.20),
+        0 20px 48px rgba(0, 0, 0, 0.30);
+    --gls-text: var(--SmartThemeBodyColor, #ddd);
+    /* Text hierarchy: fixed mixes instead of scattered per-rule opacity
+       dimming. Washed-out 0.55–0.65 alpha text failed WCAG AA contrast and
+       made the whole panel read "dim". Two de-emphasis levels only:
+       -2 (labels, secondary) and -3 (hints, metainfo). Disabled controls are
+       the sole legitimate low-contrast case. */
+    --gls-text-2: color-mix(in srgb, var(--gls-text) 86%, transparent);
+    --gls-text-3: color-mix(in srgb, var(--gls-text) 72%, transparent);
+    --gls-radius: 8px;
+    --gls-radius-sm: 6px;
+    --gls-radius-lg: 12px;
+    /* Soft elevation for the floating surfaces (popup / panel). One token so
+       both stay in sync and neither ships the hard 3px/10px drop shadow. */
+    --gls-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    /* Monospace stack for footnote numbers / counters — independent of the
+       user-chosen body font (--gls-font-family), so indices stay tabular and
+       distinct even when the body is set to serif/inherit. */
+    --gls-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    /* Soft divider between cards. Distinct from --gls-border (UI chrome):
+       derived from text color at low alpha so it tracks light/dark themes
+       without the heavy accent-tint lines the old layout used. */
+    --gls-line: color-mix(in srgb, var(--gls-text) 10%, transparent);
+    /* Unified spacing scale (no more inline margin-top / flex). 4px steps,
+       per GOV.UK-style fixed scales: related controls sit at sp-1/sp-2,
+       distinct groups separate at sp-3+, sections at sp-4. */
+    --gls-sp-1: 4px;
+    --gls-sp-2: 8px;
+    --gls-sp-3: 12px;
+    --gls-sp-4: 16px;
+}
+
+/* Keyboard focus: every interactive Glosses control shows a visible focus
+   ring (WCAG 2.4.7 / focus-appearance: 2px perimeter, offset gap so the
+   indicator holds on any theme background). Never stripped. */
+.gls-s :focus-visible,
+.gls-panel :focus-visible,
+.gls-popup :focus-visible,
+#gls_launcher:focus-visible {
+    outline: 2px solid var(--gls-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Relative color syntax: force the theme tint's alpha to 1, keeping its hue ->
+   opaque + readable on transparent themes. Where `rgb(from ...)` is unsupported,
+   --gls-bg keeps the translucent tint declared in :root above (original look).
+   Ported from DS Comments (style.css opaque-bg upgrade). */
+@supports (color: rgb(from white r g b)) {
+    :root {
+        --gls-bg: rgb(from var(--SmartThemeBlurTintColor, #1e1e1e) r g b);
+    }
+}
+
+/* Utility classes replacing inline styles */
+.gls-s-grow { flex: 1; min-width: 0; }
+.gls-s-mt-md { margin-top: var(--gls-sp-2); }
+.gls-s-resize-v { resize: vertical; }
+
+/* ══════════════════════════════════════════════════════════
+   SETTINGS PANEL
+   ══════════════════════════════════════════════════════════ */
+
+.gls-s {
+    padding: 4px 0 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Keep the settings flow task-oriented without coupling bindings to source
+   order: generation, behavior, prompt, context, display, then sound. */
+.gls-s-section--generation { order: 1; }
+.gls-s-section--behavior { order: 2; }
+.gls-s-section--prompt { order: 3; }
+.gls-s-section--context { order: 4; }
+.gls-s-section--display { order: 5; }
+.gls-s-section--sound { order: 6; }
+
+.gls-s-toprow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: var(--gls-sp-3);
+    padding-bottom: var(--gls-sp-3);
+    border-bottom: 1px solid var(--gls-border);
+    flex-wrap: wrap;
+}
+
+.gls-s-master { font-weight: 600; }
+.gls-s-label-bold { font-weight: 600; }
+
+/* Accordion. Closed headers are quiet (neutral, no tint); an open section
+   gets the accent tint + a 3px accent bar via inset box-shadow (no layout
+   shift) so users can see at a glance what's expanded — the old design looked
+   identical open and closed apart from the chevron flip. */
+.gls-s-section {
+    margin: 0 0 var(--gls-sp-2);
+    border: 1px solid var(--gls-border);
+    border-radius: var(--gls-radius);
+    overflow: hidden;
+}
+
+.gls-s-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 14px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    font-size: 0.95em;
+    font-weight: 600;
+    text-align: left;
+    transition: background 0.15s;
+}
+
+.gls-s-section-header[aria-expanded="true"] {
+    background: var(--gls-accent-dim);
+    box-shadow: inset 3px 0 0 var(--gls-accent);
+}
+
+/* :hover rules live in the @media (hover: hover) block at the end of this
+   file — gated so touch devices never get a stuck hover state. */
+
+.gls-s-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--gls-text);
+    min-width: 0;
+}
+
+.gls-s-section-icon {
+    color: var(--gls-accent);
+    font-size: 0.9em;
+    width: 1.15em;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.gls-s-chevron {
+    font-size: 0.85em;
+    color: var(--gls-text-3);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+    margin-left: var(--gls-sp-2);
+}
+
+.gls-s-section-body {
+    padding: var(--gls-sp-3) var(--gls-sp-4) var(--gls-sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gls-sp-3);
+}
+
+.gls-s-section-body[hidden] { display: none; }
+.gls-s-section-body:not([hidden]) { display: flex; }
+
+.gls-s-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.gls-s-field-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.9em;
+    color: var(--gls-text-2);
+}
+
+.gls-s-select { width: 100%; }
+
+.gls-s-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gls-sp-3);
+}
+
+@media (max-width: 480px) {
+    .gls-s-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* Sub-panels: neutral surface (soft text tint) instead of the accent-tinted
+   border — the old orange frame on every nested block added noise, not
+   structure. Border stays UI-chrome colored like the outer cards. */
+.gls-s-sub-panel {
+    padding: var(--gls-sp-3);
+    border: 1px solid var(--gls-border);
+    border-radius: var(--gls-radius-sm);
+    background: color-mix(in srgb, var(--gls-text) 4%, transparent);
+    flex-direction: column;
+    gap: var(--gls-sp-2);
+}
+
+.gls-s-sub-panel[hidden] { display: none; }
+.gls-s-sub-panel:not([hidden]) { display: flex; }
+.gls-s-field-group[hidden] { display: none; }
+.gls-s-field-group:not([hidden]) { display: flex; }
+
+.gls-s-sub-title {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--gls-text-2);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+/* §6.2: Advanced-lenses sub-accordion. Namespaced second-tier analogue of
+   .gls-s-section-header — default collapsed, same click wiring (in
+   settings-sync.js bindSettingsUI). */
+.gls-s-sub-section-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 10px;
+    background: color-mix(in srgb, var(--gls-accent) 8%, transparent);
+    border: 1px solid var(--gls-border);
+    border-radius: var(--gls-radius-sm);
+    cursor: pointer;
+    color: var(--gls-text-2);
+    font-size: 0.85em;
+    font-weight: 600;
+    text-align: left;
+    margin-top: var(--gls-sp-2);
+}
+.gls-s-sub-section-body[hidden] { display: none; }
+.gls-s-sub-section-body:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--gls-border);
+    border-top: none;
+    border-radius: 0 0 var(--gls-radius) var(--gls-radius);
+}
+
+.gls-s-field-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Toggle rows: the whole label is the click target (checkbox + text), padded
+   to a ≥28px row so touch users don't hunt for a 13px box (WCAG 2.5.8 floor
+   is 24px; ST's global checkbox restyle keeps the box itself small). */
+.gls-s-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gls-sp-2);
+    cursor: pointer;
+    padding: var(--gls-sp-1) 0;
+    min-height: 28px;
+    box-sizing: border-box;
+}
+
+.gls-s-toggle-row--indent { padding-left: var(--gls-sp-3); }
+
+.gls-s-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gls-sp-2);
+    padding-top: var(--gls-sp-1);
+}
+
+.gls-s-hint {
+    display: block;
+    font-size: 0.85em;
+    color: var(--gls-text-3);
+    line-height: 1.4;
+    margin-top: 2px;
+}
+
+.gls-s-val {
+    font-size: 0.85em;
+    color: var(--gls-text-2);
+    font-variant-numeric: tabular-nums;
+    min-width: 2.8em;
+    text-align: right;
+    /* No auto margin: both live value labels (highlight opacity, sound
+       volume) now sit inside flex field-rows BEFORE a growing slider — an
+       auto margin would eat the free space and freeze the slider at its
+       intrinsic width. */
+}
+
+/* Highlight-color trigger button: round swatch of the current color + its
+   hex code. Opens the HSV picker popover (built by src/ui/color-picker.js,
+   appended next to this row by settings-sync). */
+.gls-color-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px 3px 4px;
+    border: 1px solid var(--gls-border);
+    border-radius: 4px;
+    cursor: pointer;
+    background: none;
+    color: var(--gls-text-2);
+    font-size: 0.85em;
+    flex: 0 0 auto;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.gls-color-btn:hover { border-color: var(--gls-accent); color: var(--gls-text); }
+.gls-color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--gls-line);
+    /* background set from JS = S().highlightColor */
+}
+.gls-color-hex {
+    font-family: ui-monospace, 'Cascadia Code', Consolas, Menlo, monospace;
+    letter-spacing: 0.02em;
+}
+
+/* ── HSV picker popover ── */
+/* Anchor for the absolutely-positioned picker popover. */
+.gls-s-field-row--anchor { position: relative; }
+.gls-color-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: var(--gls-sp-3);
+    width: 196px;
+    box-sizing: border-box;
+    background: var(--gls-surface);
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-radius-lg);
+    box-shadow: var(--gls-shadow-lift);
+    color: var(--gls-text);
+}
+/* display:flex above would override the hidden attribute's display:none. */
+.gls-color-pop[hidden] { display: none; }
+
+/* Hue ring: wrap carries size/hit area/keyboard focus; the inner .gls-hue-ring
+   is the ONLY masked node (the conic rainbow donut), so the swatch and the
+   handle siblings render fully. Hue 0 (red) sits at 12 o'clock, clockwise —
+   the same convention the picker's atan2 math uses. */
+.gls-hue-ring-wrap {
+    position: relative;
+    width: 148px;
+    height: 148px;
+    margin: 0 auto;
+    touch-action: none;
+    cursor: crosshair;
+}
+.gls-hue-ring-wrap:focus-visible { outline: 2px solid var(--gls-accent); outline-offset: 4px; }
+.gls-hue-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 19px), #000 calc(100% - 18px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 19px), #000 calc(100% - 18px));
+    pointer-events: none;
+}
+.gls-hue-swatch {
+    position: absolute;
+    inset: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--gls-line);
+    pointer-events: none;
+}
+.gls-hue-handle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.4);
+    transform: translate(-50%, -50%);
+}
+
+/* Saturation / value rows: label + gradient-backed range slider. */
+.gls-hue-row { display: flex; align-items: center; gap: 8px; }
+.gls-hue-label {
+    flex: 0 0 auto;
+    font-size: 0.8em;
+    color: var(--gls-text-2);
+    white-space: nowrap;
+}
+.gls-hue-row input[type="range"] {
+    flex: 1 1 auto;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 10px;
+    border-radius: 5px;
+    /* background (gradient) set from JS via the same hsvToHex the picker uses */
+    cursor: pointer;
+    margin: 0;
+}
+.gls-hue-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    margin-top: -3px;
+}
+.gls-hue-row input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.gls-hue-row input[type="range"]::-moz-range-track { background: transparent; }
+
+.gls-color-hex-out {
+    text-align: center;
+    font-family: ui-monospace, 'Cascadia Code', Consolas, Menlo, monospace;
+    font-size: 0.85em;
+    color: var(--gls-text-2);
+    user-select: none;
+}
+
+.gls-s-num {
+    width: 90px !important;
+    flex: 0 0 auto !important;
+}
+
+/* Range sliders (highlight opacity, sound volume): themed accent + explicit
+   grab cursor. accent-color themes the native track/thumb in every engine
+   without custom track CSS. */
+.gls-s-range {
+    accent-color: var(--gls-accent);
+    cursor: pointer;
+}
+
+/* Live highlight preview chip: shows exactly what a marked word will look
+   like — background mixes the chosen color at the chosen opacity over the
+   panel surface, mirroring the chat rule #chat.gls-hl-background .gls-marker.
+   Both vars are written to :root by applyHighlightStyles (renderer.js), so
+   dragging the picker or the slider re-renders this chip live, no JS needed. */
+.gls-hl-preview {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--gls-hl-color) calc(var(--gls-hl-opacity) * 100%), var(--gls-bg));
+    border: 1px solid var(--gls-line);
+    font-size: 0.85em;
+    color: var(--gls-text-2);
+    white-space: nowrap;
+    flex: 0 0 auto;
+    user-select: none;
+}
+
+/* ── Settings-side live previews (Display section) ──
+   Both previews read the same :root custom properties the real surfaces use
+   (written by applyHighlightStyles / theme-sync), so color/opacity/font/width
+   sliders re-render them with zero JS. Only class-driven state (highlight
+   style, header on/off, displayMode's sup) needs the syncDisplayPreviews()
+   swap in settings-sync.js. */
+
+/* Marker snapshot: a strip over the (opaque) chat surface with a real
+   .gls-marker + .gls-sup inside — shows style × color × opacity × marker
+   size exactly as the chat renders it. Text hugs the RIGHT edge on purpose:
+   the HSV popover opens below-left of the color button (~196px wide) and
+   would cover the strip's left zone, so the marked word — the last word of
+   the sample sentence — stays in view while a color is being dragged. */
+.gls-chat-preview {
+    padding: var(--gls-sp-2) var(--gls-sp-3);
+    border-radius: var(--gls-radius);
+    background: var(--gls-bg);
+    border: 1px solid var(--gls-line);
+    color: var(--gls-text);
+    font-size: 0.9em;
+    line-height: 1.6;
+    text-align: right;
+    user-select: none;
+}
+.gls-chat-preview .gls-marker { cursor: default; }
+/* displayMode 'inline' renders markers without the superscript index —
+   mirror that in the snapshot. */
+.gls-chat-preview.gls-preview-inline .gls-sup { display: none; }
+
+/* Popup snapshot: static twin of .gls-popup (position/z-index/animation
+   dropped), sized by the same --gls-popup-maxw the slider publishes. */
+.gls-popup-preview {
+    background: var(--gls-surface);
+    color: var(--gls-text);
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-popup-radius, var(--gls-radius-lg));
+    /* Same float shadow as the real popup — the snapshot must show the
+       separation halo users will see over the chat. */
+    box-shadow: var(--gls-shadow-float);
+    font-family: var(--gls-font-family);
+    font-size: var(--gls-font-size);
+    width: min(var(--gls-popup-maxw, 420px), 100%);
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    user-select: none;
+    pointer-events: none;
+}
+.gls-popup-preview--no-header .gls-popup-header { display: none; }
+/* Preview header buttons are static spans; FA icons stand in for the real
+   inline-SVG sprite at the same 12px box. */
+.gls-popup-preview .fa-fw { font-size: 12px; }
+
+/* Caption above each snapshot. */
+.gls-s-preview-label {
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gls-text-3);
+    margin-bottom: 4px;
+}
+
+/* Sound primary row: enable toggle + volume label + slider on one flexible
+   line (wraps on narrow screens). Replaces the former inline flex styles. */
+.gls-s-sound-row {
+    display: flex;
+    align-items: center;
+    gap: var(--gls-sp-2);
+    flex-wrap: wrap;
+}
+
+.gls-s-sound-row .gls-s-toggle-row { flex: 1 1 auto; min-width: 150px; }
+.gls-s-inline-label { flex: 0 0 auto; margin: 0; }
+.gls-s-sound-row .gls-s-range { flex: 1 1 100px; min-width: 80px; }
+
+/* Secondary file-row: label + select. */
+.gls-s-file-row {
+    display: flex;
+    align-items: center;
+    gap: var(--gls-sp-2);
+    margin-top: var(--gls-sp-2);
+}
+
+.gls-s-file-row .gls-s-field-label { flex: 0 0 auto; margin: 0; }
+
+.gls-s-sound-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gls-sp-2);
+}
+
+.gls-s-upload { cursor: pointer; }
+
+/* Font size stepper */
+.gls-fs-stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.gls-fs-stepper select { flex: 1; }
+
+.gls-fs-btn {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid var(--gls-border);
+    border-radius: 4px;
+    color: var(--gls-text);
+    cursor: pointer;
+    font-size: 1em;
+    line-height: 1;
+    opacity: 0.75;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.gls-s-context-group {
+    border: 1px solid var(--gls-border);
+    border-radius: var(--gls-radius-sm);
+    background: color-mix(in srgb, var(--gls-text) 4%, transparent);
+    padding: var(--gls-sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gls-sp-2);
+}
+
+.gls-s-context-title {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--gls-text-2);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   INLINE HIGHLIGHTS
+   ══════════════════════════════════════════════════════════ */
+
+.gls-marker {
+    cursor: pointer;
+    border-radius: 2px;
+    padding: 0 1px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    /* Allow long anchors (especially clause-level ones from hybrid/pratchett50,
+       e.g. "села на Железный трон, лезвия врезаясь в её платье") to wrap like
+       ordinary text. break-word covers a single very long token with no spaces
+       (rare, but possible for compound terms); normal wrapping handles the
+       common multi-word case once the element is in inline flow. */
+    overflow-wrap: break-word;
+    word-break: break-word;
+    /* NOTE: do NOT add `contain: paint` here. On an inline element it turns
+       the marker into an atomic inline (inline-block-like) box, so the anchor
+       + superscript become a single non-wrapping unit. On a narrow mobile
+       viewport a clause-level anchor then overflows horizontally and shoves
+       the whole message sideways. `contain: style` alone is useless for our
+       custom-prop isolation goal, and `layout`/`paint` are harmful on inline,
+       so we omit `contain` entirely and rely on the cheap local repaint of a
+       small hover/background change. */
+}
+
+/* Scoped by the gls-hl-* class alone (carried by #chat via applyHighlightStyles,
+   and by the settings-side live preview wrapper) so both surfaces render the
+   marker identically from one rule set. */
+.gls-hl-background .gls-marker {
+    background-color: color-mix(in srgb, var(--gls-hl-color) calc(var(--gls-hl-opacity) * 100%), transparent);
+}
+.gls-hl-underline .gls-marker { border-bottom: 2px solid var(--gls-hl-color); }
+
+.gls-hl-dotted .gls-marker { border-bottom: 2px dotted var(--gls-hl-color); }
+
+.gls-sup {
+    font-size: var(--gls-marker-size);
+    vertical-align: super;
+    margin-left: 1px;
+    color: var(--gls-accent);
+    font-weight: 700;
+    line-height: 0;
+    pointer-events: none;
+}
+
+/* Inline footnote block (displayMode: inline / both) — spec §4.2.
+   Appended as the LAST CHILD of .mes_block (inside the message column, but
+   outside .mes_text so ST's markdown/stream renderers don't wipe it on
+   re-render / swipe). .mes itself is a flex ROW in every supported ST version,
+   so hosting the block there — the pre-3.3 placement — made it a side column
+   next to the text; hosting it in .mes_block puts it in normal block flow
+   UNDER the text, the same pattern ST uses for .mes_reasoning_details.
+   removeHighlights strips it before re-inject; see renderer.js#renderInlineBlock.
+   Opaque card: the block carries its own var(--gls-bg) (forced solid by
+   theme-sync.js) plus a padding + rounded border, so it never sits see-through
+   on the chat background on transparent themes. No horizontal margin +
+   max-width:100% + box-sizing:border-box so the block can never widen its
+   .mes and shove the message text sideways on a narrow viewport (the children
+   <p> already wrap via word-break on .gls-inline-fn). */
+.gls-inline-fns {
+    margin: var(--gls-sp-2) 0;
+    padding: var(--gls-sp-2);
+    background: var(--gls-bg);
+    border: 1px solid var(--gls-line);
+    border-radius: var(--gls-radius);
+    font-family: var(--gls-font-family);
+    font-size: var(--gls-font-size);
+    line-height: 1.45;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
+}
+.gls-inline-fn {
+    margin: 2px 0;
+    word-break: break-word;
+    /* Invisible until a background appears (the flash below); rounds that
+       background so it reads as a pill highlight, not a raw box. */
+    border-radius: 4px;
+}
+.gls-inline-fn-idx {
+    color: var(--gls-accent);
+    font-weight: 700;
+    margin-right: 4px;
+    vertical-align: super;
+    font-size: var(--gls-marker-size);
+}
+
+/* Marker tap in inline mode (no popup) scrolls the block to the tapped row
+   and lands on this flash, so the number-less marker resolves to its text.
+   Reuses the marker highlight color/opacity so the cue stays on-palette;
+   renderer.js restarts the animation (reflow trick) on repeated taps. */
+.gls-inline-fn.gls-fn-flash {
+    animation: gls-fn-flash 1.6s ease-out 1;
+}
+@keyframes gls-fn-flash {
+    from {
+        background-color: color-mix(in srgb, var(--gls-hl-color) calc(var(--gls-hl-opacity) * 100%), transparent);
+    }
+    to { background-color: transparent; }
+}
+
+/* Regenerate button */
+.mes_button.gls-regen-btn { color: var(--gls-accent); }
+
+.mes_button.gls-regen-btn.gls-busy i {
+    display: inline-block;
+    animation: gls-spin 1s linear infinite;
+}
+
+@keyframes gls-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   FOOTNOTE POPUP
+   ══════════════════════════════════════════════════════════ */
+
+.gls-popup {
+    position: fixed;
+    /* z-index layering vs ST (public/style.css): character/config popups sit at
+       4000–4100, #dialogue_popup (the Popup.show.* modal) and the swipe arrows
+       at 9999, autocomplete at 10000, toasts ~99999. 9000 keeps the footnote
+       popup above the floating panel (3000) and ST's chrome but BELOW
+       #dialogue_popup — a confirm dialog opened while the popup is visible must
+       never be covered. The old 10000 floated above ST's own modals. */
+    z-index: 9000;
+    min-width: 260px;
+    /* Width cap is user-tunable (popupMaxWidth setting); the 92vw guard keeps
+       the popup inside narrow viewports regardless of the chosen cap. */
+    max-width: min(var(--gls-popup-maxw, 420px), 92vw);
+    max-height: 70vh;
+    overflow-y: auto;
+    /* Scroll chaining: without this, overscrolling the popup bleeds into the
+       chat behind it. Contain it so the popup scroll ends at its own edge.
+       Ported from DS Comments. */
+    overscroll-behavior: contain;
+    background: var(--gls-surface);
+    color: var(--gls-text);
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-popup-radius, var(--gls-radius-lg));
+    /* Float, not lift: the popup hovers over chat text and needs the wide
+       halo (see --gls-shadow-float). Shadow strength is user-tunable via
+       :root classes (soft/none) — see the POPUP APPEARANCE KNOBS block. */
+    box-shadow: var(--gls-shadow-float);
+    font-family: var(--gls-font-family);
+    font-size: var(--gls-font-size);
+    /* Subtle settle-in: 4px rise + fade reads as "opened here" without the
+       heaviness the v3.0 principles ban (no scale, no slide). */
+    animation: gls-pop 0.14s ease-out;
+    /* The popup is positioned:fixed, so opening/repositioning it doesn't need
+       to reflow the chat. Containment makes that guarantee explicit so the
+       browser skips invalidating .mes descendants on popup mutations.
+       'size' omitted: popup height is content-driven, we don't want to clip. */
+    contain: layout paint style;
+}
+
+@keyframes gls-pop {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gls-popup { animation: none; }
+}
+
+/* Popup scrollbar: slim and trackless — the popup is a reading card, not a
+   pane. Firefox via scrollbar-*; WebKit/Blink via pseudo-elements. */
+.gls-popup {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--gls-text) 30%, transparent) transparent;
+}
+.gls-popup::-webkit-scrollbar { width: 8px; }
+.gls-popup::-webkit-scrollbar-track { background: transparent; }
+.gls-popup::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--gls-text) 26%, transparent);
+    border-radius: 4px;
+    /* 2px transparent border + content-box clip = the thumb floats off the
+       card edge instead of touching it. */
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+/* ════════════════════════════════════════════════════════════
+   POPUP APPEARANCE KNOBS + SKINS
+   ════════════════════════════════════════════════════════════
+   Level 1 knobs (density, shadow strength) and Level 2 skins are :root
+   classes written by applyHighlightStyles. Scoped to .gls-popup AND the
+   settings snapshot .gls-popup-preview so the preview mirrors the real
+   popup. The floating panel, picker popover and markers never see these
+   classes — skins style the footnote reading card only.
+
+   Skins deliberately OVERRIDE --gls-surface/--gls-edge/--gls-text (the
+   theme-adaptive tokens) with fixed palettes: a paper slip is cream on a
+   dark theme too — that's the point of a skin. Each palette pair is
+   self-sufficient for contrast. Beyond flat color, v2 skins layer pinned
+   decorations (sheens, scanlines, perforation, gradient rims) via the
+   element `background` — backgrounds stick to the card box while the popup's
+   inner content scrolls, need no extra DOM, and are immune to the box-shadow
+   knob. Gradient rims use the two-layer padding-box/border-box clip trick,
+   which composes with border-radius. Skins never touch radius/density/shadow
+   (the knobs own those) and their font wins only while footnoteFontFamily
+   is 'inherit' — an explicit font choice always beats the skin.
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Density: compact ── */
+.gls-popup-compact .gls-popup-body,
+.gls-popup-compact .gls-popup-preview .gls-popup-body { padding: var(--gls-sp-2) var(--gls-sp-3) var(--gls-sp-1); }
+.gls-popup-compact .gls-popup-text,
+.gls-popup-compact .gls-popup-preview .gls-popup-text { line-height: 1.5; }
+
+/* ── Shadow strength ── */
+.gls-popup-shadow-soft .gls-popup,
+.gls-popup-shadow-soft .gls-popup-preview {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+.gls-popup-shadow-none .gls-popup,
+.gls-popup-shadow-none .gls-popup-preview { box-shadow: none; }
+
+/* ── Skin: paper — a warm slip tucked into the text ── */
+.gls-popup-skin-paper .gls-popup,
+.gls-popup-skin-paper .gls-popup-preview {
+    --gls-surface: #f5ecd8;
+    --gls-text: #3b2f1e;
+    --gls-edge: #c9b98f;
+    --gls-line: #d9cba5;
+    /* Aged slip: warm sheen at the top + faint laid-paper lines. */
+    background:
+        radial-gradient(130% 90% at 50% 0%, rgba(255, 252, 241, 0.55), rgba(255, 252, 241, 0) 60%),
+        repeating-linear-gradient(180deg, rgba(122, 94, 48, 0.045) 0 1px, rgba(122, 94, 48, 0) 1px 4px),
+        var(--gls-surface);
+}
+.gls-popup-skin-paper:not(.gls-font-forced) .gls-popup,
+.gls-popup-skin-paper:not(.gls-font-forced) .gls-popup-preview { font-family: 'Charter', 'Bitstream Charter', 'Sitka Text', Sitka, Georgia, serif; }
+
+/* ── Skin: terminal — a dark slab with phosphor text ── */
+.gls-popup-skin-terminal .gls-popup,
+.gls-popup-skin-terminal .gls-popup-preview {
+    --gls-surface: #0d1117;
+    --gls-text: #7ee787;
+    --gls-edge: #30363d;
+    --gls-line: #21262d;
+    /* CRT: phosphor bloom fading from the top + 1px scanlines. */
+    background:
+        linear-gradient(180deg, rgba(126, 231, 135, 0.14), rgba(126, 231, 135, 0) 48px),
+        repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.16) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+        var(--gls-surface);
+}
+.gls-popup-skin-terminal:not(.gls-font-forced) .gls-popup,
+.gls-popup-skin-terminal:not(.gls-font-forced) .gls-popup-preview { font-family: var(--gls-font-mono); }
+/* Terminal identity: the title row becomes a command prompt, and the text
+   gets a blinking block cursor. */
+.gls-popup-skin-terminal .gls-popup-title {
+    font-family: var(--gls-font-mono);
+    letter-spacing: 0.04em;
+}
+.gls-popup-skin-terminal .gls-popup-title::before { content: '▸ '; }
+.gls-popup-skin-terminal .gls-popup-text::after {
+    content: '▊';
+    margin-left: 2px;
+    color: var(--gls-text);
+    animation: gls-blink 1.1s steps(2, start) infinite;
+}
+@keyframes gls-blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) {
+    .gls-popup-skin-terminal .gls-popup-text::after { animation: none; }
+}
+
+/* ── Skin: telegram — a printed blank with a typewriter face ── */
+.gls-popup-skin-telegram .gls-popup,
+.gls-popup-skin-telegram .gls-popup-preview {
+    --gls-surface: #f4f1e8;
+    --gls-text: #26221a;
+    --gls-edge: #26221a;
+    --gls-line: #b9b2a0;
+    border-style: dashed;
+    /* Teletype tape: a perforation hole row punched along the top edge. */
+    background:
+        radial-gradient(1.2px at 6px 8px, rgba(38, 34, 26, 0.4) 99%, rgba(38, 34, 26, 0)) top / 12px 16px repeat-x,
+        var(--gls-surface);
+}
+.gls-popup-skin-telegram:not(.gls-font-forced) .gls-popup,
+.gls-popup-skin-telegram:not(.gls-font-forced) .gls-popup-preview { font-family: 'Courier New', Courier, monospace; }
+
+/* ── Skin: bubble — a messenger bubble tinted by the chat theme ── */
+.gls-popup-skin-bubble .gls-popup,
+.gls-popup-skin-bubble .gls-popup-preview {
+    --gls-surface: color-mix(in srgb, var(--gls-accent) 16%, var(--gls-bg));
+    --gls-edge: color-mix(in srgb, var(--gls-accent) 38%, transparent);
+    /* Messenger cue: an accent ribbon fading into the tint. */
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--gls-accent) 22%, transparent), transparent 36px),
+        var(--gls-surface);
+}
+
+/* ── Skin: glass — an opaque luminous pane (v2) ──
+   Despite the name, this is solid glass rather than see-through glass: every
+   background layer resolves onto --gls-surface, so chat text can never show
+   through the footnote. The highlight/rim preserve the polished identity. */
+.gls-popup-skin-glass .gls-popup,
+.gls-popup-skin-glass .gls-popup-preview {
+    --gls-edge: color-mix(in srgb, var(--gls-text) 30%, transparent);
+    --gls-line: color-mix(in srgb, var(--gls-text) 16%, transparent);
+    border-color: transparent;
+    background:
+        linear-gradient(180deg, color-mix(in srgb, white 10%, transparent), transparent 42%) padding-box,
+        var(--gls-surface) padding-box,
+        linear-gradient(160deg, color-mix(in srgb, white 55%, var(--gls-edge)), var(--gls-edge) 45%, color-mix(in srgb, white 24%, var(--gls-edge))) border-box;
+}
+.gls-popup-skin-glass:not(.gls-font-forced) .gls-popup,
+.gls-popup-skin-glass:not(.gls-font-forced) .gls-popup-preview { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+
+/* ── Skin: codex — an illuminated manuscript slip (v2) ── */
+.gls-popup-skin-codex .gls-popup,
+.gls-popup-skin-codex .gls-popup-preview {
+    --gls-surface: #f1e6cd;
+    --gls-text: #40301c;
+    /* Rim is carried by the gold gradient ring, not a flat border. */
+    --gls-edge: transparent;
+    --gls-line: #cdb98e;
+    /* Local accent: gold leaf for the label/rubric — scoped to the popup
+       subtree, markers in the chat keep the user's highlight color. */
+    --gls-accent: #8a6a2f;
+    border: 1px solid transparent;
+    background:
+        radial-gradient(140% 100% at 50% 0%, rgba(255, 250, 235, 0.6), rgba(255, 250, 235, 0) 55%),
+        linear-gradient(180deg, #f1e6cd, #e9dbbb) padding-box,
+        linear-gradient(135deg, #b08d3e, #ecd28a 32%, #9a7a33 60%, #d8bc72) border-box;
+}
+.gls-popup-skin-codex:not(.gls-font-forced) .gls-popup,
+.gls-popup-skin-codex:not(.gls-font-forced) .gls-popup-preview { font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif; }
+/* Rubric: the title row gets the §-mark and gold; the opening letter of
+   the definition is lightly illuminated. */
+.gls-popup-skin-codex .gls-popup-title {
+    letter-spacing: 0.08em;
+}
+.gls-popup-skin-codex .gls-popup-title::before { content: '§ '; }
+.gls-popup-skin-codex .gls-popup-text::first-letter {
+    font-size: 1.35em;
+    font-weight: 700;
+    color: var(--gls-accent);
+}
+
+/* ── Skin: neon — a night-city card with a charged rim (v2) ── */
+.gls-popup-skin-neon .gls-popup,
+.gls-popup-skin-neon .gls-popup-preview {
+    --gls-surface: #0b0e1a;
+    --gls-text: #cfe9ff;
+    --gls-edge: transparent;
+    --gls-line: rgba(103, 232, 249, 0.18);
+    --gls-accent: #22d3ee;
+    border: 1px solid transparent;
+    background:
+        linear-gradient(180deg, rgba(34, 211, 238, 0.10), rgba(34, 211, 238, 0) 42px),
+        radial-gradient(120% 90% at 85% 100%, rgba(168, 85, 247, 0.12), rgba(168, 85, 247, 0) 55%),
+        linear-gradient(180deg, #10142a, #0b0e1a) padding-box,
+        linear-gradient(135deg, #22d3ee, #818cf8 38%, #a855f7 68%, #ec4899) border-box;
+}
+.gls-popup-skin-neon:not(.gls-font-forced) .gls-popup,
+.gls-popup-skin-neon:not(.gls-font-forced) .gls-popup-preview { font-family: var(--gls-font-mono); }
+.gls-popup-skin-neon .gls-popup-text { text-shadow: 0 0 10px rgba(34, 211, 238, 0.30); }
+.gls-popup-skin-neon .gls-popup-title {
+    font-family: var(--gls-font-mono);
+    text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+}
+
+.gls-popup-header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--gls-sp-1);
+    padding: var(--gls-sp-2) var(--gls-sp-3) var(--gls-sp-1);
+    border-bottom: 1px solid var(--gls-line);
+    font-size: var(--gls-font-size);
+    font-family: var(--gls-font-family);
+}
+
+.gls-popup-close {
+    background: none;
+    border: none;
+    color: var(--gls-text-2);
+    cursor: pointer;
+    /* 28px hit area — comfortably over the 24px WCAG 2.5.8 floor. */
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--gls-radius-sm);
+    font-size: 1em;
+    line-height: 1;
+    /* Kill the 300ms tap-delay + double-tap zoom on touch. */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.gls-popup-body { padding: var(--gls-sp-3) var(--gls-sp-4) var(--gls-sp-2); }
+
+/* Popup title row: the footnote's headword ("Term (source)", split from the
+   raw text by showPopup#splitFootnoteHead) prefixed with the footnote index
+   — dictionary layout, so the body starts at the definition proper
+   (transcription · translation · explanation) instead of restating the term.
+   Fallback title is the anchored term when the text has no separator; no
+   anchor and no separator means no title, body only. Skins restyle it per
+   identity (prompt, fleuron, glow — see the skin rules below). */
+.gls-popup-title {
+    margin: 0 0 var(--gls-sp-2);
+    padding-bottom: var(--gls-sp-1);
+    border-bottom: 1px solid var(--gls-line);
+    color: var(--gls-accent);
+    font-size: 0.95em;
+    font-weight: 600;
+    line-height: 1.4;
+    overflow-wrap: break-word;
+}
+.gls-popup-title-idx {
+    margin-right: 3px;
+    font-size: var(--gls-marker-size);
+    font-weight: 700;
+    vertical-align: super;
+    line-height: 0;
+}
+.gls-popup-title-text { overflow-wrap: anywhere; }
+.gls-popup-compact .gls-popup-title {
+    margin-bottom: var(--gls-sp-1);
+    padding-bottom: 2px;
+}
+
+.gls-popup-text {
+    margin: 0;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Mini-markdown formatting inside footnote bodies (popup / inline / panel).
+   Applies to <strong>, <em>, <code>, <del> produced by formatFootnoteText. */
+.gls-popup-text code,
+.gls-inline-fn-text code,
+.gls-panel-text code {
+    /* Opaque + theme-adaptive: a faint tint of the body text blended onto the
+       panel/inline background, so the chip tracks light/dark themes instead of
+       the old fixed mid-grey rgba(127,127,127,0.22). Composes over the already
+       opaque --gls-bg, so it never shows the chat through. */
+    background: color-mix(in srgb, var(--gls-text) 12%, var(--gls-bg));
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.9em;
+}
+.gls-popup-text strong,
+.gls-inline-fn-text strong,
+.gls-panel-text strong { font-weight: 600; }
+.gls-popup-text em,
+.gls-inline-fn-text em,
+.gls-panel-text em { font-style: italic; }
+.gls-popup-text del,
+.gls-inline-fn-text del,
+.gls-panel-text del { opacity: 0.65; }
+
+.gls-popup-action-btn {
+    background: none;
+    border: 1px solid var(--gls-border);
+    color: var(--gls-text);
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.88em;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 28px;
+}
+.gls-popup-action-btn .gls-icon { width: 12px; height: 12px; }
+/* Inline "Copied ✓" feedback state for the popup Copy button — mirrors the
+   panel's .gls-panel-copy--done accent. */
+.gls-popup-action-btn--done {
+    opacity: 1;
+    color: var(--gls-accent);
+    border-color: var(--gls-accent);
+}
+
+/* Popup header v2: ghost action chips. The floating panel keeps the bordered
+   pill (it's a standalone card); inside the popup header the same buttons go
+   borderless so the reading surface leads and the label row sets the tone.
+   Hover tints are hover-capable pointers only — no sticky highlight on touch. */
+.gls-popup .gls-popup-action-btn,
+.gls-popup-preview .gls-popup-action-btn {
+    border-color: transparent;
+    color: var(--gls-text-2);
+}
+@media (hover: hover) {
+    .gls-popup .gls-popup-action-btn:hover {
+        background: color-mix(in srgb, var(--gls-text) 9%, transparent);
+        color: var(--gls-text);
+    }
+    .gls-popup .gls-popup-close:hover {
+        background: color-mix(in srgb, var(--gls-text) 12%, transparent);
+        color: var(--gls-text);
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   ICONS (inline SVG sprite from src/ui/icons.js)
+   ══════════════════════════════════════════════════════════ */
+
+.gls-icon {
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+.gls-icon-spin { animation: gls-icon-spin 0.9s linear infinite; }
+
+@keyframes gls-icon-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gls-icon-spin { animation-duration: 2.4s; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   FLOATING PANEL
+   ══════════════════════════════════════════════════════════ */
+
+.gls-panel {
+    position: fixed;
+    /* FIX (review): was z-index:1, which let any positioned element in the chat
+       cover the panel. Bumped to 3000 so it reliably sits above message chrome. */
+    z-index: 3000;
+    width: 320px;
+    height: 55vh;
+    min-width: 220px;
+    min-height: 80px;
+    background: var(--gls-surface);
+    color: var(--gls-text);
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-radius-lg);
+    box-shadow: var(--gls-shadow-lift);
+    display: flex;
+    flex-direction: column;
+    /* Panel font pair (panelFontFamily/panelFontSize settings) — independent
+       of the footnote font that styles the popup / inline text. */
+    font-family: var(--gls-panel-font-family);
+    font-size: var(--gls-panel-font-size);
+    /* Overflow is on the body only; the panel itself must not scroll or offer
+       a native OS resize grip (the white triangular corner that clashes with
+       the themed design). Resizing is handled by the custom .gls-panel-resize
+       grip + the JS pointer handler in makeResizable(). */
+    overflow: hidden;
+    /* Panel is position:fixed — isolating its subtree's layout/paint/style
+       keeps internal mutations from invalidating the chat behind it. 'size'
+       omitted so the custom JS resize handler can set width/height directly. */
+    contain: layout paint style;
+}
+
+.gls-panel.gls-panel--side {
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Mobile fullscreen sheet. Inset between ST's top bar (#top-bar) and input bar
+   (#send_form) via the --gls-st-top / --gls-st-bottom custom properties set by
+   measureStChrome() in window.js. Mirrors DS Comments: top + explicit height
+   (NOT top+bottom+height:auto — that collapses to 0 if #send_form is misread
+   on some ST mobile layouts). !important so saved inline geometry can't override. */
+.gls-panel.gls-panel--mobile {
+    position: fixed !important;
+    top: var(--gls-st-top, 0px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: calc(100dvh - var(--gls-st-top, 0px) - var(--gls-st-bottom, 0px)) !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    transform: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    contain: none;
+}
+
+/* dvh fallback for older browsers (matches DS Comments). */
+@supports not (height: 100dvh) {
+    .gls-panel.gls-panel--mobile {
+        height: calc(100vh - var(--gls-st-top, 0px) - var(--gls-st-bottom, 0px)) !important;
+    }
+}
+
+.gls-panel.gls-panel--mobile .gls-panel-body {
+    flex: 1 !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+.gls-panel.gls-panel--mobile .gls-panel-header {
+    cursor: default !important;
+    touch-action: pan-y !important;
+}
+
+.gls-panel.gls-panel--mobile .gls-panel-resize { display: none !important; }
+
+/* Larger touch targets on mobile. */
+.gls-panel.gls-panel--mobile .gls-panel-nav-btn,
+.gls-panel.gls-panel--mobile .gls-panel-btn {
+    min-width: 40px;
+    min-height: 40px;
+}
+.gls-panel.gls-panel--mobile .gls-panel-entry-actions button {
+    min-height: 40px;
+    padding: 4px 10px;
+}
+
+/* Panel header */
+.gls-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--gls-sp-1) var(--gls-sp-2);
+    background: var(--gls-accent-dim);
+    user-select: none;
+    font-size: var(--gls-panel-font-size);
+    font-family: var(--gls-panel-font-family);
+    border-bottom: 1px solid var(--gls-border);
+    flex: 0 0 auto;
+    gap: var(--gls-sp-1);
+    cursor: grab;
+}
+
+.gls-panel-header:active { cursor: grabbing; }
+
+.gls-panel-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.gls-panel-nav-btn {
+    background: none;
+    border: none;
+    color: var(--gls-text);
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 4px;
+    opacity: 0.65;
+    font-size: 0.8em;
+    flex: 0 0 auto;
+    line-height: 1;
+    min-width: 28px;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.gls-panel-nav-btn:disabled {
+    opacity: 0.2;
+    cursor: default;
+}
+
+.gls-panel-nav-label {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--gls-accent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 2px;
+}
+
+.gls-panel-controls {
+    display: flex;
+    gap: 2px;
+    flex: 0 0 auto;
+}
+
+.gls-panel-btn {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 0.85em;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.gls-panel-btn--clear {
+    opacity: 0.45;
+    font-size: 0.78em;
+}
+
+/* §6.5 panel-header regen button removed in v3.2 (duplicated the per-message
+   .gls-regen-btn); its hover/spin rules went with it. The per-message spin
+   lives at .mes_button.gls-regen-btn.gls-busy i above. */
+
+/* Neutral action button for panel-body controls (Generate / Copy all /
+   Apply / Clear pool). Bare <button>s inherit SillyTavern's global light
+   .button fill, which clashes with the dark card; this scopes our own
+   bordered, theme-token look. */
+.gls-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 4px 12px;
+    border-radius: var(--gls-radius-sm, 4px);
+    border: 1px solid var(--gls-border);
+    background: transparent;
+    color: var(--gls-text);
+    font-size: 0.88em;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.gls-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.gls-panel-tabs {
+    display: flex;
+    flex: 0 0 auto;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--gls-border);
+    scrollbar-width: thin;
+}
+.gls-panel-tabs button {
+    position: relative;
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--gls-text);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.gls-panel-tabs button[aria-selected="true"] {
+    color: var(--gls-accent);
+}
+.gls-panel-tabs button[aria-selected="true"]::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 0;
+    height: 2px;
+    background: var(--gls-accent);
+    border-radius: 1px;
+}
+
+/* Resize grip (bottom-right). It is a plain in-flow flex item appended after
+   .gls-panel-body — the body itself owns the scrolling (flex:1 + overflow-y:
+   auto), so the grip always sits pinned to the panel's bottom edge instead of
+   scrolling away with the content. The three diagonal ticks are drawn with a
+   single hard-stop linear-gradient; each tick is ~3px wide at the 135° angle
+   (~2.1px visual). 22px target, over the 24px floor when combined with the
+   surrounding padding. Single-position stops for maximum browser compat. */
+.gls-panel-resize {
+    flex: 0 0 auto;
+    align-self: flex-end;
+    width: 22px;
+    height: 22px;
+    margin: 0 2px 2px 0;
+    cursor: nwse-resize;
+    touch-action: none;
+    border-radius: 0 0 var(--gls-radius-sm) 0;
+    color: color-mix(in srgb, var(--gls-text) 45%, transparent);
+    background: linear-gradient(135deg,
+        transparent 0%,    transparent 46%,
+        currentColor 46%,  currentColor 54%,
+        transparent 54%,   transparent 66%,
+        currentColor 66%,  currentColor 74%,
+        transparent 74%,   transparent 86%,
+        currentColor 86%,  currentColor 94%,
+        transparent 94%,   transparent 100%);
+}
+.gls-targeted, .gls-targeted label, .gls-targeted textarea, #gls-forced-ignore {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+.gls-targeted label, #gls-forced-ignore + button { margin-top: 8px; }
+.gls-targeted textarea, #gls-forced-ignore {
+    min-height: 120px;
+    margin-top: 6px;
+    resize: vertical;
+}
+.gls-targeted-actions { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
+.gls-targeted-status { min-height: 1.4em; margin-top: 8px; opacity: .75; }
+
+/* Panel body */
+.gls-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+    font-size: var(--gls-panel-font-size);
+    -webkit-overflow-scrolling: touch;
+    /* Scroll chaining: overscrolling the panel must not scroll the chat
+       behind it. Ported from DS Comments. */
+    overscroll-behavior: contain;
+    /* Thin, theme-aware scrollbar (Firefox + WebKit). Light touch so the
+       cards stay the focus, but easier to grab than the host theme's default. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--gls-text) 25%, transparent) transparent;
+}
+.gls-panel-body::-webkit-scrollbar { width: 5px; }
+.gls-panel-body::-webkit-scrollbar-track { background: transparent; }
+.gls-panel-body::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--gls-text) 25%, transparent);
+    border-radius: 3px;
+}
+.gls-panel-body::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--gls-text) 40%, transparent);
+}
+
+.gls-panel-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    /* Skip rendering for rows scrolled outside the panel viewport. The intrinsic
+       size hint keeps the scrollbar stable so rows don't pop on scroll-back.
+       Pairs with the panel-level containment above. The card layout (number +
+       text, then an action bar) is taller than the old single-row entry, hence
+       the larger intrinsic hint. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 76px;
+}
+
+.gls-panel-entry + .gls-panel-entry {
+    border-top: 1px solid var(--gls-line);
+}
+
+/* Content row: mono index + body text side by side. The index is shown once
+   here as a themed accent; the footnote text itself is rendered without its
+   leading superscript so the number isn't duplicated. */
+.gls-panel-entry-main {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+}
+.gls-panel-num {
+    flex: 0 0 auto;
+    font-family: var(--gls-font-mono);
+    color: var(--gls-accent);
+    font-weight: 600;
+    line-height: 1.45;
+}
+.gls-panel-text {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+/* Targeted-footnote markers («Точечно»): the typographic symbol run
+   (* † ‡ § ‖ ¶) instead of superscript digits. Slightly muted vs the numeric
+   run so the two sequences read apart at a glance. */
+.gls-sup--targeted,
+.gls-panel-num--targeted {
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+/* Floating targeted entry (target phrase not present in the post text):
+   no marker exists, so the panel row badges it. */
+.gls-panel-floating-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 5px;
+    border-radius: 8px;
+    font-size: 0.72em;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--gls-accent) 18%, transparent);
+    color: var(--gls-accent);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* Action bar — always visible, text + icon. Lives below the content so the
+   text gets the full card width. */
+.gls-panel-entry-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.gls-panel-edit-anchor { opacity: .7; font-size: .85em; width: 100%; }
+.gls-panel-edit-input { flex: 1; min-width: 0; resize: vertical; }
+.gls-panel-edit-actions { display: flex; gap: 6px; }
+.gls-panel-edit-actions button { min-height: 40px; }
+/* When the inline editor is mounted inside the popup body (not a panel row),
+   the textarea needs an explicit width since there's no flex parent. */
+.gls-popup-body .gls-panel-edit-input { width: 100%; box-sizing: border-box; }
+.gls-popup-body .gls-panel-edit-actions { margin-top: 6px; }
+.gls-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+.gls-excl-row { margin-bottom: 12px; }
+.gls-excl-toggle-label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: .9em; }
+.gls-excl-toggle-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--gls-accent); }
+.gls-excl-help { margin-top: 4px; font-size: .82em; opacity: .7; }
+/* Action rows center their buttons: a lone Apply (or Generate + Copy) hugging
+   the left edge under a full-width textarea reads as a layout bug, while
+   centered it reads as a deliberate footer. */
+.gls-excl-actions { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; }
+.gls-excl-status { opacity: .7; font-size: .85em; min-height: 1.2em; }
+
+/* ── Glossed anchors pool manager (Exclusions tab) ── */
+.gls-pool-wrap { margin-top: 16px; border-top: 1px solid var(--gls-border); padding-top: 12px; }
+.gls-pool-wrap > .gls-excl-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+/* Sizing/fill come from .gls-btn; only the disabled state is local. */
+.gls-pool-clear:disabled { opacity: .5; cursor: default; }
+.gls-pool-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.gls-pool-item { display: flex; align-items: center; gap: 6px; padding: 4px 2px; border-bottom: 1px solid var(--gls-border); }
+.gls-pool-item:last-child { border-bottom: none; }
+.gls-pool-anchor { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9em; }
+.gls-pool-item-actions { display: flex; gap: 2px; flex-shrink: 0; }
+/* Compact action buttons inside pool rows (override the 28px panel-row size). */
+.gls-pool-item .gls-panel-copy, .gls-pool-item .gls-panel-del { min-height: 26px; padding: 2px; }
+.gls-pool-item .gls-panel-copy span, .gls-pool-item .gls-panel-del span { display: none; }
+.gls-pool-empty { padding: 12px 4px; font-size: .85em; opacity: .6; text-align: center; }
+.gls-pool-list--excluded { max-height: 140px; }
+.gls-pool-item--excluded .gls-pool-anchor { opacity: .55; font-style: italic; }
+.gls-pool-excl-title { display: block; margin: 12px 0 6px; font-size: .85em; opacity: .75; }
+
+.gls-panel-copy, .gls-panel-del, .gls-panel-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--gls-text-2);
+    cursor: pointer;
+    opacity: 0.75;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 0.78em;
+    min-height: 28px;
+    flex: 0 0 auto;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.gls-panel-copy .gls-icon,
+.gls-panel-edit .gls-icon,
+.gls-panel-del .gls-icon {
+    width: 12px;
+    height: 12px;
+}
+.gls-panel-copy--done {
+    opacity: 1;
+    color: var(--gls-accent);
+}
+
+.gls-empty {
+    text-align: center;
+    color: var(--gls-text-3);
+    padding: 20px 8px;
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+/* §6.4: persistent "Source not configured" badge reason + CTA. */
+.gls-empty-reason {
+    margin-top: var(--gls-sp-1);
+    font-size: 0.85em;
+    opacity: 0.7;
+    word-break: break-word;
+    font-style: normal;
+}
+.gls-empty-configure {
+    margin-top: var(--gls-sp-2);
+    align-self: center;
+}
+
+/* ══════════════════════════════════════════════════════════
+   MOBILE / TOUCH
+   ══════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .gls-popup { max-width: 96vw; }
+    /* Belt-and-suspenders against horizontal overflow on phones: long
+       clause-level anchors and the under-post footnote block must never
+       widen their .mes past the viewport (which shoves the message text
+       sideways). The base rules already wrap and clamp width; these rules
+       just neutralise any inherited horizontal padding/margin a theme might
+       inject on .mes children. */
+    .gls-marker { max-width: 100%; }
+    .gls-inline-fns { margin-left: 0; margin-right: 0; max-width: 100%; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   SEGMENTED SOURCE PICKER (Generation Engine)
+   ══════════════════════════════════════════════════════════ */
+
+.gls-s-seg {
+    display: flex;
+    gap: 4px;
+    /* Opaque: plain --gls-bg (was color-mix(... 60%, #000), which re-introduced
+       40% transparency toward black even after theme-sync.js made --gls-bg
+       solid). The darkened look wasn't load-bearing — the border separates it
+       from surrounding chrome. */
+    background: var(--gls-bg);
+    border: 1px solid var(--gls-border);
+    border-radius: var(--gls-radius);
+    padding: 3px;
+}
+
+.gls-s-seg-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--gls-text);
+    opacity: 0.8;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font: inherit;
+    text-align: center;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.gls-s-seg-btn.gls-s-seg-active {
+    background: var(--gls-accent);
+    color: #111;
+    opacity: 1;
+    font-weight: 600;
+}
+
+.gls-s-profile-info {
+    margin-top: 4px;
+    font-size: 0.8em;
+    opacity: 0.7;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ── Custom hybrid lenses ──────────────────────────────────────────────── */
+.gls-s-custom-lenses {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.gls-s-custom-lenses-empty {
+    font-size: 0.85em;
+    opacity: 0.55;
+    padding: 6px 0;
+}
+
+.gls-s-custom-lens-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.gls-s-custom-lens-row > .checkbox {
+    flex: 0 0 auto;
+}
+
+.gls-s-custom-lens-row-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.gls-s-custom-lens-row-controls .gls-s-grow {
+    flex: 1 1 auto;
+    min-width: 120px;
+}
+
+.gls-s-custom-lens-prompt {
+    flex: 1 1 100%;
+}
+
+.gls-s-custom-lens-prompt[hidden] { display: none; }
+.gls-s-custom-lens-prompt:not([hidden]) { display: block; }
+.gls-s-custom-lens-prompt textarea {
+    width: 100%;
+    font-size: 0.85em;
+}
+
+/* ══════════════════════════════════════════════════════════
+   HOVER STATE (gated to devices with a real pointer)
+   ══════════════════════════════════════════════════════════
+   All :hover rules live here, under @media (hover: hover), so touch devices
+   never get a stuck hover state after a tap. Ported from DS Comments.
+   ══════════════════════════════════════════════════════════ */
+@media (hover: hover) {
+    /* Closed accordion headers hover neutral (they carry no accent until
+       opened — see the [aria-expanded="true"] rule above). */
+    .gls-s-section-header:hover { background: color-mix(in srgb, var(--gls-text) 8%, transparent); }
+    .gls-s-sub-section-toggle:hover { background: color-mix(in srgb, var(--gls-accent) 18%, transparent); }
+    .gls-fs-btn:hover {
+        opacity: 1;
+        border-color: var(--gls-accent);
+        background: var(--gls-accent-dim);
+    }
+    .gls-s-seg-btn:hover { opacity: 1; }
+
+    #chat.gls-hl-background .gls-marker:hover { filter: brightness(1.15); }
+    #chat.gls-hl-underline .gls-marker:hover { background-color: var(--gls-accent-dim); }
+    #chat.gls-hl-dotted .gls-marker:hover { background-color: var(--gls-accent-dim); }
+
+    .gls-popup-close:hover {
+        opacity: 1;
+        background: var(--gls-accent-dim);
+    }
+    .gls-popup-action-btn:hover {
+        opacity: 1;
+        border-color: var(--gls-accent);
+    }
+    /* Delete in the popup gets the same red tint as the panel's delete row. */
+    .gls-popup-del:hover {
+        opacity: 1;
+        color: #e05c5c;
+        border-color: #e05c5c;
+    }
+    .gls-panel-nav-btn:hover:not(:disabled) {
+        opacity: 1;
+        background: var(--gls-accent-dim);
+    }
+    .gls-panel-btn:hover {
+        opacity: 1;
+        background: var(--gls-accent-dim);
+    }
+    .gls-panel-btn--clear:hover {
+        opacity: 1;
+        color: #e05c5c;
+        background: color-mix(in srgb, #e05c5c 22%, transparent);
+    }
+    .gls-panel-copy:hover { opacity: 1; background: var(--gls-accent-dim); }
+    .gls-panel-del:hover { opacity: 1; background: color-mix(in srgb, #e05c5c 22%, transparent); color: #e05c5c; }
+    .gls-panel-edit:hover { opacity: 1; background: var(--gls-accent-dim); }
+    .gls-btn:hover { border-color: var(--gls-accent); color: var(--gls-text); background: var(--gls-accent-dim); }
+    .gls-orphan-regen:hover {
+        background: color-mix(in srgb, #e0a030 30%, transparent);
+    }
+}
+
+/* ── Orphan banner (anchors lost after edit/continue rebind) ── */
+.gls-orphan-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    margin: 4px 0 8px;
+    border-radius: 6px;
+    background: color-mix(in srgb, #e0a030 12%, transparent);
+    border: 1px solid color-mix(in srgb, #e0a030 30%, transparent);
+    font-size: 0.825rem;
+}
+.gls-orphan-label {
+    flex: 1;
+    color: color-mix(in srgb, #e0a030 90%, #fff);
+}
+.gls-orphan-regen {
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, #e0a030 40%, transparent);
+    background: color-mix(in srgb, #e0a030 15%, transparent);
+    color: #e0a030;
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
