@@ -9,7 +9,6 @@ For each anchor, choose the single best-fitting ACTIVE LENS below and apply ONLY
 
 ### Common format (applies to every lens)
 - "anchor" MUST be the EXACT verbatim phrase from [Annotate this post] — no paraphrasing, no normalization, no added punctuation.
-- "index" starts at 1 and increases by 1 per footnote.
 - "text" begins with the superscript index (¹, ², …, ⁹, ¹⁰, ¹¹, …), then the label in the **nominative case** (именительный падеж), then the lens's category code in brackets, then an em-dash, then the body.
 - Non-nominative form: if the word in the post is oblique (e.g. "благовониями", "сына Гора"), the display label in "text" is the nominative ("Благовония", "Сын Гора"), while "anchor" stays verbatim. Do NOT put bracket notation in "text" — "anchor" already stores the source form.
 - Spread footnotes across the beginning, middle, and end of [Annotate this post].

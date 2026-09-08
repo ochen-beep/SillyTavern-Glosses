@@ -151,6 +151,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // and their font applies only while footnoteFontFamily is 'inherit' (an
     // explicit font choice always wins over the skin).
     popupTheme: 'adaptive',
+    // Window invocation control: 'bar' (quick-reply bar button) | 'floating'
+    // (draggable FAB, src/ui/floating-launcher.js) | 'both'. Validated on load.
+    launcherMode: 'bar',
     floatingPanelEnabled: false,
     // Persisted ✕-hide: the user's hidden/shown choice for the floating panel.
     // Set by the panel's ✕ button, cleared by the launcher re-show / any enable
@@ -268,6 +271,11 @@ export function loadSettings() {
     }
     if (!['ru', 'en'].includes(state.settings.outputLanguage)) {
         state.settings.outputLanguage = DEFAULT_SETTINGS.outputLanguage;
+        settingsChanged = true;
+    }
+    // Launcher mode enum — guard against stale/hand-edited values.
+    if (!['bar', 'floating', 'both'].includes(state.settings.launcherMode)) {
+        state.settings.launcherMode = DEFAULT_SETTINGS.launcherMode;
         settingsChanged = true;
     }
     // Hybrid ALL became a manual configuration; retain every setting it applied.

@@ -737,6 +737,22 @@ let _popupOpenTimer = null;
 let _popupFollowRaf = 0;
 
 /**
+ * Refresh the floating panel after a popup-side mutation (edit / delete): the
+ * panel's render-key cache would otherwise keep showing the old footnote text
+ * until the next external render trigger. Dynamic import — window.js imports
+ * this module statically, so a static back-import would close a cycle (the
+ * same pattern launcher.js uses).
+ */
+function refreshFloatingPanel() {
+    import('./ui/window.js')
+        .then(({ panelInvalidate, updatePanel }) => {
+            panelInvalidate();
+            updatePanel();
+        })
+        .catch(() => { /* best-effort refresh */ });
+}
+
+/**
  * Show the footnote popup anchored to a marker.
  *
  * @param {{ index: number, anchor: string, text: string }} fn - the footnote
@@ -840,8 +856,15 @@ export function showPopup(fn, anchorEl, ctx = null) {
                         if (footnotes?.length) injectHighlights(mesEl, footnotes);
                     }
                     closePopup();
+                    // An open floating panel still shows the pre-edit text —
+                    // its render-key cache only refreshes on a render call.
+                    refreshFloatingPanel();
                 },
-                onAfterDelete: () => { _popupEditing = false; closePopup(); },
+                onAfterDelete: () => {
+                    _popupEditing = false;
+                    closePopup();
+                    refreshFloatingPanel();
+                },
             });
             // Reflect editing state for Escape handling. The shared editor doesn't
             // know about this popup-local flag, so we watch DOM mutations on body.

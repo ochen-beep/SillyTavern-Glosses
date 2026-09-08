@@ -29,6 +29,7 @@ import { normalizeAnchorKey } from '../anchor-utils.js';
 import { renumberFootnotes, reindexTargeted } from '../application/footnote-commands.js';
 import { whenSendFormReady } from './dom-ready.js';
 import { createTabController } from './tabs.js';
+import { copyText } from './clipboard.js';
 import {
     parseTargetLines, generateTargetedFootnotes, clearTargetedState,
     resolveTargetedAnchors,
@@ -50,21 +51,6 @@ function saveDraftSoon() {
         _draftSaveTimer = null;
         try { saveTargetedDraft(_targetedState.input); } catch { /* non-critical */ }
     }, 400);
-}
-
-/** execCommand fallback for hosts without navigator.clipboard (plain http). */
-function copyViaFallback(text) {
-    try {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        const ok = document.execCommand('copy');
-        ta.remove();
-        return ok;
-    } catch { return false; }
 }
 
 /**
@@ -233,10 +219,9 @@ function renderTargetedTab(body) {
     copy.addEventListener('click', async () => {
         const text = (_targetedState.result?.footnotes || []).map(f => f.text).join('\n');
         if (!text) return;
-        let ok = false;
-        try { await navigator.clipboard?.writeText(text); ok = true; } catch { ok = false; }
-        if (!ok) ok = copyViaFallback(text);
-        if (ok) {
+        // copyText degrades to execCommand on insecure origins (http LAN) —
+        // the feedback must only show on an actual write.
+        if (await copyText(text)) {
             const restore = copy.textContent;
             copy.textContent = t('Copied');
             setTimeout(() => {
@@ -744,6 +729,10 @@ function makeDraggable(panel, handle, enabledWhen) {
         document.addEventListener('touchmove', onMove, { passive: false });
         document.addEventListener('mouseup', onUp);
         document.addEventListener('touchend', onUp);
+        // The OS can cancel the gesture mid-drag (edge swipe, notification
+        // shade) — without this the drag stays "in flight" and the document
+        // listeners leak until the next touch anywhere.
+        document.addEventListener('touchcancel', onUp);
     };
 
     const onMove = (e) => {
@@ -774,6 +763,7 @@ function makeDraggable(panel, handle, enabledWhen) {
         document.removeEventListener('touchmove', onMove);
         document.removeEventListener('mouseup', onUp);
         document.removeEventListener('touchend', onUp);
+        document.removeEventListener('touchcancel', onUp);
         // Flush any pending frame synchronously so the panel lands at the
         // exact release point, then clear the will-change hint.
         if (pendingFrame) { cancelAnimationFrame(pendingFrame); pendingFrame = 0; }
@@ -832,6 +822,7 @@ function makeResizable(panel) {
         document.removeEventListener('touchmove', onMove);
         document.removeEventListener('mouseup', onUp);
         document.removeEventListener('touchend', onUp);
+        document.removeEventListener('touchcancel', onUp);
         if (pendingFrame) { cancelAnimationFrame(pendingFrame); pendingFrame = 0; }
         flush();
         panel.style.willChange = '';
@@ -855,6 +846,8 @@ function makeResizable(panel) {
         document.addEventListener('touchmove', onMove, { passive: false });
         document.addEventListener('mouseup', onUp);
         document.addEventListener('touchend', onUp);
+        // See makeDraggable: a cancelled gesture must release the resize.
+        document.addEventListener('touchcancel', onUp);
         e.preventDefault();
         e.stopPropagation();
     };

@@ -473,6 +473,11 @@ export function bindSettingsUI() {
     const ppEl = $('gls_popup_position');
     if (ppEl) { ppEl.value = S().popupPosition || 'auto'; on(ppEl, 'change', () => { S().popupPosition = ppEl.value; saveSettings(); }); }
 
+    // Launcher mode - ensureLauncher() mounts/unmounts both launchers (bar
+    // button + FAB) to match the new mode immediately.
+    const lmEl = $('gls_launcher_mode');
+    if (lmEl) { lmEl.value = S().launcherMode || 'bar'; on(lmEl, 'change', () => { S().launcherMode = lmEl.value; saveSettings(); ensureLauncher(); }); }
+
     // Popup width slider - applyHighlightStyles republishes --gls-popup-maxw,
     // and the next showPopup positions against whatever width that yields.
     const pwEl = $('gls_popup_width');

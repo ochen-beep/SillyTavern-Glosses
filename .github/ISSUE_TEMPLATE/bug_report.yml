@@ -1,0 +1,40 @@
+name: Bug report
+description: Something in Glosses broke
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Reports in Russian are fine too.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, expected vs actual. Screenshots welcome.
+    validations:
+      required: true
+  - type: input
+    id: st-version
+    attributes:
+      label: SillyTavern version
+      description: From the About screen, e.g. 1.13.1
+    validations:
+      required: true
+  - type: input
+    id: ext-version
+    attributes:
+      label: Glosses version
+      description: From the extensions list, e.g. 3.4.2
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Generation source
+      options:
+        - Connection Profile
+        - Custom (OpenAI-compatible)
+  - type: textarea
+    id: context
+    attributes:
+      label: Prompt style and display mode
+      description: e.g. Hybrid with Language lens, display mode "popup"; which message the footnotes were generated for.

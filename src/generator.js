@@ -254,9 +254,7 @@ Example with phrase anchor (source text: "сына Гора"):
 {
   "footnotes": [
     {
-      "index": 1,
       "anchor": "напряжение",
-      "transcription": "/nɐˈprʲaʐɛnʲɪje/",
       "text": "¹ напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · mnemonic: from tense ( напряжённый) · collocation: under tension — под напряжением"
     }
   ]
@@ -268,9 +266,7 @@ Example with phrase anchor (source text: "сына Гора"):
 {
   "footnotes": [
     {
-      "index": 1,
       "anchor": "чувство",
-      "transcription": "/ˈtɕʊvstvə/",
       "text": "¹ чувство (Eng.) — feeling · /ˈfiːlɪŋ/ · «féeling» · also: sense (чувство/смысл), emotion (эмоция) · collocation: a sense of — чувство чего-либо"
     }
   ]
@@ -282,9 +278,7 @@ Example with phrase anchor (source text: "сына Гора"):
 {
   "footnotes": [
     {
-      "index": 1,
       "anchor": "абсолютный",
-      "transcription": "/ɐbsɐˈlutnɨj/",
       "text": "¹ абсолютный (Eng.) — absolute · /ˈæbsəluːt/ · «ábsolút» · from Lat. absolutus — unlimited · mnemonic: ab(olute)ly = абсолютно"
     }
   ]
@@ -300,9 +294,7 @@ Example with phrase anchor (source text: "сына Гора"):
 {
   "footnotes": [
     {
-      "index": 1,
       "anchor": "напряжение",
-      "transcription": "/nɐˈprʲaʐɛnʲɪje/",
       "text": "¹ напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · мнемоника: от tense (напряжённый) · коллокация: under tension — под напряжением"
     }
   ]
@@ -314,9 +306,7 @@ Example with phrase anchor (source text: "сына Гора"):
 {
   "footnotes": [
     {
-      "index": 1,
       "anchor": "чувство",
-      "transcription": "/ˈtɕʊvstvə/",
       "text": "¹ чувство (англ.) — feeling · /ˈfiːlɪŋ/ · «фи́линг» · also: sense (чувство/смысл), emotion (эмоция) · коллокация: a sense of — чувство чего-либо"
     }
   ]
@@ -328,9 +318,7 @@ Example with phrase anchor (source text: "сына Гора"):
 {
   "footnotes": [
     {
-      "index": 1,
       "anchor": "абсолютный",
-      "transcription": "/ɐbsɐˈlutnɨj/",
       "text": "¹ абсолютный (англ.) — absolute · /ˈæbsəluːt/ · «а́бсолю́т» · от лат. absolutus — неограниченный · мнемоника: ab(olute)ly = абсолютно"
     }
   ]
@@ -931,6 +919,19 @@ function buildDomTextModel(mesEl) {
  * the commit guard discards the result when the variant was switched or its
  * text changed (edit / continue) while the request was in flight.
  */
+// Launcher pulse: while any generation is in flight, both launcher controls
+// (QR-bar button + floating FAB) pulse via .gls_generating (style.css).
+// Generations are per-message and can overlap (a regen on another message), so
+// the class is reference-counted; superseded runs decrement too — their finally
+// still runs after beginRun() replaced their controller.
+let _generatingRuns = 0;
+
+function setLaunchersGenerating(on) {
+    for (const id of ['gls_launcher', 'gls_fab']) {
+        document.getElementById(id)?.classList.toggle('gls_generating', on);
+    }
+}
+
 export async function generateFootnotes(messageId, swipeIdx, mesEl) {
     if (!variantIsViable(messageId, swipeIdx)) {
         // Reject placeholder/short posts at every entry point (Issue 5).
@@ -942,6 +943,7 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
     const run = generationCoordinator.beginRun(messageId);
     const ctrl = run.ctrl;
     setSpinner(messageId, true);
+    if (_generatingRuns++ === 0) setLaunchersGenerating(true);
 
     try {
         const signal = ctrl.signal;
@@ -1030,6 +1032,7 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
         state.configuredState = { ok: false, reason: e.message || String(e) };
         toastr?.error?.(`[Glosses] ${e.message}`);
     } finally {
+        if (--_generatingRuns <= 0) { _generatingRuns = 0; setLaunchersGenerating(false); }
         // Only clean up if THIS call is still the active controller for the
         // message. If a later call (B) superseded us, its own finally cleans up;
         // touching state here would abort/hide B mid-flight. endRun guards on

@@ -1,0 +1,7 @@
+.zcode/
+node_modules/
+Thumbs.db
+desktop.ini
+*.log
+# Internal working notes (AI code reviews etc.) — kept locally, not published.
+docs/

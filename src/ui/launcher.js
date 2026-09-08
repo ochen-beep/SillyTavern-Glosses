@@ -1,12 +1,17 @@
 // @ts-check
 /**
- * Glosses — Launcher button (in the quick-reply bar) + re-mount observer.
+ * Glosses — Launcher buttons (quick-reply bar + floating FAB) + re-mount observer.
  *
- * A Tⁿ (footnote) button in #qr--bar that toggles the floating footnotes panel
- * on/off. SillyTavern rebuilds #send_form / #qr--bar on chat switch, group
- * change, and quick-reply edits — a MutationObserver on #send_form re-mounts
- * the launcher when that happens. #send_form is lazy-mounted by ST: until it
- * appears we wait on APP_READY (whenSendFormReady), not a polling timer.
+ * settings.launcherMode ('bar' | 'floating' | 'both') picks which launcher(s)
+ * are shown: a Tⁿ (footnote) button in #qr--bar, the draggable floating button
+ * (floating-launcher.js), or both. The bar button toggles the floating footnotes
+ * panel on/off; the FAB shares the same toggle semantics. SillyTavern rebuilds
+ * #send_form / #qr--bar on chat switch, group change, and quick-reply edits —
+ * a MutationObserver on #send_form re-mounts the launcher when that happens.
+ * #send_form is lazy-mounted by ST: until it appears we wait on APP_READY
+ * (whenSendFormReady), not a polling timer. The FAB mounts independently of the
+ * QR bar, so the panel stays reachable even with the Quick Replies extension
+ * disabled.
  *
  * v3.1 (spec §6.3 + §6.8): ✕ now hides (not destroys) and the launcher
  * re-shows; the active-state class tracks VISIBILITY (not floatingPanelEnabled
@@ -23,6 +28,7 @@
 
 import { S, saveSettings, t } from '../core.js';
 import { whenSendFormReady } from './dom-ready.js';
+import { ensureFloatingLauncher, removeFloatingLauncher } from './floating-launcher.js';
 
 let _launcherObserver = null;
 let _launcherDebounce = null;
@@ -52,50 +58,65 @@ function getLauncherHost() {
 }
 
 /**
- * Create or refresh the launcher button. Idempotent: if it already exists it
- * is re-parented to the current host and its active state is re-synced.
- * Returns the button element, or null if there is no host or footnotes are off.
+ * Create or refresh the launcher controls. Idempotent: the bar button, if it
+ * already exists, is re-parented to the current host and its active state is
+ * re-synced; the FAB re-syncs its highlight. Returns the bar button element,
+ * or null if footnotes are off, the mode is 'floating', or there is no QR-bar
+ * host (the FAB, when wanted, is ensured regardless of the host).
  */
 export function ensureLauncher() {
     const existing = document.getElementById('gls_launcher');
     if (!S().enabled) {
         existing?.remove();
         document.body.classList.remove('gls-launcher-mounted');
+        removeFloatingLauncher();
         return null;
     }
-    const host = getLauncherHost();
-    if (!host) {
-        document.body.classList.remove('gls-launcher-mounted');
-        return null;
-    }
+    const mode = S().launcherMode || 'bar';
+    const wantBar = mode === 'bar' || mode === 'both';
+    const wantFab = mode === 'floating' || mode === 'both';
 
-    let btn = existing;
-    if (!btn) {
-        btn = document.createElement('div');
-        btn.id = 'gls_launcher';
-        btn.className = 'qr--button menu_button interactable gls_launcher';
-        btn.tabIndex = 0;
-        btn.setAttribute('role', 'button');
-        btn.setAttribute('aria-label', t('Show footnotes panel'));
-        btn.title = t('Show footnotes panel');
-        btn.innerHTML = '<span aria-hidden="true"><i class="fa-solid fa-superscript"></i></span>';
-        btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleLauncherPanel(); });
-        btn.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLauncherPanel(); }
-        });
+    // The FAB mounts into <body> independently of the QR bar.
+    if (wantFab) ensureFloatingLauncher({ onToggle: toggleLauncherPanel });
+    else removeFloatingLauncher();
+
+    let btn = null;
+    if (wantBar) {
+        const host = getLauncherHost();
+        if (host) {
+            btn = existing;
+            if (!btn) {
+                btn = document.createElement('div');
+                btn.id = 'gls_launcher';
+                btn.className = 'qr--button menu_button interactable gls_launcher';
+                btn.tabIndex = 0;
+                btn.setAttribute('role', 'button');
+                btn.setAttribute('aria-label', t('Show footnotes panel'));
+                btn.title = t('Show footnotes panel');
+                btn.innerHTML = '<span aria-hidden="true"><i class="fa-solid fa-superscript"></i></span>';
+                btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleLauncherPanel(); });
+                btn.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLauncherPanel(); }
+                });
+            }
+            if (btn.parentElement !== host) host.appendChild(btn);
+            document.body.classList.add('gls-launcher-mounted');
+        }
     }
-    if (btn.parentElement !== host) host.appendChild(btn);
-    document.body.classList.add('gls-launcher-mounted');
-    // §6.3: active state follows VISIBILITY, not floatingPanelEnabled alone —
-    // a ✕-hidden-but-enabled panel is not 'visibly active'. Inline DOM read
-    // (panel id = 'gls-panel') avoids a launcher↔window import cycle that the
-    // other dynamic-imports already work around.
-    let visible = false;
-    try {
-        const panel = document.getElementById('gls-panel');
-        visible = !!panel && panel.style.display !== 'none';
-    } catch { /* ignore */ }
-    btn.classList.toggle('gls_launcher_active', S().floatingPanelEnabled && visible);
+    if (!btn && existing) existing.remove();
+    if (!btn) document.body.classList.remove('gls-launcher-mounted');
+    if (btn) {
+        // §6.3: active state follows VISIBILITY, not floatingPanelEnabled alone —
+        // a ✕-hidden-but-enabled panel is not 'visibly active'. Inline DOM read
+        // (panel id = 'gls-panel') avoids a launcher↔window import cycle that the
+        // other dynamic-imports already work around.
+        let visible = false;
+        try {
+            const panel = document.getElementById('gls-panel');
+            visible = !!panel && panel.style.display !== 'none';
+        } catch { /* ignore */ }
+        btn.classList.toggle('gls_launcher_active', S().floatingPanelEnabled && visible);
+    }
     return btn;
 }
 
@@ -193,11 +214,12 @@ export function observeQrBar() {
     });
 }
 
-/** Tear down: remove button + disconnect observer + cancel the disposer and
- *  the debounce timer. Called from cleanup(). */
+/** Tear down: remove both launchers (bar button + FAB), disconnect observer
+ *  and cancel the disposer and the debounce timer. Called from cleanup(). */
 export function removeLauncher() {
     document.getElementById('gls_launcher')?.remove();
     document.body.classList.remove('gls-launcher-mounted');
+    removeFloatingLauncher();
     if (_launcherObserver) { _launcherObserver.disconnect(); _launcherObserver = null; }
     if (_launcherDebounce) { clearTimeout(_launcherDebounce); _launcherDebounce = null; }
     if (_launcherReadyDispose) { _launcherReadyDispose(); _launcherReadyDispose = null; }

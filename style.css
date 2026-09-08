@@ -373,7 +373,6 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
 }
-.gls-color-btn:hover { border-color: var(--gls-accent); color: var(--gls-text); }
 .gls-color-swatch {
     width: 20px;
     height: 20px;
@@ -796,7 +795,7 @@
     /* z-index layering vs ST (public/style.css): character/config popups sit at
        4000–4100, #dialogue_popup (the Popup.show.* modal) and the swipe arrows
        at 9999, autocomplete at 10000, toasts ~99999. 9000 keeps the footnote
-       popup above the floating panel (3000) and ST's chrome but BELOW
+       popup above the floating panel (2998) and the FAB (2999) and ST's chrome but BELOW
        #dialogue_popup — a confirm dialog opened while the popup is visible must
        never be covered. The old 10000 floated above ST's own modals. */
     z-index: 9000;
@@ -1200,14 +1199,89 @@
 }
 
 /* ══════════════════════════════════════════════════════════
+   FLOATING LAUNCHER (FAB — src/ui/floating-launcher.js)
+   Draggable round toggle for the floating panel; mounted when
+   settings.launcherMode is 'floating' | 'both'. Position is set
+   inline by JS (persisted in localStorage as {left, top}).
+   ══════════════════════════════════════════════════════════ */
+
+.gls_fab {
+    /* 2999 — above the floating panel (2998) so it stays clickable over it (the
+       FAB is the panel's toggle), but just below ST's own chrome (left-nav
+       drawer 3000, top bar 3005) so it never blocks host settings, and below
+       the footnote popup (9000) and ST's #dialogue_popup (9999). Drag/restore
+       clamp the FAB below the top bar (floating-launcher.js) so it can't be
+       parked and lost underneath it. Locked by contract in
+       tests/floating-launcher.test.mjs. */
+    position: fixed;
+    z-index: 2999;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--gls-bg);
+    border: 1px solid var(--gls-border);
+    color: var(--gls-text);
+    box-shadow: var(--gls-shadow);
+    cursor: pointer;
+    user-select: none;
+    font-size: 16px; /* FA glyph sizing */
+    touch-action: none; -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+@media (hover: hover) {
+    .gls_fab:hover {
+        background: color-mix(in srgb, var(--gls-accent) 18%, var(--gls-bg));
+        border-color: color-mix(in srgb, var(--gls-accent) 55%, transparent);
+    }
+}
+.gls_fab:focus-visible {
+    outline: 2px solid var(--gls-accent);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+/* Panel is open — the FAB is the toggle, so it stays visible and is
+   accent-highlighted rather than hiding. */
+.gls_fab.gls_fab_active {
+    background: color-mix(in srgb, var(--gls-accent) 28%, var(--gls-bg));
+    border-color: color-mix(in srgb, var(--gls-accent) 55%, transparent);
+    color: var(--gls-accent);
+}
+.gls_fab.gls_fab_dragging {
+    transition: none !important;
+    cursor: grabbing !important;
+    will-change: left, top;
+}
+
+/* Generation in progress — both launcher controls pulse (generator.js toggles
+   .gls_generating on #gls_launcher + #gls_fab for the whole run). */
+.gls_launcher.gls_generating,
+.gls_fab.gls_generating {
+    animation: gls_pulse 1.4s ease-in-out infinite;
+    will-change: transform;
+}
+@keyframes gls_pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gls_launcher.gls_generating,
+    .gls_fab.gls_generating {
+        animation: none; opacity: 0.8; will-change: auto;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
    FLOATING PANEL
    ══════════════════════════════════════════════════════════ */
 
 .gls-panel {
     position: fixed;
     /* FIX (review): was z-index:1, which let any positioned element in the chat
-       cover the panel. Bumped to 3000 so it reliably sits above message chrome. */
-    z-index: 3000;
+       cover the panel. 2998 keeps it above message chrome while staying under
+       ST's own chrome (left-nav drawer 3000, top bar 3005) and frees 2999 for
+       the FAB — see .gls_fab. */
+    z-index: 2998;
     width: 320px;
     height: 55vh;
     min-width: 220px;
@@ -1295,6 +1369,16 @@
     min-height: 40px;
     padding: 4px 10px;
 }
+/* Pool rows (Exclusions tab) live in .gls-pool-item-actions, which the rule
+   above doesn't reach — their compact icon-only override (26px, labels hidden)
+   would stay below the touch floor on phones. Bump them separately. */
+.gls-panel.gls-panel--mobile .gls-pool-item .gls-panel-copy,
+.gls-panel.gls-panel--mobile .gls-pool-item .gls-panel-del {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 4px 8px;
+}
+.gls-panel.gls-panel--mobile .gls-orphan-regen { min-height: 40px; }
 
 /* Panel header */
 .gls-panel-header {
@@ -1686,6 +1770,15 @@
        inject on .mes children. */
     .gls-marker { max-width: 100%; }
     .gls-inline-fns { margin-left: 0; margin-right: 0; max-width: 100%; }
+    /* iOS Safari zooms the whole page when a text field with an effective
+       font-size below 16px is focused. Glosses' fields inherit the panel/
+       popup font pairs (≈0.78–0.9em) — pin 16px on every Glosses-owned text
+       surface so opening the editor, the targets textarea or the settings
+       fields doesn't zoom. */
+    #gls-panel textarea,
+    .gls-popup .gls-panel-edit-input,
+    .gls-s input.text_pole,
+    .gls-s textarea.text_pole { font-size: 16px; }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1802,6 +1895,7 @@
         background: var(--gls-accent-dim);
     }
     .gls-s-seg-btn:hover { opacity: 1; }
+    .gls-color-btn:hover { border-color: var(--gls-accent); color: var(--gls-text); }
 
     #chat.gls-hl-background .gls-marker:hover { filter: brightness(1.15); }
     #chat.gls-hl-underline .gls-marker:hover { background-color: var(--gls-accent-dim); }
@@ -1821,6 +1915,7 @@
         color: #e05c5c;
         border-color: #e05c5c;
     }
+    .gls-panel-tabs button:hover { background: var(--gls-accent-dim); }
     .gls-panel-nav-btn:hover:not(:disabled) {
         opacity: 1;
         background: var(--gls-accent-dim);

@@ -9,4 +9,4 @@
 - Common words at the target CEFR level that are useful building blocks.
 **Do NOT footnote:** articles, basic pronouns, internationalisms (taxi, café) unless pronunciation surprises; proper nouns unless they have a linguistic angle.
 **Label:** ({{TARGET_LANG_LABEL}})
-**Format quirk:** include "transcription" = IPA in /slashes/ + · + approximate phonetic reading in {{OUTPUT_LANGUAGE}} with stress mark ´. Example: /nɐˈprʲaʐɛnʲɪje/ · «напряже́ние». Body teaches translation · IPA · phonetic reading · mnemonic or usage tip.
+**Format quirk:** the footnote body embeds IPA in /slashes/ + · + approximate phonetic reading in {{OUTPUT_LANGUAGE}} with stress mark ´. Example: /nɐˈprʲaʐɛnʲɪje/ · «напряже́ние». Body teaches translation · IPA · phonetic reading · mnemonic or usage tip.

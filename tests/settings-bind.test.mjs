@@ -16,7 +16,7 @@ import { resetCtx } from './helpers/stub-runtime.mjs';
 import {
     bindSettingsUI, unbindSettingsUI,
 } from '../src/ui/settings-sync.js';
-import { loadSettings } from '../src/core.js';
+import { loadSettings, S } from '../src/core.js';
 
 function freshSettingsContext() {
     resetCtx({ extensionSettings: { Glosses: {} } });
@@ -97,5 +97,35 @@ test('a disable/enable cycle gets a fresh controller (no listener leak across cy
         assert.equal(created[1].aborted, true);
     } finally {
         globalThis.AbortController = origCtor;
+    }
+});
+
+test('launcher mode select initializes from settings and writes changes back', () => {
+    freshSettingsContext();
+    S().launcherMode = 'floating';
+    // Minimal fake select: bindSettingsUI only needs value + addEventListener
+    // (every other element lookup returns null and its binding is skipped).
+    const listeners = {};
+    const select = {
+        value: '',
+        addEventListener: (type, fn) => { (listeners[type] ??= []).push(fn); },
+    };
+    let saves = 0;
+    globalThis._stCtx.saveSettingsDebounced = () => { saves++; };
+    const origById = document.getElementById;
+    document.getElementById = (id) => (id === 'gls_launcher_mode' ? select : null);
+    try {
+        bindSettingsUI();
+        assert.equal(select.value, 'floating', 'select initialized from settings on bind');
+        // Switching back to 'bar' keeps the change handler on the remove-only
+        // path of ensureLauncher() (safe under the no-DOM stub; the FAB mount
+        // path needs a real body/appendChild).
+        select.value = 'bar';
+        for (const fn of listeners.change ?? []) fn();
+        assert.equal(S().launcherMode, 'bar', 'change writes settings.launcherMode');
+        assert.ok(saves > 0, 'change persists settings');
+    } finally {
+        document.getElementById = origById;
+        unbindSettingsUI();
     }
 });

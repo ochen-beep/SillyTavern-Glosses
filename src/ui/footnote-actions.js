@@ -18,7 +18,7 @@
  *     is supplied by the caller, who already owns the renderer reference.
  *
  * Dep edges: icons, core (t), parser (stripLeadingNumber), footnote-editor,
- * application/footnote-commands. No window.js, no renderer.js.
+ * clipboard, application/footnote-commands. No window.js, no renderer.js.
  */
 
 import { iconHtml } from './icons.js';
@@ -27,6 +27,7 @@ import {
     deleteFootnote,
 } from '../application/footnote-commands.js';
 import { mountInlineEditor } from './footnote-editor.js';
+import { copyText } from './clipboard.js';
 
 // Re-export the editor so the action bar and any caller share one surface.
 export { mountInlineEditor };
@@ -116,18 +117,26 @@ export function buildFootnoteActions(opts) {
         ? 'gls-popup-action-btn--done'
         : 'gls-panel-copy--done';
 
-    // Copy: await the clipboard write and only show success feedback once it
-    // resolves; surface rejection instead of a false "Copied ✓" (plan §2.4).
+    // Copy: gate the "Copied ✓" feedback on an actual write. On insecure
+    // origins (http LAN access — the typical mobile ST setup) the async
+    // Clipboard API doesn't exist and copyText degrades to execCommand; the
+    // old `await navigator.clipboard?.writeText()` resolved to undefined there
+    // and showed a false success (plan §1).
     const copy = makeActionButton(copyCls, 'copy', t('Copy'), async () => {
-        try {
-            await navigator.clipboard?.writeText(opts.fn.text);
+        const ok = await copyText(opts.fn.text);
+        if (ok) {
             showCopied(copy, { doneClass: copyDoneCls });
             opts.onAfterCopy?.();
-        } catch {
+        } else {
             toastr?.error?.(t('Copy failed'));
         }
     });
     const edit = makeActionButton(editCls, 'pen', t('Edit'), () => {
+        // A repeated tap while the editor is already mounted (the popup keeps
+        // its header mounted over the editor body) must not re-mount and wipe
+        // the in-progress draft — focus the live textarea instead.
+        const live = opts.editHost.querySelector?.('textarea.gls-panel-edit-input');
+        if (live) { live.focus?.(); return; }
         mountInlineEditor(opts.editHost, {
             fn: opts.fn,
             msgId: opts.msgId,

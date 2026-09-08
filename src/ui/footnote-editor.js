@@ -18,6 +18,8 @@
  *   - saved:      editFootnote ok → onSaved(footnotes, message) → caller
  *                 re-renders (back to viewing).
  *   - error:      empty text → toast, stay in editing (input preserved).
+ *                 storage write failed → toast, stay in editing, buttons
+ *                 re-enabled (retryable — the draft is intact).
  *   - stale:      message changed under us → toast + onCancelled() (back to
  *                 viewing, caller re-resolves context).
  *
@@ -79,9 +81,11 @@ export function mountInlineEditor(hostEl, opts) {
 
     const save = document.createElement('button');
     save.type = 'button';
+    save.className = 'gls-btn';
     save.textContent = t('Save');
     const cancel = document.createElement('button');
     cancel.type = 'button';
+    cancel.className = 'gls-btn';
     cancel.textContent = t('Cancel');
 
     const actions = document.createElement('div');
@@ -120,7 +124,17 @@ export function mountInlineEditor(hostEl, opts) {
             toastr?.warning?.(t('Footnote text is required'));
             return;
         }
-        // 'stale' — message changed under us; bail and let the caller reset.
+        if (result.reason === 'persistence-error') {
+            // The write failed (not a staleness problem) — keep the editor
+            // open with the draft intact so the user can retry.
+            phase = 'editing';
+            save.disabled = false;
+            cancel.disabled = false;
+            toastr?.error?.(t('Could not save the edit; try again'));
+            return;
+        }
+        // 'stale' / 'not-found' — the message or the footnote moved under us;
+        // bail and let the caller reset.
         phase = 'editing';
         save.disabled = false;
         cancel.disabled = false;
