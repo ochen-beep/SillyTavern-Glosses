@@ -48,3 +48,94 @@ export const MIRROR_ID = 'gls-custom-css-preview';
 export function mirrorPopupSelectors(css) {
     return String(css ?? '').replace(/\.gls-popup(?![-\w])/g, '.gls-popup-preview');
 }
+
+/**
+ * Starter stylesheet for "Insert base template". Comments document every
+ * popup target and the useful tokens; the active example (warm paper card)
+ * gives an immediate visible change so the feature self-demonstrates. CSS
+ * comments cannot ride data-i18n, so this stays English.
+ */
+export const CUSTOM_CSS_BASELINE = `/* ═════════ Glosses — popup custom CSS ═════════
+   Injected as a <style> tag when "Enable custom CSS layer" is on.
+   Applies to the whole page (like ST's own Custom CSS) and sits ON TOP of
+   the skin + knobs selected above. Everything below is an example — edit
+   or delete freely.
+
+   Targets:
+     .gls-popup             popup card (background / border / shadow)
+     .gls-popup-header      Copy · Edit · Delete · Close row
+     .gls-popup-close       the ✕ button
+     .gls-popup-body        content wrapper (padding)
+     .gls-popup-title       headword row (.gls-popup-title-idx = the number)
+     .gls-popup-text        footnote body (its code/strong/em/del too)
+     .gls-popup-action-btn  small header buttons
+   Also reachable: chat marker .gls-marker / .gls-sup,
+   under-post block .gls-inline-fns / .gls-inline-fn.
+
+   Handy tokens (declare on :root or .gls-popup):
+     --gls-popup-radius   --gls-popup-maxw   --gls-surface   --gls-edge
+     --gls-text  --gls-accent  --gls-shadow-float  --gls-font-family
+     --gls-font-size
+
+   Notes:
+   • The settings preview mirrors every ".gls-popup …" rule automatically.
+   • To out-specify a skin, e.g. Paper:
+       :root.gls-popup-skin-paper .gls-popup { … }
+   • This is plain CSS: the browser silently drops mistakes — if nothing
+     changes, check the braces. */
+
+/* ── Example: warm paper card ─────────────────────────────── */
+.gls-popup {
+    --gls-popup-radius: 14px;
+    background: linear-gradient(180deg, #f7f0e3, #efe4cf);
+    border: 1px solid #d8c7a5;
+    color: #3b2f1e;
+    box-shadow: 0 4px 14px rgba(90, 70, 40, 0.25);
+}
+.gls-popup-title {
+    color: #6b4f2a;
+    border-bottom: 1px solid #d8c7a5;
+    padding-bottom: 6px;
+}
+.gls-popup-text code {
+    background: rgba(107, 79, 42, 0.14);
+    color: #4a3413;
+}
+.gls-popup-text strong { color: #8a5a19; }
+`;
+
+/**
+ * Count the rules the browser actually parsed out of the stylesheet, for the
+ * honest status line ("N rules" / "nothing parsed"). Uses the real CSS engine
+ * instead of a regex counter — the engine is the only authority on which
+ * rules survive. Returns null when CSSStyleSheet is unavailable (Node test
+ * stubs): the caller then hides the count instead of guessing.
+ * @param {string} css
+ * @returns {number | null}
+ */
+export function countCssRules(css) {
+    if (typeof globalThis.CSSStyleSheet === 'undefined') return null;
+    try {
+        const sheet = new globalThis.CSSStyleSheet();
+        sheet.replaceSync(String(css ?? ''));
+        return sheet.cssRules.length;
+    } catch {
+        // replaceSync rejects only for sheet-level problems (e.g. @import) —
+        // the browser then keeps zero rules.
+        return 0;
+    }
+}
+
+/**
+ * "Insert base template" semantics: replace empty editor text, otherwise
+ * append after a blank line (idempotent-safe on any existing content). Pure.
+ * @param {string} current
+ * @param {string} template
+ * @returns {string}
+ */
+export function insertTemplate(current, template) {
+    const cur = String(current ?? '');
+    if (!cur.trim()) return template;
+    const sep = cur.endsWith('\n') ? '' : '\n';
+    return `${cur}${sep}\n${template}`;
+}

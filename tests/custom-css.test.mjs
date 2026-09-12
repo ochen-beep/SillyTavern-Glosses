@@ -68,4 +68,48 @@ test('mirrorPopupSelectors rewrites only the exact .gls-popup token', () => {
     );
     assert.equal(mirrorPopupSelectors(''), '');
     assert.equal(mirrorPopupSelectors(null), '', 'null-safe');
+    assert.equal(mirrorPopupSelectors('.gls-popup'), '.gls-popup-preview', 'bare token at end of input still mirrors');
+    assert.equal(
+        mirrorPopupSelectors(':root.gls-popup-skin-paper .gls-popup{}'),
+        ':root.gls-popup-skin-paper .gls-popup-preview{}',
+        'skin class on :root stays, inner token flips',
+    );
+});
+
+import { CUSTOM_CSS_BASELINE, countCssRules, insertTemplate } from '../src/ui/custom-css.js';
+
+test('CUSTOM_CSS_BASELINE documents targets and contains a live example', () => {
+    assert.ok(CUSTOM_CSS_BASELINE.includes('.gls-popup'), 'mentions the popup card');
+    assert.ok(CUSTOM_CSS_BASELINE.includes('.gls-popup-text'), 'mentions the body class');
+    assert.ok(CUSTOM_CSS_BASELINE.includes('--gls-popup-radius'), 'mentions a knob token');
+    assert.notEqual(
+        mirrorPopupSelectors(CUSTOM_CSS_BASELINE), CUSTOM_CSS_BASELINE,
+        'template holds a bare .gls-popup token, so the mirror actually engages',
+    );
+});
+
+test('countCssRules returns null when the CSS engine is unavailable (Node)', () => {
+    // Node has no CSSStyleSheet — the guard must report null, not throw.
+    assert.equal(countCssRules('.a{color:red}'), null);
+});
+
+test('countCssRules maps an engine rejection (e.g. @import) to 0', () => {
+    const orig = globalThis.CSSStyleSheet;
+    globalThis.CSSStyleSheet = class {
+        replaceSync() { throw new DOMException('not allowed', 'NotAllowedError'); }
+        get cssRules() { return { length: 0 }; }
+    };
+    try {
+        assert.equal(countCssRules('@import url("x");'), 0);
+    } finally {
+        if (orig === undefined) delete globalThis.CSSStyleSheet;
+        else globalThis.CSSStyleSheet = orig;
+    }
+});
+
+test('insertTemplate appends to non-empty text, replaces empty text', () => {
+    assert.equal(insertTemplate('', 'TPL'), 'TPL');
+    assert.equal(insertTemplate('   \n ', 'TPL'), 'TPL');
+    assert.equal(insertTemplate('.a{}', 'TPL'), '.a{}\n\nTPL');
+    assert.equal(insertTemplate('.a{}\n', 'TPL'), '.a{}\n\nTPL');
 });
