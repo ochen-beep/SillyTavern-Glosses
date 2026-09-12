@@ -151,6 +151,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // and their font applies only while footnoteFontFamily is 'inherit' (an
     // explicit font choice always wins over the skin).
     popupTheme: 'adaptive',
+    // Level-3 styling layer (src/ui/custom-css.js): raw user CSS injected as
+    // a <style> tag ON TOP of tokens + skins. '' = nothing injected.
+    // customCssEnabled lets the user park the text while switching the layer
+    // off temporarily. Coerced on load (below) like the other enum guards.
+    customCss: '',
+    customCssEnabled: true,
     // Window invocation control: 'bar' (quick-reply bar button) | 'floating'
     // (draggable FAB, src/ui/floating-launcher.js) | 'both'. Validated on load.
     launcherMode: 'bar',
@@ -309,6 +315,17 @@ export function loadSettings() {
         // Drop entries with no id AND no name — unselectable junk from a
         // hand-edit or a partial save.
         .filter(c => c.id || c.name);
+    // Popup custom CSS layer — coerce junk from hand-edited settings: the CSS
+    // must be a string and the toggle a boolean (mirrors the launcherMode
+    // guard above; a repaired value persists via settingsChanged).
+    if (typeof state.settings.customCss !== 'string') {
+        state.settings.customCss = '';
+        settingsChanged = true;
+    }
+    if (typeof state.settings.customCssEnabled !== 'boolean') {
+        state.settings.customCssEnabled = true;
+        settingsChanged = true;
+    }
     ctx.extensionSettings[MODULE_NAME] = state.settings;
     if (settingsChanged) ctx.saveSettingsDebounced();
 }
