@@ -35,3 +35,37 @@ test('loadSettings keeps valid custom CSS values untouched', () => {
     assert.equal(S().customCss, '.gls-popup{color:red}');
     assert.equal(S().customCssEnabled, false);
 });
+
+import {
+    mirrorPopupSelectors, STYLE_ID, MIRROR_ID,
+} from '../src/ui/custom-css.js';
+
+test('mirrorPopupSelectors rewrites only the exact .gls-popup token', () => {
+    assert.equal(
+        mirrorPopupSelectors('.gls-popup { color: red; }'),
+        '.gls-popup-preview { color: red; }',
+        'exact class token is mirrored',
+    );
+    assert.equal(
+        mirrorPopupSelectors('.gls-popup-title { color: red; }'),
+        '.gls-popup-title { color: red; }',
+        'compound class .gls-popup-title is shared, not mirrored',
+    );
+    assert.equal(
+        mirrorPopupSelectors('.gls-popup-preview { color: red; }'),
+        '.gls-popup-preview { color: red; }',
+        '.gls-popup-preview is never double-suffixed',
+    );
+    assert.equal(
+        mirrorPopupSelectors('.gls-popup, .gls-popup-text { color: red; }'),
+        '.gls-popup-preview, .gls-popup-text { color: red; }',
+        'mixed selector list: only the bare token flips',
+    );
+    assert.equal(
+        mirrorPopupSelectors('div.gls-popup{--x:1}'),
+        'div.gls-popup-preview{--x:1}',
+        'no-space brace and tag-qualified selector still mirror',
+    );
+    assert.equal(mirrorPopupSelectors(''), '');
+    assert.equal(mirrorPopupSelectors(null), '', 'null-safe');
+});
