@@ -88,6 +88,8 @@ export const CUSTOM_CSS_BASELINE = `/* ═════════ Glosses — p
 .gls-popup {
     --gls-popup-radius: 14px;
     --gls-text: #3b2f1e;
+    --gls-text-2: color-mix(in srgb, #3b2f1e 86%, transparent);
+    --gls-line: color-mix(in srgb, #3b2f1e 10%, transparent);
     background: linear-gradient(180deg, #f7f0e3, #efe4cf);
     border: 1px solid #d8c7a5;
     color: #3b2f1e;

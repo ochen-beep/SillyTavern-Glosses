@@ -82,6 +82,7 @@ test('CUSTOM_CSS_BASELINE documents targets and contains a live example', () => 
     assert.ok(CUSTOM_CSS_BASELINE.includes('.gls-popup'), 'mentions the popup card');
     assert.ok(CUSTOM_CSS_BASELINE.includes('.gls-popup-text'), 'mentions the body class');
     assert.ok(CUSTOM_CSS_BASELINE.includes('--gls-popup-radius'), 'mentions a knob token');
+    assert.ok(CUSTOM_CSS_BASELINE.includes('--gls-text-2'), 'close button token re-derived for dark themes');
     assert.notEqual(
         mirrorPopupSelectors(CUSTOM_CSS_BASELINE), CUSTOM_CSS_BASELINE,
         'template holds a bare .gls-popup token, so the mirror actually engages',
