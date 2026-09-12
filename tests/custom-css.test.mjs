@@ -107,6 +107,19 @@ test('countCssRules maps an engine rejection (e.g. @import) to 0', () => {
     }
 });
 
+test('countCssRules returns null when the engine is present but not constructable', () => {
+    const orig = globalThis.CSSStyleSheet;
+    globalThis.CSSStyleSheet = class {
+        constructor() { throw new TypeError('Illegal constructor'); }
+    };
+    try {
+        assert.equal(countCssRules('.a{color:red}'), null);
+    } finally {
+        if (orig === undefined) delete globalThis.CSSStyleSheet;
+        else globalThis.CSSStyleSheet = orig;
+    }
+});
+
 test('insertTemplate appends to non-empty text, replaces empty text', () => {
     assert.equal(insertTemplate('', 'TPL'), 'TPL');
     assert.equal(insertTemplate('   \n ', 'TPL'), 'TPL');

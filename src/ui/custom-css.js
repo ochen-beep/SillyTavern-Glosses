@@ -57,9 +57,9 @@ export function mirrorPopupSelectors(css) {
  */
 export const CUSTOM_CSS_BASELINE = `/* ═════════ Glosses — popup custom CSS ═════════
    Injected as a <style> tag when "Enable custom CSS layer" is on.
-   Applies to the whole page (like ST's own Custom CSS) and sits ON TOP of
-   the skin + knobs selected above. Everything below is an example — edit
-   or delete freely.
+   Applies to the whole page (like ST's own Custom CSS) and applies last —
+   to beat a skin's own rules, out-specify them (see Notes). Everything
+   below is an example — edit or delete freely.
 
    Targets:
      .gls-popup             popup card (background / border / shadow)
@@ -87,6 +87,7 @@ export const CUSTOM_CSS_BASELINE = `/* ═════════ Glosses — p
 /* ── Example: warm paper card ─────────────────────────────── */
 .gls-popup {
     --gls-popup-radius: 14px;
+    --gls-text: #3b2f1e;
     background: linear-gradient(180deg, #f7f0e3, #efe4cf);
     border: 1px solid #d8c7a5;
     color: #3b2f1e;
@@ -108,27 +109,33 @@ export const CUSTOM_CSS_BASELINE = `/* ═════════ Glosses — p
  * Count the rules the browser actually parsed out of the stylesheet, for the
  * honest status line ("N rules" / "nothing parsed"). Uses the real CSS engine
  * instead of a regex counter — the engine is the only authority on which
- * rules survive. Returns null when CSSStyleSheet is unavailable (Node test
- * stubs): the caller then hides the count instead of guessing.
+ * rules survive. Top-level rules only (an @media block counts as one).
+ * Returns null when the engine is unavailable (Node test stubs) or present
+ * but not constructable (older Safari/Firefox/Chrome): the caller then hides
+ * the count instead of guessing.
  * @param {string} css
  * @returns {number | null}
  */
 export function countCssRules(css) {
-    if (typeof globalThis.CSSStyleSheet === 'undefined') return null;
+    if (typeof globalThis.CSSStyleSheet !== 'function') return null;
+    let sheet;
     try {
-        const sheet = new globalThis.CSSStyleSheet();
-        sheet.replaceSync(String(css ?? ''));
-        return sheet.cssRules.length;
+        sheet = new globalThis.CSSStyleSheet();
     } catch {
-        // replaceSync rejects only for sheet-level problems (e.g. @import) —
-        // the browser then keeps zero rules.
+        return null; // interface present but not constructable (older engines)
+    }
+    try {
+        sheet.replaceSync(String(css ?? ''));
+    } catch {
+        // Whole-sheet rejections (e.g. @import) — the browser keeps zero rules.
         return 0;
     }
+    return sheet.cssRules.length;
 }
 
 /**
  * "Insert base template" semantics: replace empty editor text, otherwise
- * append after a blank line (idempotent-safe on any existing content). Pure.
+ * append after a blank line (safe on any existing content). Pure.
  * @param {string} current
  * @param {string} template
  * @returns {string}
