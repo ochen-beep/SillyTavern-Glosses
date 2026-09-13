@@ -21,6 +21,7 @@ import { buildTextIndex, segmentsFor } from './text-index.js';
 import { rankOccurrencesByContext } from './domain/rebind.js';
 import { iconHtml } from './ui/icons.js';
 import { buildFootnoteActions } from './ui/footnote-actions.js';
+import { applyCustomCss } from './ui/custom-css.js';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // FOOTNOTE TEXT FORMATTING (mini-markdown + sanitize)
@@ -661,6 +662,9 @@ export function applyHighlightStyles() {
         chatEl.classList.remove('gls-hl-background', 'gls-hl-underline', 'gls-hl-dotted');
         chatEl.classList.add(`gls-hl-${s.highlightStyle || 'background'}`);
     }
+    // Level 3 — user's custom CSS layer (raw + settings-preview mirror).
+    // Rides this publish path so boot/enable/knob changes always carry it.
+    applyCustomCss();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

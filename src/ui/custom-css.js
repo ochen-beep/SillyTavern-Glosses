@@ -112,9 +112,14 @@ export const CUSTOM_CSS_BASELINE = `/* ═════════ Glosses — p
  * honest status line ("N rules" / "nothing parsed"). Uses the real CSS engine
  * instead of a regex counter — the engine is the only authority on which
  * rules survive. Top-level rules only (an @media block counts as one).
- * Returns null when the engine is unavailable (Node test stubs) or present
- * but not constructable (older Safari/Firefox/Chrome): the caller then hides
- * the count instead of guessing.
+ *
+ * Three outcomes:
+ *   - engine unavailable (Node test stubs) or present but not constructable
+ *     (older Safari/Firefox/Chrome) → null: the caller hides the count;
+ *   - engine rejects the sheet wholesale (e.g. @import) → null as well: a
+ *     real <style> tag HONORS @import (a constructed sheet cannot), so a
+ *     constructed-sheet "0" would be a lie — the count is unknown, not zero;
+ *   - parsed → the top-level rule count.
  * @param {string} css
  * @returns {number | null}
  */
@@ -129,8 +134,11 @@ export function countCssRules(css) {
     try {
         sheet.replaceSync(String(css ?? ''));
     } catch {
-        // Whole-sheet rejections (e.g. @import) — the browser keeps zero rules.
-        return 0;
+        // Whole-sheet rejections (e.g. @import) keep zero rules in the
+        // constructed sheet, but a real <style> tag honors them — so "0
+        // parsed" would be a lie. Report the count as unknown (null), which
+        // customCssStatusText renders as the plain "Applied".
+        return null;
     }
     return sheet.cssRules.length;
 }
@@ -151,9 +159,10 @@ export function insertTemplate(current, template) {
 
 /**
  * The status line under the Custom CSS toggle: empty when nothing is active,
- * "Applied" when the engine can't count (older engines / Node), a rule count
- * when it can, and an explicit diagnosis when the browser parsed NOTHING out
- * of non-empty text (almost always unbalanced braces). Pure.
+ * "Applied" when the engine can't count (older engines / Node / a whole-sheet
+ * rejection such as @import), a rule count when it can, and an explicit
+ * diagnosis when the engine parsed the text fine but NOTHING survived
+ * (almost always unbalanced braces). Pure.
  * @param {string} css
  * @returns {string}
  */
@@ -161,7 +170,7 @@ export function customCssStatusText(css) {
     if (!String(css ?? '').trim()) return '';
     const rules = countCssRules(css);
     if (rules == null) return t('Applied');
-    if (rules > 0) return t('Applied — {n} rules').replace('{n}', String(rules));
+    if (rules > 0) return t('Applied — {n} rules').split('{n}').join(String(rules));
     return t('No rules parsed — check the CSS syntax');
 }
 
@@ -191,6 +200,24 @@ export function applyCustomCss() {
     const css = enabled ? String(S().customCss ?? '') : '';
     syncStyleTag(STYLE_ID, css);
     syncStyleTag(MIRROR_ID, mirrorPopupSelectors(css));
+    // Republishes are frequent (every knob change rides applyHighlightStyles),
+    // and the element is aria-live="polite" — don't re-mutate it with
+    // identical text.
     const statusEl = document.getElementById('gls_custom_css_status');
-    if (statusEl) statusEl.textContent = customCssStatusText(css);
+    if (statusEl) {
+        const status = customCssStatusText(css);
+        if (statusEl.textContent !== status) statusEl.textContent = status;
+    }
+}
+
+/**
+ * Remove both custom-CSS <style> tags. Called from index.js cleanup() so a
+ * disabled/cleaned extension cannot leave page-global user CSS behind with
+ * its toggle gone — the same teardown contract as removeLauncher()/destroyPanel().
+ */
+export function removeCustomCssTags() {
+    for (const id of [STYLE_ID, MIRROR_ID]) {
+        const el = document.getElementById(id);
+        if (el?.remove) el.remove();
+    }
 }

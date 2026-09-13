@@ -94,14 +94,16 @@ test('countCssRules returns null when the CSS engine is unavailable (Node)', () 
     assert.equal(countCssRules('.a{color:red}'), null);
 });
 
-test('countCssRules maps an engine rejection (e.g. @import) to 0', () => {
+test('countCssRules maps an engine rejection to null (count unknown)', () => {
     const orig = globalThis.CSSStyleSheet;
     globalThis.CSSStyleSheet = class {
         replaceSync() { throw new DOMException('not allowed', 'NotAllowedError'); }
         get cssRules() { return { length: 0 }; }
     };
     try {
-        assert.equal(countCssRules('@import url("x");'), 0);
+        // A real <style> tag HONORS @import (a constructed sheet rejects it),
+        // so "0 rules" would be a lie — the honest count is unknown (null).
+        assert.equal(countCssRules('@import url("x");'), null);
     } finally {
         if (orig === undefined) delete globalThis.CSSStyleSheet;
         else globalThis.CSSStyleSheet = orig;
@@ -204,4 +206,74 @@ test('customCssStatusText: empty → hidden, engine-less → Applied, engine →
     assert.equal(customCssStatusText('   '), '', 'whitespace-only hides the status');
     // Node has no CSSStyleSheet → countCssRules is null → generic "Applied".
     assert.equal(customCssStatusText('.a{color:red}'), t('Applied'));
+});
+
+test('customCssStatusText reports rule counts and the no-rules diagnosis via the engine', () => {
+    const orig = globalThis.CSSStyleSheet;
+    let ruleCount = 0;
+    globalThis.CSSStyleSheet = class {
+        replaceSync() { if (ruleCount < 0) throw new Error('rejected'); }
+        get cssRules() { return { length: Math.max(ruleCount, 0) }; }
+    };
+    try {
+        ruleCount = 3;
+        assert.equal(
+            customCssStatusText('.a{}.b{}.c{}'),
+            t('Applied — {n} rules').replace('{n}', '3'),
+        );
+        ruleCount = 0;
+        // Fires only when the engine PARSES fine but nothing survives — the
+        // rejection path reports "Applied" (count unknown) instead.
+        assert.equal(customCssStatusText('}}garbage{{'), t('No rules parsed — check the CSS syntax'));
+    } finally {
+        if (orig === undefined) delete globalThis.CSSStyleSheet;
+        else globalThis.CSSStyleSheet = orig;
+    }
+});
+
+import { removeCustomCssTags } from '../src/ui/custom-css.js';
+
+test('removeCustomCssTags removes both tags via element.remove()', () => {
+    const removed = [];
+    const realDoc = globalThis.document;
+    globalThis.document = {
+        getElementById: (id) => ({ id, remove: () => removed.push(id) }),
+    };
+    try {
+        removeCustomCssTags();
+        assert.deepEqual(removed.sort(), ['gls-custom-css', 'gls-custom-css-preview']);
+    } finally {
+        globalThis.document = realDoc;
+    }
+});
+
+import { applyHighlightStyles } from '../src/renderer.js';
+
+test('applyHighlightStyles republishes the custom CSS layer', () => {
+    // fakeDocument() yields the document object directly ({ created, doc }),
+    // so `doc` below IS the document — same as the applyCustomCss test above.
+    const { doc } = fakeDocument();
+    doc.documentElement = {
+        style: { setProperty() {}, removeProperty() {} },
+        classList: { add() {}, remove() {}, toggle() {} },
+    };
+    const realDoc = globalThis.document;
+    globalThis.document = doc;
+    try {
+        resetCtx({ extensionSettings: { Glosses: {} } });
+        loadSettings();
+        S().customCss = '.gls-popup { --gls-popup-radius: 4px; }';
+        applyHighlightStyles();
+        const texts = doc.created.map(el => el.textContent);
+        assert.ok(
+            texts.some(tx => tx.includes('.gls-popup { --gls-popup-radius: 4px; }')),
+            'raw tag published through applyHighlightStyles',
+        );
+        assert.ok(
+            texts.some(tx => tx.includes('.gls-popup-preview { --gls-popup-radius: 4px; }')),
+            'mirror tag published through applyHighlightStyles',
+        );
+    } finally {
+        globalThis.document = realDoc;
+    }
 });
