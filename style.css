@@ -2071,6 +2071,12 @@
     background: color-mix(in srgb, var(--gls-accent) 35%, transparent);
     color: transparent;
 }
+/* Fallback path (no hljs): the highlight pre is hidden, so the textarea must
+   show its own glyphs again. */
+.gls-css-hl[hidden] ~ .gls-css-input { color: var(--gls-text); }
+.gls-css-hl[hidden] ~ .gls-css-input::selection {
+    color: var(--gls-text);
+}
 /* Neutral hue-mapped token colors that hold on light and dark surfaces. */
 .gls-css-hl .hljs-selector-class,
 .gls-css-hl .hljs-selector-id { color: #7fb4ff; }

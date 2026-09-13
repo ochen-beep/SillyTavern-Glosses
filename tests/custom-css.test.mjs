@@ -244,7 +244,7 @@ test('customCssStatusText reports rule counts and the no-rules diagnosis via the
         ruleCount = 3;
         assert.equal(
             customCssStatusText('.a{}.b{}.c{}'),
-            t('Applied — {n} rules').replace('{n}', '3'),
+            t('Applied — rules: {n}').replace('{n}', '3'),
         );
         ruleCount = 0;
         // Fires only when the engine PARSES fine but nothing survives — the

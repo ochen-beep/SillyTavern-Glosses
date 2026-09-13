@@ -105,7 +105,7 @@
     "Done": "Готово",
     "Clear custom CSS?": "Очистить свой CSS?",
     "Applied": "Применено",
-    "Applied — {n} rules": "Применено — правил: {n}",
+    "Applied — rules: {n}": "Применено — правил: {n}",
     "No rules parsed — check the CSS syntax": "Правила не распознаны — проверьте синтаксис CSS",
     "Show generation spinner": "Показывать индикатор генерации",
     "Floating panel": "Плавающее окно",

@@ -75,8 +75,8 @@ export const CUSTOM_CSS_BASELINE = `/* ═════════ Glosses — p
    Handy tokens:
      Knob-published tokens (--gls-popup-radius, --gls-popup-maxw,
      --gls-font-family, --gls-font-size, --gls-surface) are written as INLINE
-     styles on <html>, so a :root rule can never override them — declare them
-     on .gls-popup instead.
+     styles on <html> (surface: whenever the theme tint parses), so a :root
+     rule usually cannot override them — declare them on .gls-popup instead.
      Plain tokens (declare on :root or .gls-popup): --gls-edge, --gls-text,
      --gls-accent, --gls-shadow-float.
 
@@ -173,7 +173,7 @@ export function customCssStatusText(css) {
     if (!String(css ?? '').trim()) return '';
     const rules = countCssRules(css);
     if (rules == null) return t('Applied');
-    if (rules > 0) return t('Applied — {n} rules').split('{n}').join(String(rules));
+    if (rules > 0) return t('Applied — rules: {n}').split('{n}').join(String(rules));
     return t('No rules parsed — check the CSS syntax');
 }
 
@@ -195,7 +195,7 @@ function syncStyleTag(id, css) {
 
 /**
  * Publish S().customCss into the live <style> tags and refresh the settings
- * status line. Hooked into applyHighlightStyles() (Task 5) so every existing
+ * status line. Hooked into applyHighlightStyles() so every existing
  * publish path (boot, enable, knob changes) carries this layer for free.
  */
 export function applyCustomCss() {
