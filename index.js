@@ -37,7 +37,7 @@ import { bindSettingsUI, unbindSettingsUI } from './src/ui/settings-sync.js';
 import { initThemeSync, disconnectThemeSync } from './src/ui/theme-sync.js';
 import { initIconSprite } from './src/ui/icons.js';
 import { ensureLauncher, observeQrBar, removeLauncher } from './src/ui/launcher.js';
-import { removeCustomCssTags } from './src/ui/custom-css.js';
+import { removeCustomCssTags, closeCssEditor } from './src/ui/custom-css.js';
 import {
     registerSlashCommands, registerDebugFunctions,
 } from './src/commands.js';
@@ -237,8 +237,11 @@ function cleanup() {
     closePopup();
     destroyPanel();
     clearTargetedTabState();
-    // Strip the custom-CSS <style> tags — page-global user CSS must not
-    // outlive its toggle after a disable/clean (same contract as removeLauncher).
+    // Close an open CSS editor dialog first (its close commits pending text
+    // into settings), then strip the custom-CSS <style> tags — page-global
+    // user CSS must not outlive its toggle after a disable/clean (same
+    // contract as removeLauncher).
+    closeCssEditor();
     removeCustomCssTags();
 
     // Unwrap every marker span in the chat (restore original text nodes).

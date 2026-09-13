@@ -228,6 +228,15 @@ export function removeCustomCssTags() {
     }
 }
 
+/**
+ * Close the editor dialog if it is open (no-op when never built or already
+ * closed). Called from index.js cleanup() so a disabled extension doesn't
+ * leave an open dialog floating over a dead UI.
+ */
+export function closeCssEditor() {
+    _editor?.close();
+}
+
 // ── Editor dialog ───────────────────────────────────────────────────────────
 // Built lazily on first open; the DOM is kept for reuse but the overlay is
 // mounted to document.body TRANSIENTLY (append on open, remove on close) so
