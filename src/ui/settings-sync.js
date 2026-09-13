@@ -21,6 +21,7 @@ import {
 } from '../sound.js';
 import { LF_CUSTOM_SOUND } from '../core.js';
 import { buildColorPicker } from './color-picker.js';
+import { openCssEditor } from './custom-css.js';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PRESETS (spec §6.1)
@@ -517,6 +518,18 @@ export function bindSettingsUI() {
             saveSettings();
         });
     }
+
+    // Popup custom CSS layer. The toggle republishes the <style> tags through
+    // applyHighlightStyles (which calls applyCustomCss); Edit opens the dialog
+    // editor. The status hint is written by applyCustomCss itself, so there is
+    // nothing to sync here beyond the initial checkbox state.
+    const ccsCb = $('gls_custom_css_enabled');
+    if (ccsCb) {
+        ccsCb.checked = S().customCssEnabled !== false;
+        on(ccsCb, 'change', () => { S().customCssEnabled = ccsCb.checked; applyHighlightStyles(); saveSettings(); });
+    }
+    const ccsEdit = $('gls_custom_css_edit');
+    if (ccsEdit) on(ccsEdit, 'click', () => openCssEditor());
 
     // Popup header toggle - read at showPopup time, so an already-open popup
     // keeps its chrome; the next open reflects the change. Also flips the

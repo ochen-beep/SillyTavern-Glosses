@@ -227,3 +227,8 @@ export function removeCustomCssTags() {
         if (el?.remove) el.remove();
     }
 }
+
+// ── Editor dialog (Task 8) ──────────────────────────────────────────────────
+// Placeholder seam: Task 7 binds the Edit CSS button to this entry point; the
+// real dialog implementation lands in Task 8.
+export function openCssEditor() { /* implemented in Task 8 */ }
