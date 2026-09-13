@@ -374,9 +374,21 @@ function buildEditor() {
         commit();
         status.textContent = customCssStatusText(S().customCss);
     }, 300);
-    // Progressive enhancement; Task 10 wires hljs into this hook. Keeping the
-    // single syncHighlight seam means Task 10 only replaces its body.
-    const syncHighlight = () => {};
+    const hljs = getHljs();
+    if (!hljs) hlPre.hidden = true; // plain textarea fallback (stub / old ST)
+    const syncHighlight = () => {
+        if (!hljs) return;
+        try {
+            hlCode.innerHTML = hljs.highlight(ta.value, { language: 'css' }).value;
+        } catch {
+            hlPre.hidden = true; // engine hiccup must never block typing
+        }
+    };
+    // The textarea owns scrolling; the pre mirrors it so glyphs stay aligned.
+    ta.addEventListener('scroll', () => {
+        hlPre.scrollTop = ta.scrollTop;
+        hlPre.scrollLeft = ta.scrollLeft;
+    });
     const refresh = () => {
         applyLive();
         syncHighlight();
@@ -431,5 +443,19 @@ function buildEditor() {
             saveSettings();
         },
     };
+    syncHighlight();
     return api;
+}
+
+/**
+ * ST bundles highlight.js and exposes it as SillyTavern.libs.hljs (verified on
+ * the release branch: public/script.js imports hljs from lib.js into `libs`).
+ * Returns null when unavailable — the editor then stays a plain textarea.
+ */
+export function getHljs() {
+    try {
+        return globalThis.SillyTavern?.libs?.hljs || null;
+    } catch {
+        return null;
+    }
 }

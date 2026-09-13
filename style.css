@@ -2044,7 +2044,16 @@
     pointer-events: none;
     color: var(--gls-text);
 }
-.gls-css-hl code { font: inherit; white-space: inherit; }
+.gls-css-hl code {
+    font: inherit;
+    white-space: inherit;
+    /* ST core styles bare `code` (bg/border/padding/color) — neutralize all of
+       it or the highlight layer misaligns from the textarea and tints text. */
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+}
 .gls-css-input {
     position: absolute;
     inset: 0;
@@ -2057,6 +2066,7 @@
     color: transparent;                 /* the pre shows the glyphs */
     caret-color: var(--gls-text);
 }
+.gls-css-input:focus-visible { outline: none; } /* focus ring carried by the col's focus-within accent border */
 .gls-css-input::selection {
     background: color-mix(in srgb, var(--gls-accent) 35%, transparent);
     color: transparent;
@@ -2086,4 +2096,11 @@
 @media (max-width: 720px) {
     .gls-css-dialog-cols { grid-template-columns: 1fr; overflow: auto; }
     .gls-css-editor-col { min-height: 40vh; }
+    /* iOS Safari zooms the whole page when a text field with an effective
+       font-size below 16px is focused — same guard as the panel/popup fields
+       (MOBILE / TOUCH); the 12.5px editor font would zoom on every focus.
+       Bump the textarea AND the highlight pre together: they must share
+       metrics or the highlight layer misaligns from the caret. */
+    .gls-css-input,
+    .gls-css-hl { font-size: 16px; }
 }

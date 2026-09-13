@@ -345,3 +345,22 @@ test('applyHighlightStyles republishes the custom CSS layer', () => {
         globalThis.document = realDoc;
     }
 });
+
+import { getHljs } from '../src/ui/custom-css.js';
+
+test('getHljs resolves SillyTavern.libs.hljs or null gracefully', () => {
+    const realST = globalThis.SillyTavern;
+    try {
+        // Identity check: deepStrictEqual compares functions by reference, so
+        // the resolved object must be the very one exposed on libs.
+        const fakeHljs = { highlight: () => ({ value: '<b>x</b>' }) };
+        globalThis.SillyTavern = { libs: { hljs: fakeHljs } };
+        assert.equal(getHljs(), fakeHljs, 'resolves the SillyTavern.libs.hljs object');
+        globalThis.SillyTavern = { libs: {} };
+        assert.equal(getHljs(), null, 'missing hljs → null (plain textarea fallback)');
+        globalThis.SillyTavern = undefined;
+        assert.equal(getHljs(), null, 'missing SillyTavern global → null, not throw');
+    } finally {
+        globalThis.SillyTavern = realST;
+    }
+});
