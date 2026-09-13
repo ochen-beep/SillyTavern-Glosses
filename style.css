@@ -1964,3 +1964,126 @@
     font-size: 0.8rem;
     white-space: nowrap;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Popup custom CSS editor (.gls-css-*, built by src/ui/custom-css.js).
+   Uses the shared surface/edge/text tokens, so the dialog tracks light and
+   dark themes the same way the popup and panel do.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.gls-css-overlay {
+    position: fixed;
+    inset: 0;
+    /* Above ST side panels and the chat; bump if it ever lands under an ST
+       dialog on a specific theme. */
+    z-index: 30000;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--gls-sp-4);
+}
+.gls-css-overlay[hidden] { display: none; }
+
+.gls-css-dialog {
+    display: flex;
+    flex-direction: column;
+    width: min(880px, 100%);
+    max-height: min(86vh, 720px);
+    background: var(--gls-surface, var(--gls-bg));
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-radius-lg);
+    box-shadow: var(--gls-shadow-lift);
+    overflow: hidden;
+}
+
+.gls-css-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--gls-sp-3) var(--gls-sp-4);
+    border-bottom: 1px solid var(--gls-line);
+}
+.gls-css-dialog-title { font-weight: 600; color: var(--gls-text); }
+
+.gls-css-dialog-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: var(--gls-sp-3);
+    padding: var(--gls-sp-3) var(--gls-sp-4);
+    flex: 1;
+    min-height: 0;
+}
+
+/* Editor column: a highlight <pre> UNDER a transparent-text <textarea>. Both
+   share identical font metrics and padding so glyphs align exactly; the
+   textarea owns scrolling and caret, the pre is pointer-events:none. */
+.gls-css-editor-col {
+    position: relative;
+    min-height: 0;
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-radius-sm);
+    overflow: hidden;
+    background: var(--gls-bg);
+}
+.gls-css-editor-col:focus-within { border-color: var(--gls-accent); }
+.gls-css-input,
+.gls-css-hl {
+    margin: 0;
+    padding: 10px 12px;
+    font-family: var(--gls-font-mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    tab-size: 4;
+    white-space: pre;
+}
+.gls-css-hl {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    color: var(--gls-text);
+}
+.gls-css-hl code { font: inherit; white-space: inherit; }
+.gls-css-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    resize: none;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: transparent;                 /* the pre shows the glyphs */
+    caret-color: var(--gls-text);
+}
+.gls-css-input::selection {
+    background: color-mix(in srgb, var(--gls-accent) 35%, transparent);
+    color: transparent;
+}
+/* Neutral hue-mapped token colors that hold on light and dark surfaces. */
+.gls-css-hl .hljs-selector-class,
+.gls-css-hl .hljs-selector-id { color: #7fb4ff; }
+.gls-css-hl .hljs-attribute,
+.gls-css-hl .hljs-selector-tag { color: color-mix(in srgb, var(--gls-accent) 80%, var(--gls-text)); }
+.gls-css-hl .hljs-number,
+.gls-css-hl .hljs-selector-pseudo { color: #e6a06a; }
+.gls-css-hl .hljs-string { color: #9ece6a; }
+.gls-css-hl .hljs-comment { color: var(--gls-text-3); font-style: italic; }
+
+.gls-css-preview-col { min-height: 0; overflow: auto; }
+.gls-css-twin { width: 100%; }
+
+.gls-css-dialog-foot {
+    display: flex;
+    align-items: center;
+    gap: var(--gls-sp-2);
+    padding: var(--gls-sp-2) var(--gls-sp-4) var(--gls-sp-3);
+    border-top: 1px solid var(--gls-line);
+}
+.gls-css-status { margin-right: auto; min-height: 1em; }
+
+@media (max-width: 720px) {
+    .gls-css-dialog-cols { grid-template-columns: 1fr; overflow: auto; }
+    .gls-css-editor-col { min-height: 40vh; }
+}
