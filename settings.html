@@ -444,6 +444,22 @@
                     <span id="gls_popup_corner_val" class="gls-s-val">12px</span>
                 </div>
             </div>
+            <!-- Custom CSS layer (Level 3): raw user stylesheet injected as
+                 <style id="gls-custom-css"> when non-empty and enabled; sits
+                 ON TOP of the skin + knobs above. Edit opens the dialog
+                 editor (src/ui/custom-css.js) with a live preview twin; the
+                 status hint is written by applyCustomCss after every publish. -->
+            <div class="gls-s-field-group">
+                <div class="gls-s-field-row">
+                    <span class="gls-s-field-label" data-i18n="Custom CSS">Custom CSS</span>
+                    <button id="gls_custom_css_edit" class="menu_button" type="button" data-i18n="Edit CSS">Edit CSS</button>
+                </div>
+                <label class="gls-s-toggle-row">
+                    <input type="checkbox" id="gls_custom_css_enabled" class="checkbox">
+                    <span data-i18n="Enable custom CSS layer">Enable custom CSS layer</span>
+                </label>
+                <small id="gls_custom_css_status" class="gls-s-hint" aria-live="polite"></small>
+            </div>
             <div class="gls-s-field-group">
                 <label class="gls-s-field-label" for="gls_launcher_mode">
                     <span data-i18n="Launcher button">Launcher button</span>

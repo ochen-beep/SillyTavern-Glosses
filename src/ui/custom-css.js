@@ -72,10 +72,13 @@ export const CUSTOM_CSS_BASELINE = `/* ═════════ Glosses — p
    Also reachable: chat marker .gls-marker / .gls-sup,
    under-post block .gls-inline-fns / .gls-inline-fn.
 
-   Handy tokens (declare on :root or .gls-popup):
-     --gls-popup-radius   --gls-popup-maxw   --gls-surface   --gls-edge
-     --gls-text  --gls-accent  --gls-shadow-float  --gls-font-family
-     --gls-font-size
+   Handy tokens:
+     Knob-published tokens (--gls-popup-radius, --gls-popup-maxw,
+     --gls-font-family, --gls-font-size, --gls-surface) are written as INLINE
+     styles on <html>, so a :root rule can never override them — declare them
+     on .gls-popup instead.
+     Plain tokens (declare on :root or .gls-popup): --gls-edge, --gls-text,
+     --gls-accent, --gls-shadow-float.
 
    Notes:
    • The settings preview mirrors every ".gls-popup …" rule automatically.
@@ -196,7 +199,10 @@ function syncStyleTag(id, css) {
  * publish path (boot, enable, knob changes) carries this layer for free.
  */
 export function applyCustomCss() {
-    const enabled = S().customCssEnabled !== false;
+    // Both gates must pass: the layer's own checkbox AND the Glosses master
+    // toggle — killing the extension must unload its page-global CSS the same
+    // way it unloads highlights and the launcher.
+    const enabled = S().enabled !== false && S().customCssEnabled !== false;
     const css = enabled ? String(S().customCss ?? '') : '';
     syncStyleTag(STYLE_ID, css);
     syncStyleTag(MIRROR_ID, mirrorPopupSelectors(css));

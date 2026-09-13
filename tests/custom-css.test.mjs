@@ -200,6 +200,31 @@ test('applyCustomCss is a safe no-op under the bare stub runtime (no head)', () 
     }
 });
 
+test('applyCustomCss gates on the Glosses master toggle (S().enabled)', () => {
+    const { doc } = fakeDocument();
+    const realDoc = globalThis.document;
+    globalThis.document = doc;
+    try {
+        resetCtx({ extensionSettings: { Glosses: {} } });
+        loadSettings();
+        S().customCss = '.gls-popup { color: red; }';
+        S().customCssEnabled = true;
+        S().enabled = false;
+        applyCustomCss();
+        assert.deepEqual(
+            doc.created.map(el => el.textContent),
+            ['', ''],
+            'master toggle off empties both tags in place',
+        );
+        S().enabled = true;
+        applyCustomCss();
+        assert.ok(doc.created.some(el => el.textContent.includes('.gls-popup { color: red; }')),
+            'master toggle on republishes the layer');
+    } finally {
+        globalThis.document = realDoc;
+    }
+});
+
 test('customCssStatusText: empty → hidden, engine-less → Applied, engine → rule count', () => {
     resetCtx({ extensionSettings: { Glosses: {} } });
     loadSettings();
