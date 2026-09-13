@@ -374,12 +374,15 @@ function buildEditor() {
         commit();
         status.textContent = customCssStatusText(S().customCss);
     }, 300);
-    const hljs = getHljs();
-    if (!hljs) hlPre.hidden = true; // plain textarea fallback (stub / old ST)
+    // Resolved per call: the stub runtime and old ST builds have no hljs
+    // (plain-textarea fallback), and a build-time capture would freeze that
+    // decision into the dialog singleton forever.
     const syncHighlight = () => {
-        if (!hljs) return;
+        const hljs = getHljs();
+        if (!hljs) { hlPre.hidden = true; return; }
         try {
             hlCode.innerHTML = hljs.highlight(ta.value, { language: 'css' }).value;
+            hlPre.hidden = false;
         } catch {
             hlPre.hidden = true; // engine hiccup must never block typing
         }
@@ -426,6 +429,7 @@ function buildEditor() {
     const api = {
         open() {
             ta.value = String(S().customCss ?? '');
+            syncHighlight(); // paint the layer for the freshly loaded text
             status.textContent = customCssStatusText(ta.value);
             // Transient mount, removed on close. "hidden ⇔ detached" is an
             // invariant only open()/close() mutate, so it doubles as the guard
@@ -443,7 +447,6 @@ function buildEditor() {
             saveSettings();
         },
     };
-    syncHighlight();
     return api;
 }
 

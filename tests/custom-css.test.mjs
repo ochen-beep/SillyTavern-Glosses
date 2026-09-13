@@ -274,6 +274,60 @@ test('removeCustomCssTags removes both tags via element.remove()', () => {
 
 import { openCssEditor } from '../src/ui/custom-css.js';
 
+test('open() paints the highlight layer with the current CSS (no blank first open)', () => {
+    // MUST run before the "builds once" test below: the editor dialog is a
+    // module-level singleton, so this test needs buildEditor() to run under
+    // ITS document fake for the pre/textarea to be reachable here.
+    const { doc } = fakeDocument();
+    doc.body = { appendChild(el) { doc._overlay = el; } };
+    doc.addEventListener = () => {};
+    doc.removeEventListener = () => {};
+    doc.createElement = () => {
+        const el = {
+            id: '', className: '', hidden: false, value: '', textContent: '',
+            _html: '',
+            set innerHTML(v) { this._html = String(v ?? ''); },
+            get innerHTML() { return this._html; },
+            style: {},
+            classList: { add() {}, remove() {}, toggle() {} },
+            attributes: {},
+            setAttribute(k, v) { this.attributes[k] = String(v); },
+            getAttribute(k) { return this.attributes[k] ?? null; },
+            appendChild(c) { (this.children ??= []).push(c); },
+            addEventListener() {}, removeEventListener() {},
+            focus() {},
+        };
+        doc.created.push(el); // let assertions find built elements by className
+        return el;
+    };
+    const realDoc = globalThis.document;
+    const realST = globalThis.SillyTavern;
+    globalThis.document = doc;
+    try {
+        // resetCtx/loadSettings run under the stub ST (loadSettings needs
+        // SillyTavern.libs.lodash); the hljs-bearing fake is swapped in AFTER,
+        // which lazy getHljs() resolution picks up at open() time.
+        resetCtx({ extensionSettings: { Glosses: {} } });
+        loadSettings();
+        globalThis.SillyTavern = { libs: { hljs: { highlight: (code) => ({ value: 'HL:' + code }) } } };
+        S().customCss = '.gls-popup { color: hotpink; }';
+        openCssEditor();
+        const pre = doc.created.find(el => el.className === 'gls-css-hl');
+        assert.ok(pre, 'highlight pre built');
+        assert.equal(pre.hidden, false, 'overlay layer visible when hljs resolves');
+        assert.equal(
+            pre.children[0]._html, 'HL:.gls-popup { color: hotpink; }',
+            'pre painted from the CURRENT textarea value, not the empty string',
+        );
+    } finally {
+        // Restore the singleton's hidden⇔detached invariant so the next test's
+        // mount counting (open() re-appends only when hidden) still holds.
+        if (doc._overlay) doc._overlay.hidden = true;
+        globalThis.document = realDoc;
+        globalThis.SillyTavern = realST;
+    }
+});
+
 test('openCssEditor builds once, opens transiently, and reuses the dialog', () => {
     const { doc } = fakeDocument();
     // The dialog appends its overlay to body and installs/uninstalls a
