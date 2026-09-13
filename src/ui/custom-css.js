@@ -32,7 +32,7 @@
  * literal (e.g. content: ".gls-popup") is mirrored too. Harmless in practice.
  */
 
-import { S, t } from '../core.js';
+import { S, t, saveSettings } from '../core.js';
 
 export const STYLE_ID = 'gls-custom-css';
 export const MIRROR_ID = 'gls-custom-css-preview';
@@ -228,7 +228,208 @@ export function removeCustomCssTags() {
     }
 }
 
-// ── Editor dialog (Task 8) ──────────────────────────────────────────────────
-// Placeholder seam: Task 7 binds the Edit CSS button to this entry point; the
-// real dialog implementation lands in Task 8.
-export function openCssEditor() { /* implemented in Task 8 */ }
+// ── Editor dialog ───────────────────────────────────────────────────────────
+// Built lazily on first open; the DOM is kept for reuse but the overlay is
+// mounted to document.body TRANSIENTLY (append on open, remove on close) so
+// nothing lingers after the extension's cleanup() — unlike the settings
+// panel, the overlay lives outside #gls_settings_container. Live apply on
+// input (300 ms debounce); close always commits pending text first, so
+// Escape / outside click / Done can never lose work.
+
+const escHtml = (s) => String(s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+function debounce(fn, ms) {
+    let id = 0;
+    return (...args) => {
+        clearTimeout(id);
+        id = setTimeout(() => fn(...args), ms);
+    };
+}
+
+/** Live popup preview twin for the dialog's right column. */
+function buildPreviewTwin() {
+    const wrap = document.createElement('div');
+    wrap.className = 'gls-popup-preview gls-css-twin';
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.innerHTML = [
+        '<div class="gls-popup-header">',
+        `<span class="gls-popup-action-btn"><i class="fa-solid fa-copy fa-fw" aria-hidden="true"></i><span>${escHtml(t('Copy'))}</span></span>`,
+        `<span class="gls-popup-action-btn"><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i><span>${escHtml(t('Edit'))}</span></span>`,
+        `<span class="gls-popup-action-btn"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i><span>${escHtml(t('Delete'))}</span></span>`,
+        '<span class="gls-popup-close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></span>',
+        '</div>',
+        '<div class="gls-popup-body">',
+        `<div class="gls-popup-title"><sup class="gls-popup-title-idx">1</sup><span>${escHtml(t('Kraken'))}</span></div>`,
+        `<p class="gls-popup-text">${escHtml(t('A colossal sea beast; sailors say its arms can crush a whole fleet.'))}</p>`,
+        '</div>',
+    ].join('');
+    return wrap;
+}
+
+let _editor = null;
+
+/**
+ * Open (building on first use) the Custom CSS editor dialog: monospace editor
+ * with Tab support and live apply, live preview twin of the popup, rule-count
+ * status, Insert-base-template / Reset / Done. Styles: .gls-css-* in style.css.
+ */
+export function openCssEditor() {
+    if (!_editor) _editor = buildEditor();
+    _editor.open();
+}
+
+function buildEditor() {
+    const overlay = document.createElement('div');
+    overlay.className = 'gls-css-overlay';
+    overlay.hidden = true;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'gls-css-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', t('Popup CSS editor'));
+
+    // Header
+    const head = document.createElement('div');
+    head.className = 'gls-css-dialog-head';
+    const title = document.createElement('div');
+    title.className = 'gls-css-dialog-title';
+    title.textContent = t('Popup CSS editor');
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'menu_button menu_button_icon gls-css-close';
+    closeBtn.setAttribute('aria-label', t('Close'));
+    closeBtn.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
+    head.appendChild(title);
+    head.appendChild(closeBtn);
+
+    // Body: editor column (highlight layer under a transparent-text textarea)
+    // + live preview column.
+    const cols = document.createElement('div');
+    cols.className = 'gls-css-dialog-cols';
+
+    const editorCol = document.createElement('div');
+    editorCol.className = 'gls-css-editor-col';
+    const hlPre = document.createElement('pre');
+    hlPre.className = 'gls-css-hl';
+    hlPre.setAttribute('aria-hidden', 'true');
+    const hlCode = document.createElement('code');
+    hlPre.appendChild(hlCode);
+    const ta = document.createElement('textarea');
+    ta.className = 'gls-css-input';
+    ta.spellcheck = false;
+    ta.setAttribute('aria-label', t('Custom CSS'));
+    editorCol.appendChild(hlPre);
+    editorCol.appendChild(ta);
+
+    const previewCol = document.createElement('div');
+    previewCol.className = 'gls-css-preview-col';
+    const prevLabel = document.createElement('div');
+    prevLabel.className = 'gls-s-preview-label';
+    prevLabel.textContent = t('Live preview');
+    previewCol.appendChild(prevLabel);
+    previewCol.appendChild(buildPreviewTwin());
+
+    cols.appendChild(editorCol);
+    cols.appendChild(previewCol);
+
+    // Footer
+    const foot = document.createElement('div');
+    foot.className = 'gls-css-dialog-foot';
+    const status = document.createElement('span');
+    status.className = 'gls-css-status gls-s-hint';
+    const tplBtn = document.createElement('button');
+    tplBtn.type = 'button';
+    tplBtn.className = 'menu_button';
+    tplBtn.textContent = t('Insert base template');
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'menu_button';
+    resetBtn.textContent = t('Reset');
+    const doneBtn = document.createElement('button');
+    doneBtn.type = 'button';
+    doneBtn.className = 'menu_button gls-css-done';
+    doneBtn.textContent = t('Done');
+    foot.appendChild(status);
+    foot.appendChild(tplBtn);
+    foot.appendChild(resetBtn);
+    foot.appendChild(doneBtn);
+
+    dialog.appendChild(head);
+    dialog.appendChild(cols);
+    dialog.appendChild(foot);
+    overlay.appendChild(dialog);
+
+    // ── Behavior ──
+    const commit = () => {
+        const value = ta.value;
+        if (S().customCss === value) return;
+        S().customCss = value;
+        applyCustomCss();
+        saveSettings();
+    };
+    const applyLive = debounce(() => {
+        commit();
+        status.textContent = customCssStatusText(S().customCss);
+    }, 300);
+    // Progressive enhancement; Task 10 wires hljs into this hook. Keeping the
+    // single syncHighlight seam means Task 10 only replaces its body.
+    const syncHighlight = () => {};
+    const refresh = () => {
+        applyLive();
+        syncHighlight();
+    };
+
+    ta.addEventListener('input', refresh);
+    // Tab inserts 4 spaces instead of moving focus (CSS is whitespace-meaningful).
+    ta.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab') return;
+        e.preventDefault();
+        const start = ta.selectionStart ?? 0;
+        const end = ta.selectionEnd ?? 0;
+        ta.value = ta.value.slice(0, start) + '    ' + ta.value.slice(end);
+        ta.selectionStart = ta.selectionEnd = start + 4;
+        refresh();
+    });
+
+    tplBtn.addEventListener('click', () => {
+        ta.value = insertTemplate(ta.value, CUSTOM_CSS_BASELINE);
+        refresh();
+        ta.focus();
+    });
+    resetBtn.addEventListener('click', () => {
+        // Destructive: the editor text IS the stored setting, so confirm.
+        if (!window.confirm(t('Clear custom CSS?'))) return;
+        ta.value = '';
+        refresh();
+    });
+
+    const onKey = (e) => { if (e.key === 'Escape') api.close(); };
+    overlay.addEventListener('pointerdown', (e) => { if (e.target === overlay) api.close(); });
+    closeBtn.addEventListener('click', () => api.close());
+    doneBtn.addEventListener('click', () => api.close());
+
+    const api = {
+        open() {
+            ta.value = String(S().customCss ?? '');
+            status.textContent = customCssStatusText(ta.value);
+            // Transient mount, removed on close. "hidden ⇔ detached" is an
+            // invariant only open()/close() mutate, so it doubles as the guard
+            // keeping a repeated open() from re-appending a mounted overlay.
+            if (overlay.hidden) document.body.appendChild(overlay);
+            overlay.hidden = false;
+            document.addEventListener('keydown', onKey);
+            ta.focus();
+        },
+        close() {
+            overlay.hidden = true;
+            document.removeEventListener('keydown', onKey);
+            overlay.remove();
+            commit(); // the 300 ms debounce can swallow the last keystrokes
+            saveSettings();
+        },
+    };
+    return api;
+}

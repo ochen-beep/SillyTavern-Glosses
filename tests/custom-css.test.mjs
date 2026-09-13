@@ -272,6 +272,49 @@ test('removeCustomCssTags removes both tags via element.remove()', () => {
     }
 });
 
+import { openCssEditor } from '../src/ui/custom-css.js';
+
+test('openCssEditor builds once, opens transiently, and reuses the dialog', () => {
+    const { doc } = fakeDocument();
+    // The dialog appends its overlay to body and installs/uninstalls a
+    // document-level Escape handler — both must exist on the fake. The body
+    // records the mount so we can assert the overlay is shown and reused.
+    let bodyAppends = 0;
+    doc.body = { appendChild(el) { bodyAppends++; doc._overlay = el; } };
+    doc.addEventListener = () => {};
+    doc.removeEventListener = () => {};
+    // Minimal appendChild on elements for the dialog construction.
+    doc.createElement = () => {
+        const el = {
+            id: '', className: '', hidden: false, value: '', textContent: '',
+            _html: '',
+            set innerHTML(v) { this._html = String(v ?? ''); },
+            get innerHTML() { return this._html; },
+            style: {},
+            classList: { add() {}, remove() {}, toggle() {} },
+            attributes: {},
+            setAttribute(k, v) { this.attributes[k] = String(v); },
+            getAttribute(k) { return this.attributes[k] ?? null; },
+            appendChild() {}, addEventListener() {}, removeEventListener() {},
+            focus() {},
+        };
+        return el;
+    };
+    const realDoc = globalThis.document;
+    globalThis.document = doc;
+    try {
+        resetCtx({ extensionSettings: { Glosses: {} } });
+        loadSettings();
+        openCssEditor();
+        assert.equal(doc._overlay.hidden, false, 'open shows the overlay');
+        assert.equal(bodyAppends, 1, 'overlay mounted once (transient body mount)');
+        openCssEditor();
+        assert.equal(bodyAppends, 1, 'second open reuses the built dialog');
+    } finally {
+        globalThis.document = realDoc;
+    }
+});
+
 import { applyHighlightStyles } from '../src/renderer.js';
 
 test('applyHighlightStyles republishes the custom CSS layer', () => {
