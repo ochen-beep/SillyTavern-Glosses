@@ -148,3 +148,49 @@ export function insertTemplate(current, template) {
     const sep = cur.endsWith('\n') ? '' : '\n';
     return `${cur}${sep}\n${template}`;
 }
+
+/**
+ * The status line under the Custom CSS toggle: empty when nothing is active,
+ * "Applied" when the engine can't count (older engines / Node), a rule count
+ * when it can, and an explicit diagnosis when the browser parsed NOTHING out
+ * of non-empty text (almost always unbalanced braces). Pure.
+ * @param {string} css
+ * @returns {string}
+ */
+export function customCssStatusText(css) {
+    if (!String(css ?? '').trim()) return '';
+    const rules = countCssRules(css);
+    if (rules == null) return t('Applied');
+    if (rules > 0) return t('Applied — {n} rules').replace('{n}', String(rules));
+    return t('No rules parsed — check the CSS syntax');
+}
+
+/**
+ * Create-once, reuse-forever style tag. textContent is only written when it
+ * differs, so repeated applies during typing don't force style recalcs.
+ */
+function syncStyleTag(id, css) {
+    const head = document.head;
+    if (!head) return; // stub runtimes / detached documents
+    let el = document.getElementById(id);
+    if (!el) {
+        el = document.createElement('style');
+        el.id = id;
+        head.appendChild(el);
+    }
+    if (el.textContent !== css) el.textContent = css;
+}
+
+/**
+ * Publish S().customCss into the live <style> tags and refresh the settings
+ * status line. Hooked into applyHighlightStyles() (Task 5) so every existing
+ * publish path (boot, enable, knob changes) carries this layer for free.
+ */
+export function applyCustomCss() {
+    const enabled = S().customCssEnabled !== false;
+    const css = enabled ? String(S().customCss ?? '') : '';
+    syncStyleTag(STYLE_ID, css);
+    syncStyleTag(MIRROR_ID, mirrorPopupSelectors(css));
+    const statusEl = document.getElementById('gls_custom_css_status');
+    if (statusEl) statusEl.textContent = customCssStatusText(css);
+}

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 
 import './helpers/stub-runtime.mjs';
 import { resetCtx } from './helpers/stub-runtime.mjs';
-import { loadSettings, S } from '../src/core.js';
+import { loadSettings, S, t } from '../src/core.js';
 
 test('defaults expose the custom CSS layer keys', () => {
     resetCtx({ extensionSettings: { Glosses: {} } });
@@ -126,4 +126,82 @@ test('insertTemplate appends to non-empty text, replaces empty text', () => {
     assert.equal(insertTemplate('   \n ', 'TPL'), 'TPL');
     assert.equal(insertTemplate('.a{}', 'TPL'), '.a{}\n\nTPL');
     assert.equal(insertTemplate('.a{}\n', 'TPL'), '.a{}\n\nTPL');
+});
+
+import { applyCustomCss, customCssStatusText } from '../src/ui/custom-css.js';
+
+/** Local document fake with a real head/createElement/getElementById cycle. */
+function fakeDocument() {
+    const tags = new Map();
+    const created = [];
+    return {
+        created,
+        doc: {
+            created,
+            head: { appendChild(el) { created.push(el); if (el.id) tags.set(el.id, el); } },
+            getElementById: (id) => tags.get(id) ?? null,
+            createElement: () => {
+                const el = {
+                    id: '',
+                    _text: '',
+                    set textContent(v) { this._text = String(v ?? ''); },
+                    get textContent() { return this._text; },
+                };
+                return el;
+            },
+            __register: (id, el) => tags.set(id, el),
+        },
+    };
+}
+
+test('applyCustomCss creates one style tag per id and reuses it (idempotent)', () => {
+    const { doc } = fakeDocument();
+    const realDoc = globalThis.document;
+    globalThis.document = doc;
+    try {
+        resetCtx({ extensionSettings: { Glosses: {} } });
+        loadSettings();
+        S().customCss = '.gls-popup { color: red; }';
+        S().customCssEnabled = true;
+
+        applyCustomCss();
+        applyCustomCss();
+        assert.equal(doc.created.length, 2, 'exactly one tag per id across repeated applies');
+
+        const raw = doc.created.find(el => !el.textContent.includes('gls-popup-preview'));
+        const mirror = doc.created.find(el => el.textContent.includes('gls-popup-preview'));
+        assert.ok(raw && mirror, 'both raw and mirror tags created');
+        assert.ok(raw.textContent.includes('.gls-popup { color: red; }'));
+        assert.ok(mirror.textContent.includes('.gls-popup-preview { color: red; }'));
+
+        S().customCssEnabled = false;
+        applyCustomCss();
+        assert.deepEqual(
+            doc.created.map(el => el.textContent),
+            ['', ''],
+            'disabled layer empties both tags in place (no re-creation)',
+        );
+    } finally {
+        globalThis.document = realDoc;
+    }
+});
+
+test('applyCustomCss is a safe no-op under the bare stub runtime (no head)', () => {
+    const realDoc = globalThis.document;
+    globalThis.document = { getElementById: () => null, createElement: () => ({}) };
+    try {
+        resetCtx({ extensionSettings: { Glosses: {} } });
+        loadSettings();
+        assert.doesNotThrow(() => applyCustomCss());
+    } finally {
+        globalThis.document = realDoc;
+    }
+});
+
+test('customCssStatusText: empty → hidden, engine-less → Applied, engine → rule count', () => {
+    resetCtx({ extensionSettings: { Glosses: {} } });
+    loadSettings();
+    assert.equal(customCssStatusText('   '), '', 'whitespace-only hides the status');
+    // Node has no CSSStyleSheet → countCssRules is null → generic "Applied".
+    assert.equal(customCssStatusText('.a{color:red}'), t('Applied'));
 });
