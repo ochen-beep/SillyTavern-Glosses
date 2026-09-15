@@ -12,8 +12,9 @@ import {
     state, S, saveSettings, t, getApiKey, setApiKey, notifyUser, warn, getCtx,
 } from '../core.js';
 import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll } from '../renderer.js';
-import { getProfiles, getProfileDetails } from '../connection.js';
-import { updatePanel } from './window.js';
+import { getProfiles, getProfileDetails, confirmInsecureEndpoint } from '../connection.js';
+import { classifyEndpoint, isOriginAllowed } from '../infrastructure/endpoint-policy.js';
+import { updatePanel, invalidateAiMsgCache } from './window.js';
 import { ensureLauncher } from './launcher.js';
 import { initScrollObserver } from '../events.js';
 import {
@@ -229,8 +230,9 @@ export function bindSettingsUI() {
     const epEl = $('gls_custom_endpoint');
     if (epEl) {
         epEl.value = S().customEndpoint || '';
-        on(epEl, 'input', () => { S().customEndpoint = epEl.value; saveSettings(); });
+        on(epEl, 'input', () => { S().customEndpoint = epEl.value; saveSettings(); refreshHttpConfirm(); });
     }
+    bindHttpConfirm();
     const cmEl = $('gls_custom_model');
     if (cmEl) {
         cmEl.value = S().customModel || '';
@@ -572,6 +574,10 @@ export function bindSettingsUI() {
     // touched. OFF -> strip user-post chrome; ON -> restoreHighlightsAll picks
     // up user posts too (gated guard in renderer.js).
     bindCb('gls_gloss_user', 'glossUserMessages', () => {
+        // The scroll observer + panel's annotatable-id list both memoize on
+        // this flag — re-derive them or user posts stay invisible to the
+        // panel until the next chat switch.
+        invalidateAiMsgCache();
         if (S().glossUserMessages) {
             restoreHighlightsAll();
         } else {
@@ -580,6 +586,7 @@ export function bindSettingsUI() {
                 el.querySelectorAll('.gls-regen-btn').forEach(b => b.remove());
             });
         }
+        if (S().floatingPanelEnabled) initScrollObserver();
         updatePanel();
     });
     on($('gls_stop_words'), 'input', function () { S().stopWords = this.value; saveSettings(); });
@@ -725,7 +732,65 @@ export function updateSrcPanels() {
         updateProfileModelInfo();
     } else if (S().source === 'custom') {
         syncCustomApiKeyField();
+        refreshHttpConfirm();
     }
+}
+
+// ── Insecure-endpoint confirmation (plan stage 8, UI half) ──
+// The policy layer (endpoint-policy.js + connection.js) refuses plain HTTP on
+// non-loopback hosts until the origin is confirmed. These functions are the
+// settings-surface half of that flow: a hint + confirm button inside the
+// Custom panel while the endpoint is an unconfirmed insecure-http URL, and an
+// informational hint for loopback http (allowed, but not encrypted).
+
+function httpConfirmEls() {
+    return {
+        group: document.getElementById('gls_http_confirm_group'),
+        text: document.getElementById('gls_http_confirm_text'),
+        btn: document.getElementById('gls_http_confirm_btn'),
+    };
+}
+
+function refreshHttpConfirm() {
+    const { group, text } = httpConfirmEls();
+    if (!group || !text) return;
+    if (S().source !== 'custom') { group.hidden = true; return; }
+    const verdict = classifyEndpoint(S().customEndpoint);
+    if (!verdict.ok) { group.hidden = true; return; }
+    if (verdict.kind === 'insecure-http'
+        && !isOriginAllowed(verdict.normalized, S().customEndpointAllowlist || [])) {
+        let host = verdict.host;
+        try { host = new URL(verdict.normalized).host || verdict.host; } catch { /* keep raw host */ }
+        text.textContent = `${t('This endpoint uses plain HTTP outside localhost. Confirm the origin to allow requests — the API key will be sent unencrypted.')} [${host}]`;
+        group.hidden = false;
+        return;
+    }
+    if (verdict.kind === 'loopback-http') {
+        text.textContent = t('Local HTTP endpoint (localhost) — requests are allowed, but the key is not encrypted.');
+        group.hidden = false;
+        return;
+    }
+    group.hidden = true;
+}
+
+function bindHttpConfirm() {
+    const { btn } = httpConfirmEls();
+    refreshHttpConfirm();
+    if (!btn || btn.dataset.glsHttpConfirmBound === '1') return;
+    // Plain listener (not the bind-scoped `on()`): the settings DOM is
+    // recreated on every enable, so the element lifetime bounds the listener.
+    btn.dataset.glsHttpConfirmBound = '1';
+    btn.addEventListener('click', async () => {
+        const verdict = classifyEndpoint(S().customEndpoint);
+        if (!verdict.ok || verdict.kind !== 'insecure-http') { refreshHttpConfirm(); return; }
+        const res = await confirmInsecureEndpoint(verdict.normalized, S().customEndpointAllowlist || []);
+        if (res.ok) {
+            try { notifyUser('success', t('Endpoint origin confirmed.'), 'gls-http-confirm'); } catch { /* non-fatal */ }
+        } else {
+            warn('Endpoint confirmation failed:', res.reason);
+        }
+        refreshHttpConfirm();
+    });
 }
 
 export function updatePromptPanels() {
@@ -772,7 +837,7 @@ export function updateProfileModelInfo() {
         const model = d.model || d.modelName || d.model_name || d.settings?.model || '';
         if (model) parts.push(String(model));
         if (!parts.length && d.name) parts.push(d.name);
-        txt.textContent = parts.length ? parts.join(' · ') : 'Profile selected (no model data)';
+        txt.textContent = parts.length ? parts.join(' · ') : t('Profile selected (no model data)');
         info.hidden = false;
     }).catch(() => { if (req === _modelInfoReq) info.hidden = true; });
 }

@@ -48,6 +48,13 @@
                     <input type="url" id="gls_custom_endpoint" class="text_pole" placeholder="https://api.example.com/v1">
                     <small class="gls-s-hint" data-i18n="Direct browser fetch — the endpoint must send CORS headers, otherwise use Profile.">Direct browser fetch — the endpoint must send CORS headers, otherwise use Profile.</small>
                 </div>
+                <!-- Stage 8 UI half: shown while the endpoint is an unconfirmed
+                     plain-HTTP non-loopback URL (requests are refused until
+                     confirmed) or a loopback http URL (allowed + warning). -->
+                <div class="gls-s-field-group" id="gls_http_confirm_group" hidden>
+                    <small class="gls-s-hint" id="gls_http_confirm_text"></small>
+                    <button id="gls_http_confirm_btn" class="menu_button" type="button" data-i18n="Confirm insecure endpoint">Confirm insecure endpoint</button>
+                </div>
                 <div class="gls-s-field-group">
                     <label class="gls-s-field-label" for="gls_custom_apikey">
                         <span data-i18n="API key">API key</span>

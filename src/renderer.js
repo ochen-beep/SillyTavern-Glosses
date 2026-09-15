@@ -15,6 +15,7 @@
 import { S, getCtx, t, escapeRegex, sanitize, warn } from './core.js';
 import { getVariantFootnotes, getVariantPayload, digestFor } from './cache.js';
 import { targetedOf } from './domain/footnote-payload.js';
+import { isTranslatedView } from './domain/message-identity.js';
 import { indexToSuperscript, indexToTargetedSymbol, stripLeadingNumber } from './parser.js';
 import { findAllAnchorSpans, normalizeAnchorKey } from './anchor-utils.js';
 import { buildTextIndex, segmentsFor } from './text-index.js';
@@ -480,6 +481,11 @@ export function restoreMessage(mesEl) {
     // User posts are restored (button + cached highlights) only when the
     // glossUserMessages setting is on.
     if (msg.is_user && !S().glossUserMessages) return;
+    // The DOM is showing a translation (extra.display_text): markers must not
+    // be wrapped around words of the translated view — anchors belong to the
+    // original body. The regen button still mounts (it lives on the mes block,
+    // not in the text).
+    if (isTranslatedView(msg)) return;
     const swipeIdx = msg.swipe_id ?? 0;
     // Always (re)add the regen button — cheap, and independent of visibility.
     addRegenButton(messageId);
@@ -498,9 +504,12 @@ export function restoreMessage(mesEl) {
  * Used when a setting that shapes rendered output changes (displayMode: both
  * the marker's sup index and the under-post block depend on it) so posts
  * already on screen switch shape immediately instead of on their next
- * render/swipe/edit. Digest-verified reads make this safe for translated
- * messages (extra.display_text) — their payload won't verify, so the digest
- * gate skips them exactly like presentVariant does.
+ * render/swipe/edit.
+ *
+ * Translate note: for a translated AI message (display_text = translation,
+ * mes = original) the digest gate PASSES — the payload is keyed on `mes` —
+ * but the screen shows the translation, so injection is skipped explicitly
+ * via isTranslatedView (same rule as presentVariant/restoreMessage).
  */
 export function reapplyHighlightsAll() {
     const ctx = getCtx();
@@ -509,6 +518,7 @@ export function reapplyHighlightsAll() {
         const msg = ctx.chat?.[parseInt(messageId)];
         if (!msg) return;
         if (msg.is_user && !S().glossUserMessages) return;
+        if (isTranslatedView(msg)) return;
         const swipeIdx = msg.swipe_id ?? 0;
         const cached = getVariantFootnotes(messageId, swipeIdx);
         if (cached?.length) {
@@ -552,6 +562,8 @@ function injectCachedForEl(mesEl) {
     // Lazy inject is for cached highlights; user posts participate only when
     // glossUserMessages is on (mirrors restoreHighlightsAll's guard).
     if (msg.is_user && !S().glossUserMessages) return;
+    // Never wrap markers around a translated view — see restoreMessage.
+    if (isTranslatedView(msg)) return;
     const swipeIdx = msg.swipe_id ?? 0;
     injectIfCached(mesEl, messageId, swipeIdx);
     _lazyInjected.add(mesEl);

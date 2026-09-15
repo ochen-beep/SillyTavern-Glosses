@@ -42,7 +42,11 @@ export function createChatWriter({
                 return;
             }
             const p = saveChat();
-            if (p && typeof p.catch === 'function') p.catch(() => {});
+            // Propagate the rejection: the metadata-writer chain awaits the
+            // returned promise, so a failed host save reaches onError (→
+            // persistenceError → visible toast) instead of vanishing as an
+            // unhandled rejection while the user believes footnotes persisted.
+            return p;
         },
     });
 }

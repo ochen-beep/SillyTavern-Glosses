@@ -1033,6 +1033,11 @@ export function destroyPanel() {
 }
 
 export function clearTargetedTabState() {
+    // Drop a pending draft persist first: its 400ms callback reads
+    // _targetedState.input at fire time, which by then already holds the NEW
+    // chat's draft — saving it would clobber the freshly loaded draft with a
+    // tail of the old one (and the timer must not outlive cleanup either).
+    if (_draftSaveTimer) { clearTimeout(_draftSaveTimer); _draftSaveTimer = null; }
     clearTargetedState();
     // The targets draft is per-chat (chatMetadata): reload the NEW chat's
     // draft, drop the old chat's transient result/status, and bump requestId

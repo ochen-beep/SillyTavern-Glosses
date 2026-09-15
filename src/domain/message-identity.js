@@ -77,6 +77,24 @@ export function isViableMessageText(text) {
 }
 
 /**
+ * True when the message DOM is currently showing a TRANSLATION rather than the
+ * digest-source body. The built-in Translate extension keeps the alternate text
+ * in `extra.display_text` and renders it when present (incoming/AI:
+ * display_text = translation, mes = original; outgoing/user: display_text =
+ * original, mes = translation — translate/index.js:215/533);
+ * `extra.reasoning_display_text` covers reasoning-only translations. While
+ * either is present the payload digest (computed over the variant body) no
+ * longer describes what is on screen, so marker injection / rebind /
+ * auto-generation / manual regeneration must skip the message.
+ *
+ * @param {{ extra?: { display_text?: unknown, reasoning_display_text?: unknown } | null } | null | undefined} msg
+ * @returns {boolean}
+ */
+export function isTranslatedView(msg) {
+    return Boolean(msg?.extra?.display_text || msg?.extra?.reasoning_display_text);
+}
+
+/**
  * Build a full message identity object for a (msgId, swipeIdx).
  *
  * Returns null when the message is absent or its body is not viable (placeholder

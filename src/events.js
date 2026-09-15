@@ -15,6 +15,7 @@ import { generationCoordinator } from './application/generation-coordinator.js';
 import {
     getVariantPayload, getVariantFootnotes, readRawPayloadFor, rebindVariant,
 } from './cache.js';
+import { isTranslatedView } from './domain/message-identity.js';
 import {
     injectHighlights, removeHighlights, restoreHighlightsAll, restoreMessage, addRegenButton,
     installMarkerDelegation, resetLazyInjector, closePopup,
@@ -114,6 +115,12 @@ function onAppReady() {
     restoreHighlightsAll();
 }
 
+// Owned handle for the deferred post-chat-switch restore, so cleanup()
+// (via disconnectScrollObserver) can cancel it — otherwise a disable inside
+// the 0ms window lets the callback re-arm the scroll observer on a torn-down
+// extension (same class of bug index.js fixes for its own _scrollInitTimer).
+let _postChatSwitchTimer = null;
+
 function onChatChanged() {
     // Stage 6: invalidate ALL in-flight generations — chat change bumps the
     // global chatEpoch (so still-running requests whose transports ignore
@@ -126,7 +133,9 @@ function onChatChanged() {
     invalidateAiMsgCache();
     resetLazyInjector();
     installMarkerDelegation();
-    setTimeout(() => {
+    if (_postChatSwitchTimer) clearTimeout(_postChatSwitchTimer);
+    _postChatSwitchTimer = setTimeout(() => {
+        _postChatSwitchTimer = null;
         restoreHighlightsAll();
         initScrollObserver();
     }, 0);
@@ -162,7 +171,7 @@ async function presentVariant(messageId, swipeIdx, mesEl) {
     // un-translates, the digest re-matches and the cached payload restores.
     const ctx = getCtx();
     const msg = ctx.chat?.[parseInt(messageId)];
-    if (msg?.extra?.display_text || msg?.extra?.reasoning_display_text) return;
+    if (isTranslatedView(msg)) return;
 
     const payload = getVariantPayload(messageId, swipeIdx);
     if (payload) {
@@ -330,11 +339,20 @@ function onMsgEdited(messageId) {
  * (and before its saveChatConditional), and also when an edit is CANCELLED
  * (messageEditCancel re-renders the original text). Rebind is idempotent: a
  * cancelled edit leaves the digest unchanged and this only re-injects.
+ *
+ * Translate-guard: ST emits MESSAGE_UPDATED for a translated message's editor
+ * too — including a plain "cancel". For an outgoing message the translation
+ * REPLACED `mes` (the original lives in extra.display_text), so the digest
+ * would mismatch and rebindVariant would orphan EVERY footnote, then stamp the
+ * emptied payload back — silently destroying the cache even though the user
+ * cancelled. Skip rebind entirely while a translation is on screen; when the
+ * user un-translates, the digest re-matches and the cached payload restores.
  */
 function onMsgUpdated(messageId) {
     const ctx = getCtx();
     const msg = ctx.chat?.[parseInt(messageId)];
     if (!msg || msg.is_system || !S().enabled) return;
+    if (isTranslatedView(msg)) return;
 
     const swipeIdx = msg.swipe_id ?? 0;
     const result = rebindVariant(messageId, swipeIdx);
@@ -553,6 +571,7 @@ function scrollFallback() {
 }
 
 export function disconnectScrollObserver() {
+    if (_postChatSwitchTimer) { clearTimeout(_postChatSwitchTimer); _postChatSwitchTimer = null; }
     _scrollIO?.disconnect(); _scrollIO = null;
     _scrollMO?.disconnect(); _scrollMO = null;
     if (_scrollChatEl && _scrollHandler) {

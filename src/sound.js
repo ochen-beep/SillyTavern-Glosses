@@ -34,6 +34,7 @@ export const BUNDLED_SOUNDS = [
     { file: 'Soft_8-bit_pixel_int_#1-1780921844965.wav', label: 'Soft 8-bit Pixel' },
     { file: 'Subtle_digital_synth_#1-1780921738633.wav', label: 'Subtle Digital Synth' },
     { file: 'Tiny_crystalline_gla_#2-1780921518367.wav', label: 'Tiny Crystalline' },
+    { file: 'music-reminder-sound.ogg', label: 'Music Reminder' },
 ];
 
 export const LEGACY_CUSTOM_SOUND = '__custom__';
@@ -45,8 +46,6 @@ const MIME_TO_EXT = {
     'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'm4a',
     'audio/webm': 'webm',
 };
-
-let _cachedSoundUri = null;
 
 /**
  * Normalize a stored sound reference to the soundId scheme. Pure.
@@ -227,7 +226,9 @@ export async function playSound() {
 
 /** Drop the cached URI so a newly selected sound takes effect on next play. */
 export function invalidateSoundCache() {
-    _cachedSoundUri = null;
+    // resolveSoundUri() builds the URI fresh on every play (no URI cache is
+    // kept — the old _cachedSoundUri variable was never read). The hook stays
+    // so existing callers keep working and a future cache has a clear hook.
 }
 
 /** Populate the sound <select>: bundled + server-side custom uploads. */

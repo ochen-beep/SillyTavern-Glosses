@@ -273,8 +273,11 @@ export function parseResponse(raw) {
             // TypeError on .trim(). Parse strings with the same per-line logic
             // as the text fallback so validation can run on them.
             if (typeof f === 'string') return parseTextFootnoteLine(f);
-            const anchor = (f.anchor || '').trim();
-            let text = (f.text || '').trim();
+            // String() coercion: a non-string anchor/text (number, object — a
+            // contract-violating model) would otherwise throw on .trim() and
+            // poison the WHOLE footnotes array instead of one bad entry.
+            const anchor = String(f.anchor ?? '').trim();
+            let text = String(f.text ?? '').trim();
             // The "anchor" must stay verbatim; brackets inside text would
             // duplicate the anchor, so strip them when present.
             if (anchor) text = text.replace(/\s*\[[^\]]+\]/g, '');

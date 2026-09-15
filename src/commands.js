@@ -62,14 +62,21 @@ export function registerSlashCommands() {
             callback: () => {
                 S().enabled = !S().enabled;
                 saveSettings();
-                if (S().enabled) restoreHighlightsAll();
-                else {
-                    document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
+                // UI sync only when the runtime is actually up: the
+                // registration outlives a disable (ST keeps slash commands for
+                // the page lifetime), and toggling a torn-down extension used
+                // to re-mount the launcher / re-inject markers with events
+                // unbound — a half-alive state.
+                if (state.runtimeActive) {
+                    if (S().enabled) restoreHighlightsAll();
+                    else {
+                        document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
+                    }
+                    // Keep the QR-bar launcher in sync with the new state so a
+                    // disable via slash-command removes the button immediately
+                    // (otherwise it lingered until the next chat switch).
+                    try { ensureLauncher(); } catch { /* non-critical */ }
                 }
-                // Keep the QR-bar launcher in sync with the new state so a
-                // disable via slash-command removes the button immediately
-                // (otherwise it lingered until the next chat switch).
-                try { ensureLauncher(); } catch { /* non-critical */ }
                 return S().enabled ? 'Glosses enabled' : 'Glosses disabled';
             },
         }));
@@ -78,7 +85,7 @@ export function registerSlashCommands() {
             name: 'glosses_regen',
             helpString: 'Regenerate footnotes for the last message',
             callback: () => {
-                if (!S().enabled) return 'Glosses is disabled';
+                if (!S().enabled || !state.runtimeActive) return 'Glosses is disabled';
                 const ctx2 = getCtx();
                 const msgIds = _allAnnotatableMsgIds(ctx2);
                 const lastId = msgIds[msgIds.length - 1];
@@ -96,6 +103,7 @@ export function registerSlashCommands() {
             name: 'glosses_clear',
             helpString: 'Clear all footnotes cache for the current chat',
             callback: () => {
+                if (!state.runtimeActive) return 'Glosses is disabled';
                 clearAll();
                 document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
                 panelInvalidate();

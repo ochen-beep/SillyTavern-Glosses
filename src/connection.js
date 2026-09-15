@@ -8,11 +8,12 @@
  * localforage via core.js#getApiKey (NOT in settings JSON — spec §3.3).
  */
 
-import { getCtx, S, warn, getApiKey, saveSettings } from './core.js';
+import { getCtx, S, warn, t, notifyUser, getApiKey, saveSettings } from './core.js';
 import { classifyEndpoint, isOriginAllowed } from './infrastructure/endpoint-policy.js';
 
 let _cmReady = false;
 let _cmReadyChecked = false;
+let _loopbackWarned = false;
 
 /**
  * Read connection-manager profiles — try ctx.extensionSettings first,
@@ -228,6 +229,11 @@ function extractTextFromResponse(resp) {
     if (resp.choices?.[0]?.message?.content) {
         const c = resp.choices[0].message.content;
         if (typeof c === 'string') return c;
+        // OpenAI content-parts shape: [{type:'text', text:'…'}, …]
+        if (Array.isArray(c)) {
+            const t = c.filter(b => b?.type === 'text' && typeof b.text === 'string').map(b => b.text);
+            if (t.length) return t.join('\n');
+        }
     }
     if (Array.isArray(resp.candidates)) {
         const parts = resp.candidates[0]?.content?.parts;
@@ -334,6 +340,12 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
         && !isOriginAllowed(verdict.normalized, S().customEndpointAllowlist || [])) {
         throw new Error('Custom endpoint uses plain HTTP on a non-local host. Confirm this origin in Glosses settings before use.');
     }
+    if (verdict.kind === 'loopback-http' && !_loopbackWarned) {
+        // README promises "allowed with a warning" — deliver it once per page.
+        _loopbackWarned = true;
+        warn('Plain-HTTP loopback endpoint — the API key travels unencrypted on this machine.');
+        try { notifyUser('warning', t('Local HTTP endpoint (localhost) — requests are allowed, but the key is not encrypted.'), 'gls-loopback-http'); } catch { /* non-fatal */ }
+    }
     const url = verdict.normalized;
 
     const apiKey = await getApiKey();
@@ -397,7 +409,16 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
         throw new Error(`Custom endpoint ${errMsg}`);
     }
 
-    const data = await response.json();
+    let data;
+    try {
+        data = await response.json();
+    } catch {
+        // 200 with a non-JSON body (proxy splash page, CSP notice, empty body)
+        // used to surface as a raw SyntaxError from JSON parsing.
+        const msg = `Custom endpoint returned a non-JSON response (HTTP ${response.status}). Check that the URL points to a chat-completions API.`;
+        lastCustomEndpointDebug.error = { message: msg, status: response.status, timestamp: Date.now() };
+        throw new Error(msg);
+    }
     const text = extractTextFromResponse(data);
 
     lastCustomEndpointDebug.response = debugFull

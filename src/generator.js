@@ -13,7 +13,7 @@
  */
 
 import {
-    state, S, getCtx, getExtBase, warn, error, extractPlainText,
+    state, S, getCtx, getExtBase, warn, error, extractPlainText, t,
     DEFAULT_SETTINGS,
 } from './core.js';
 import { FOOTNOTE_CONTRACT } from './prompt-contract.js';
@@ -21,6 +21,7 @@ import {
     digestFor, variantIsViable, saveFootnotes, listFootnoteSets,
     getForcedIgnore, getPoolExcluded,
 } from './cache.js';
+import { isTranslatedView } from './domain/message-identity.js';
 import { collectExplainedAnchors, combineForbiddenAnchors } from './anchor-policy.js';
 import { findAnchorInText } from './anchor-utils.js';
 import { getChatLoreConfig, collectAutomaticLore, LORE_MODE, LORE_SCOPE } from './lorebooks.js';
@@ -955,6 +956,15 @@ function setLaunchersGenerating(on) {
 }
 
 export async function generateFootnotes(messageId, swipeIdx, mesEl) {
+    // Translate-guard (manual paths included): regenerating over a translated
+    // view would validate anchors against the translation but stamp the
+    // payload with the ORIGINAL body's digest — markers land on translation
+    // words and misplace after un-translate. Ask the user to un-translate.
+    const entryMsg = getCtx().chat?.[parseInt(messageId)];
+    if (isTranslatedView(entryMsg)) {
+        toastr?.info?.(`[Glosses] ${t('The message is translated — un-translate it to regenerate footnotes.')}`);
+        return;
+    }
     if (!variantIsViable(messageId, swipeIdx)) {
         // Reject placeholder/short posts at every entry point (Issue 5).
         return;
@@ -993,7 +1003,17 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
             ? validateFootnotesAgainstText(parsed, validationText, forbidden, resolveFallback)
             : validateFootnotes(parsed, userPrompt, forbidden);
         if (!generationCoordinator.isCurrent(run)) return;   // chat switched / swiped / superseded
-        if (!validated?.length) return;
+        if (!validated?.length) {
+            // Not a silent no-op: the user cannot tell "the model returned
+            // garbage" from "nothing in the post was worth glossing".
+            const candidates = parsed?.footnotes?.length ?? 0;
+            if (!candidates) {
+                toastr?.warning?.(`[Glosses] ${t('The model returned no parsable footnotes. Check the connection or try again.')}`);
+            } else {
+                toastr?.info?.(`[Glosses] ${t('All returned footnote anchors were rejected (not found in the post, duplicates, or forced-ignore).')}`);
+            }
+            return;
+        }
 
         const ctx2 = getCtx();
         const msg2 = ctx2.chat?.[parseInt(messageId)];
@@ -1035,6 +1055,11 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
         const liveDigest = digestFor(messageId, liveSwipe);
         if (!generationCoordinator.isCurrent(run) || liveSwipe !== swipeIdx || liveDigest !== startDigest) return;
         saveFootnotes(messageId, swipeIdx, footnotes, { style: S().promptStyle });
+        // §6.4: a successful run (manual paths included) clears the sticky
+        // "Source not configured" badge — previously only the auto-generate and
+        // targeted paths reset it, so one failure kept the badge up forever and
+        // hid the empty-state Generate CTA behind 'unconfigured'.
+        state.configuredState = { ok: true, reason: '' };
         injectHighlights(mesEl, footnotes);
         playSound();
         state.panelFocusMsgId = String(messageId);

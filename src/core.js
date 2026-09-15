@@ -235,6 +235,10 @@ export const state = {
     // configured" badge instead of silently idling after the first toast.
     // Toast one-shot is still governed by configWarned above.
     configuredState: { ok: true, reason: '' },
+    // True between a completed init() and cleanup(). Slash commands outlive a
+    // disable (ST keeps registrations for the page lifetime) and consult this
+    // flag so a disabled extension's UI is never mutated from a command.
+    runtimeActive: false,
 };
 
 // Convenience alias matching the original codebase's `S` reference.

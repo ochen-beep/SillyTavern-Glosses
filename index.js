@@ -1,6 +1,10 @@
 // @ts-check
 /**
  * Glosses — Literary footnotes for SillyTavern
+ * v3.7.1 — review fixes: translate-guard on rebind/inject paths, sticky
+ * "Source not configured" badge, insecure-endpoint confirmation UI, writer
+ * error propagation, server-side custom sound cleanup, runtime guard for
+ * slash commands, louder empty-model-response handling.
  * v3.1.0 — ST-contract fixes + product simplification (slash commands, inline
  * displayMode, presets, persistent source badge, etc.).
  * v3.0.0 — modular refactor of SillyTavern-Footnotes.
@@ -18,9 +22,11 @@
 
 import {
     state, MODULE_NAME, DISPLAY_NAME, META_KEY, LF_CUSTOM_SOUND,
+    DEFAULT_SOUND_NAME,
     loadSettings, saveSettings, flushSettings,
     getCtx, log, warn, error, t,
 } from './src/core.js';
+import { deleteUserFile } from './src/user-files.js';
 import {
     applyHighlightStyles, removeHighlights, closePopup,
     uninstallMarkerDelegation, resetLazyInjector,
@@ -93,6 +99,24 @@ export async function onClean() {
         }
         await flushMetadata();
     } catch (e) { error('cache cleanup error:', e); }
+    try {
+        // v3.6+ custom sounds live SERVER-side (data/<user>/user/files/) —
+        // remove each uploaded file, then drop the metadata so the settings
+        // don't reference ghosts. 404s inside deleteUserFile are tolerated.
+        const files = { ...(state.settings.soundFiles || {}) };
+        for (const meta of Object.values(files)) {
+            if (meta?.file) {
+                try { await deleteUserFile(meta.file); } catch (e) { warn('custom sound delete failed:', meta.file, e); }
+            }
+        }
+        if (Object.keys(files).length) {
+            state.settings.soundFiles = {};
+            if (String(state.settings.soundId || '').startsWith('custom_')) {
+                state.settings.soundId = `folder:${DEFAULT_SOUND_NAME}`;
+            }
+            saveSettings();
+        }
+    } catch (e) { error('sound cleanup error:', e); }
     try {
         const { localforage } = SillyTavern.libs;
         await localforage.removeItem(LF_CUSTOM_SOUND);
@@ -203,6 +227,10 @@ async function init(isCancelled = () => false) {
     registerSlashCommands();
     registerDebugFunctions();
 
+    // Mark the runtime live only after every binding succeeded — the slash
+    // commands gate their UI mutations on this flag (see commands.js).
+    state.runtimeActive = true;
+
     log('Ready.');
 }
 
@@ -220,6 +248,10 @@ function _modulePath() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function cleanup() {
+    // Slash commands stay registered for the page lifetime; from this point
+    // they must not touch the DOM or kick off generation (see commands.js).
+    state.runtimeActive = false;
+
     // Abort any running generations.
     for (const ctrl of Object.values(state.abortControllers)) ctrl.abort();
     for (const k of Object.keys(state.abortControllers)) delete state.abortControllers[k];

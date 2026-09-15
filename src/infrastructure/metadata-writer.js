@@ -67,13 +67,17 @@ export function createMetadataWriter({ getContext, debounceMs = 200, onError = (
         pending = null; // cleared here; a mutation during the save re-dirties
         return chain
             .catch(() => {}) // swallow prior rejection; the batch still runs
-            .then(() => {
+            .then(async () => {
                 if (!batch) return;
                 const ctx = getContext();
                 // Cross-chat guard: the chat switched since schedule → drop.
                 if (ctx?.chatId !== batch.chatId) return;
                 try {
-                    saveFn(ctx);
+                    // Await so an async host save (saveMetadata/saveChat return
+                    // promises) serializes on the chain AND its rejection lands
+                    // in the catch below — a bare call() only surfaced
+                    // synchronous throws and silently dropped real failures.
+                    await saveFn(ctx);
                 } catch (err) {
                     notifyError(err);
                 }
