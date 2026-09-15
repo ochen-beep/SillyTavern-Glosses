@@ -172,6 +172,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // localforage under LF_CUSTOM_SOUND). This is the value the UI (settings-sync)
     // and playback (sound.js) actually read/write.
     soundName: DEFAULT_SOUND_NAME,
+    // Sound scheme (3.6): soundId is 'folder:<bundled file>' or 'custom_<n>'
+    // (a SERVER-side upload in data/<user>/user/files/, see user-files.js);
+    // soundFiles holds the display/file metadata per custom key. soundName is
+    // legacy, kept only as the one-time migration input (sound.js).
+    soundId: '',
+    soundFiles: {},
 
     // §3 custom-endpoint source (OpenAI-compatible chat completions).
     customEndpoint: '',
@@ -212,6 +218,12 @@ export const state = {
     // start of a generation and check isEpochCurrent() before rendering/
     // persisting the result. Bumped by onChatChanged. Ported from DS Comments.
     generationEpoch: 0,
+    // WORLD_INFO_ACTIVATED stash for per-chat automatic lore (lorebooks.js):
+    // `pending` lands when ST finishes its prompt build (the annotated message
+    // is not pushed yet); events.js claims it on CHARACTER_MESSAGE_RENDERED
+    // and binds msgId/swipeIdx into `lastActivatedWorldInfo`.
+    pendingActivatedWorldInfo: null,
+    lastActivatedWorldInfo: null,
     // C3: auto-generation warns ONCE per unconfigured episode, then stays silent
     // until a generation actually succeeds (which clears this). Manual regenerate
     // is unaffected - it toasts every time. See events.js#autoGenerateIfConfigured.
@@ -325,6 +337,21 @@ export function loadSettings() {
     if (typeof state.settings.customCssEnabled !== 'boolean') {
         state.settings.customCssEnabled = true;
         settingsChanged = true;
+    }
+    // Sound scheme (3.6): coerce soundId/soundFiles types. The authoritative
+    // normalizer lives in sound.js (normalizeSoundFiles) — this inline pass
+    // only guards types to avoid a core↔sound import cycle.
+    if (typeof state.settings.soundId !== 'string') state.settings.soundId = '';
+    if (!state.settings.soundFiles || typeof state.settings.soundFiles !== 'object') {
+        state.settings.soundFiles = {};
+    } else {
+        const files = {};
+        for (const [k, v] of Object.entries(state.settings.soundFiles)) {
+            if (/^custom_\d+$/.test(k) && v && typeof v === 'object' && typeof v.file === 'string' && v.file) {
+                files[k] = { name: (typeof v.name === 'string' && v.name) ? v.name : k, file: v.file };
+            }
+        }
+        state.settings.soundFiles = files;
     }
     ctx.extensionSettings[MODULE_NAME] = state.settings;
     if (settingsChanged) ctx.saveSettingsDebounced();

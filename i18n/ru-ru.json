@@ -229,5 +229,16 @@
     "No glossed anchors yet": "Пока нет объяснённых слов",
     "{0} anchor(s) lost after the post was edited": "{0} слово(слов) потеряно после редактирования поста",
 
-    "api-key-stored-in-browser": "Ключ хранится в браузере (localforage), а не на сервере. Для серверного хранения секрета используйте профиль подключения (Connection Profile)."
+    "api-key-stored-in-browser": "Ключ хранится в браузере (localforage), а не на сервере. Для серверного хранения секрета используйте профиль подключения (Connection Profile).",
+    "Could not upload the custom sound.": "Не удалось загрузить свой звук.",
+    "Could not migrate the custom sound to the server storage; the default sound is selected. The old copy stays in this browser.": "Не удалось перенести свой звук в серверное хранилище — выбран стандартный. Старая копия осталась в этом браузере.",
+    "The selected custom sound is unavailable; playing the default sound.": "Выбранный свой звук недоступен — играю стандартный.",
+    "The selected custom sound is missing on the server; the default sound plays instead. Re-upload it in the Glosses settings.": "Выбранного своего звука нет на сервере — играет стандартный. Загрузите его заново в настройках Glosses.",
+    "Custom sound": "Свой звук",
+    "Lorebook context (this chat)": "Лорбук (этот чат)",
+    "Use entries activated by the main generation": "Использовать записи, активированные основной генерацией",
+    "Scope": "Охват",
+    "All activated entries": "Все активированные записи",
+    "Only chat-attached books (card / chat / persona)": "Только книги чата (карточка / чат / персона)",
+    "Per-chat setting. When the activation cache is unavailable (regen of an older post), the full World Info scan is used instead. Overrides the toggle above while enabled.": "Настройка этого чата. Если кэш активаций недоступен (реген старого поста), используется полный скан World Info. Пока включено — перекрывает тумблер выше."
 }

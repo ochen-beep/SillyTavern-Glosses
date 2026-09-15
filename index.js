@@ -37,6 +37,7 @@ import { bindSettingsUI, unbindSettingsUI } from './src/ui/settings-sync.js';
 import { initThemeSync, disconnectThemeSync } from './src/ui/theme-sync.js';
 import { initIconSprite } from './src/ui/icons.js';
 import { ensureLauncher, observeQrBar, removeLauncher } from './src/ui/launcher.js';
+import { initSound } from './src/sound.js';
 import { removeCustomCssTags, closeCssEditor } from './src/ui/custom-css.js';
 import {
     registerSlashCommands, registerDebugFunctions,
@@ -127,6 +128,9 @@ async function init(isCancelled = () => false) {
     if (isCancelled()) return;
     initIconSprite();
     loadSettings();
+    // Async: legacy sound migration + server-side file verification. Never
+    // blocks init; the settings dropdown refreshes itself when it finishes.
+    initSound();
     if (isCancelled()) return;
 
     // ── Load the settings panel (once only — onActivate + onEnable both call init) ──
@@ -142,7 +146,7 @@ async function init(isCancelled = () => false) {
                     `<div id="gls_settings_container" class="extension_block">
                         <div class="inline-drawer">
                             <div class="inline-drawer-toggle inline-drawer-header">
-                                <b>${t('Footnotes')}</b>
+                                <b>${t('Glosses')}</b>
                                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                             </div>
                             <div class="inline-drawer-content">${innerHtml}</div>

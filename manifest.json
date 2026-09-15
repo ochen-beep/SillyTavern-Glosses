@@ -7,7 +7,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "AB",
-    "version": "3.5.0",
+    "version": "3.7.0",
     "home_page": "",
     "auto_update": false,
     "minimum_client_version": "1.12.10",

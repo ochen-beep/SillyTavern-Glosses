@@ -71,6 +71,30 @@ export function bindEvents() {
         on(event_types.MESSAGE_SWIPE_DELETED, onMsgSwipeDeleted);
     }
 
+    // WORLD_INFO_ACTIVATED: stash the entries ST's main prompt build just
+    // activated, for per-chat automatic lore (lorebooks.js). The event fires
+    // BEFORE the new message is pushed to chat, so binding to "the last post
+    // at event time" would point at the PREVIOUS post — only a PENDING payload
+    // is stashed here; onCharMsgRendered claims it and binds the actually
+    // rendered message (see claimPendingActivatedWorldInfo).
+    if (event_types.WORLD_INFO_ACTIVATED) {
+        on(event_types.WORLD_INFO_ACTIVATED, async (entries) => {
+            if (!Array.isArray(entries)) return;
+            const ctx2 = getCtx();
+            state.pendingActivatedWorldInfo = {
+                chatId: ctx2.chatId,
+                entries: entries.map(e => ({
+                    uid: e.uid,
+                    content: typeof e.content === 'string' ? e.content : '',
+                    world: e.world,
+                    comment: e.comment ?? e.name ?? '',
+                    vectorized: Boolean(e.vectorized),
+                })),
+                ts: Date.now(),
+            };
+        });
+    }
+
     _eventsBound = true;
 }
 
@@ -176,7 +200,24 @@ async function presentVariant(messageId, swipeIdx, mesEl) {
 
 async function onCharMsgRendered(messageId) {
     const ctx = getCtx();
-    const msg = ctx.chat?.[parseInt(messageId)];
+    const msg0 = ctx.chat?.[parseInt(messageId)];
+    // Claim the pending WORLD_INFO_ACTIVATED payload BEFORE any skip-guard
+    // (ported from DS Comments): it describes THIS message's prompt, so the
+    // binding must land even when Glosses skips annotating the post. Always
+    // consumed — one ST generation, exactly one claim.
+    state.pendingActivatedWorldInfo = (() => {
+        const pending = state.pendingActivatedWorldInfo;
+        if (!pending) return null;
+        if (pending.chatId !== ctx.chatId) return null;              // chat-switch race
+        if (Date.now() - pending.ts > 120_000) return null;          // stale claim
+        state.lastActivatedWorldInfo = {
+            ...pending,
+            msgId: String(messageId),
+            swipeIdx: typeof msg0?.swipe_id === 'number' ? msg0.swipe_id : 0,
+        };
+        return null;
+    })();
+    const msg = msg0;
     if (!msg || msg.is_user || msg.is_system || msg.is_hidden || !S().enabled) return;
 
     // False-start guard (mirrors DS Comments src/events.js CHARACTER_MESSAGE_RENDERED

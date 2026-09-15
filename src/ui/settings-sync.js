@@ -9,7 +9,7 @@
  */
 
 import {
-    state, S, saveSettings, t, getApiKey, setApiKey,
+    state, S, saveSettings, t, getApiKey, setApiKey, notifyUser, warn, getCtx,
 } from '../core.js';
 import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll } from '../renderer.js';
 import { getProfiles, getProfileDetails } from '../connection.js';
@@ -17,9 +17,12 @@ import { updatePanel } from './window.js';
 import { ensureLauncher } from './launcher.js';
 import { initScrollObserver } from '../events.js';
 import {
-    populateSoundSelect, invalidateSoundCache, playSound, BUNDLED_SOUNDS,
+    populateSoundSelect, invalidateSoundCache, playSound,
+    isCustomSoundId, resolveSoundId, nextCustomKey, glsSoundFileName,
+    normalizeSoundFiles, deleteCustomSound, parseDataUrl,
 } from '../sound.js';
-import { LF_CUSTOM_SOUND } from '../core.js';
+import { uploadUserFile } from '../user-files.js';
+import { getChatLoreConfig, saveChatLoreConfig } from '../lorebooks.js';
 import { buildColorPicker } from './color-picker.js';
 import { openCssEditor } from './custom-css.js';
 
@@ -101,6 +104,11 @@ function clearPresetOnManualEdit() {
 }
 
 let _settingsBound = false;
+// CHAT_CHANGED hook for the per-chat lore controls: bound once for the page
+// lifetime (the settings DOM persists across bind/unbind, and the listener is
+// intentionally NOT routed through the bind-scoped AbortController — it must
+// re-sync after every re-enable). syncLoreControls itself is DOM-only.
+let _loreChatHook = false;
 // Stage 7: module-owned AbortController for the settings panel. bindSettingsUI
 // creates a fresh controller; every listener it attaches is aborted (removed)
 // on unbindSettingsUI. The `on()` helper routes all addEventListener calls
@@ -567,7 +575,7 @@ export function bindSettingsUI() {
         if (S().glossUserMessages) {
             restoreHighlightsAll();
         } else {
-            document.querySelectorAll('.mes.is_user').forEach(el => {
+            document.querySelectorAll('.mes[is_user="true"]').forEach(el => {
                 removeHighlights(el);
                 el.querySelectorAll('.gls-regen-btn').forEach(b => b.remove());
             });
@@ -595,41 +603,51 @@ export function bindSettingsUI() {
     const soundResetBtn = $('gls_sound_reset');
     const soundFileEl = $('gls_sound_file');
 
+    // The Remove button only applies to a SERVER-side custom_<n> selection.
     function refreshSoundReset() {
-        if (soundResetBtn) soundResetBtn.style.display = (S().soundName === '__custom__') ? '' : 'none';
+        if (soundResetBtn) soundResetBtn.style.display = isCustomSoundId(resolveSoundId()) ? '' : 'none';
     }
 
     populateSoundSelect(soundSel);
     refreshSoundReset();
 
-    on(soundSel, 'change', () => { S().soundName = soundSel.value; invalidateSoundCache(); refreshSoundReset(); saveSettings(); });
+    on(soundSel, 'change', () => { S().soundId = soundSel.value; invalidateSoundCache(); refreshSoundReset(); saveSettings(); });
 
+    // Upload → server-side per-user file store (travels with the ST data dir,
+    // works on any device of the user). settings.json keeps only metadata.
     on(soundFileEl, 'change', async () => {
         const file = soundFileEl.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async () => {
-            try {
-                const { localforage } = SillyTavern.libs;
-                await localforage.setItem(LF_CUSTOM_SOUND, reader.result);
-            } catch { /* fallback */ }
-            S().soundName = '__custom__';
+        try {
+            const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('read failed'));
+                reader.readAsDataURL(file);
+            });
+            const parsed = parseDataUrl(dataUrl);
+            const ext = parsed?.ext || file.name.match(/\.([a-z0-9]{1,5})$/i)?.[1] || 'wav';
+            const key = nextCustomKey(S().soundFiles);
+            const stored = glsSoundFileName(key, ext);
+            await uploadUserFile(stored, parsed ? parsed.base64 : String(dataUrl).split(',')[1] || '');
+            S().soundFiles = normalizeSoundFiles({ ...S().soundFiles, [key]: { name: file.name, file: stored } });
+            S().soundId = key;
             invalidateSoundCache();
             populateSoundSelect(soundSel);
-            if (soundSel) soundSel.value = '__custom__';
+            soundSel.value = key;
             refreshSoundReset();
             saveSettings();
-        };
-        reader.readAsDataURL(file);
+        } catch (e) {
+            warn('Glosses: custom sound upload failed:', e);
+            try { notifyUser('error', t('Could not upload the custom sound.'), 'gls-sound-upload'); } catch { /* non-fatal */ }
+        }
         soundFileEl.value = '';
     });
 
     on(soundResetBtn, 'click', async () => {
-        try {
-            const { localforage } = SillyTavern.libs;
-            await localforage.removeItem(LF_CUSTOM_SOUND);
-        } catch { /* ok */ }
-        S().soundName = BUNDLED_SOUNDS[0].file;
+        const key = resolveSoundId();
+        if (!isCustomSoundId(key)) return;
+        await deleteCustomSound(key);
         invalidateSoundCache();
         populateSoundSelect(soundSel);
         refreshSoundReset();
@@ -643,6 +661,31 @@ export function bindSettingsUI() {
     bindCb('gls_inc_card', 'includeCharacterCard');
     bindCb('gls_inc_persona', 'includePersona');
     bindCb('gls_inc_wi', 'includeLorebook');
+
+    // Per-chat lorebook context (chatMetadata.gls_lorebook). The controls read
+    // from chat METADATA, not from the global settings object, and re-sync on
+    // every chat change.
+    const loreEnabledCb = $('gls_lore_enabled');
+    const loreModeSel = $('gls_lore_mode');
+    function syncLoreControls() {
+        const cfg = getChatLoreConfig();
+        if (loreEnabledCb) loreEnabledCb.checked = cfg.enabled;
+        if (loreModeSel) loreModeSel.value = cfg.autoScope ?? 'all';
+    }
+    if (loreEnabledCb) on(loreEnabledCb, 'change', () => {
+        saveChatLoreConfig({ ...getChatLoreConfig(), enabled: loreEnabledCb.checked });
+    });
+    if (loreModeSel) on(loreModeSel, 'change', () => {
+        saveChatLoreConfig({ ...getChatLoreConfig(), autoScope: loreModeSel.value === 'attached' ? 'attached' : undefined });
+    });
+    syncLoreControls();
+    if (!_loreChatHook) {
+        _loreChatHook = true;
+        const ctx0 = getCtx();
+        try {
+            ctx0.eventSource?.on(ctx0.eventTypes?.CHAT_CHANGED, () => syncLoreControls());
+        } catch { /* non-fatal: controls stay at bind-time values */ }
+    }
 
     updateSrcPanels();
     populateProfiles();

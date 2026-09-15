@@ -23,6 +23,7 @@ import {
 } from './cache.js';
 import { collectExplainedAnchors, combineForbiddenAnchors } from './anchor-policy.js';
 import { findAnchorInText } from './anchor-utils.js';
+import { getChatLoreConfig, collectAutomaticLore, LORE_MODE, LORE_SCOPE } from './lorebooks.js';
 import { buildTextIndex, computeContextSelectors, findFuzzySpan } from './text-index.js';
 import { parseResponse, validateFootnotes, validateFootnotesAgainstText, normalizeFootnotes, indexToSuperscript } from './parser.js';
 import { injectHighlights, setSpinner } from './renderer.js';
@@ -826,20 +827,41 @@ export async function buildContextBlocks(messageId, swipeIdx, opts = {}) {
         const persona = await getPersonaDescription();
         if (persona) parts.push(`[User persona:\n${persona}]`);
     }
-    if (s.includeLorebook) {
+    // ── Lorebook context. Effective source, in order:
+    //   1. per-chat config (chatMetadata.gls_lorebook, lorebooks.js) when its
+    //      enabled flag is on — AUTOMATIC scope ALL (dry-run scan + vectorized
+    //      entries from the WORLD_INFO_ACTIVATED cache) or ATTACHED (only the
+    //      entries of books bound to this chat). ATTACHED degrades to the full
+    //      scan when the activation cache doesn't match the anchor (regen of
+    //      an older post) so the prompt keeps its background.
+    //   2. otherwise the legacy global includeLorebook toggle → full scan.
+    // isDryRun is ALWAYS true in every scan (contract ported from DS
+    // Comments): a non-dry-run scan re-emits WORLD_INFO_ACTIVATED and writes
+    // sticky/cooldown timed-effects into chat_metadata OUTSIDE ST's
+    // generation cycle — the footnote prompt must neither consume nor mutate
+    // the main chat's world-info state.
+    const loreCfg = getChatLoreConfig(ctx);
+    if (loreCfg.enabled || s.includeLorebook) {
         let wi = '';
         try {
-            const { chatMessages, globalScanData } = buildLoreScanInput(ctx);
-            // isDryRun is ALWAYS true (contract ported from DS Comments). A
-            // non-dry-run scan re-emits WORLD_INFO_ACTIVATED and writes
-            // sticky/cooldown timed-effects into chat_metadata OUTSIDE ST's
-            // generation cycle — the footnote prompt must neither consume nor
-            // mutate the main chat's world-info state. Dry-run still returns
-            // worldInfoString as usual.
-            const wiResult = ctx.getWorldInfoPrompt?.(chatMessages, ctx.maxContext || 4096, true, globalScanData);
-            wi = coercePromptText(wiResult instanceof Promise ? await wiResult : wiResult);
+            if (loreCfg.enabled && loreCfg.mode !== LORE_MODE.MANUAL) {
+                const { chatMessages, globalScanData } = buildLoreScanInput(ctx);
+                const scope = loreCfg.autoScope ?? LORE_SCOPE.ALL;
+                let lore = await collectAutomaticLore(ctx, { chatMessages, globalScanData, anchorMsgId: messageId, anchorSwipeIdx: swipeIdx, scope });
+                if (!lore.text && !lore.cacheMatched && scope === LORE_SCOPE.ATTACHED) {
+                    // Activation cache miss (older-post regen) — degrade to
+                    // the full scan instead of dropping the background.
+                    lore = await collectAutomaticLore(ctx, { chatMessages, globalScanData, anchorMsgId: messageId, anchorSwipeIdx: swipeIdx, scope: LORE_SCOPE.ALL });
+                }
+                wi = lore.text;
+            } else {
+                const { chatMessages, globalScanData } = buildLoreScanInput(ctx);
+                const wiResult = ctx.getWorldInfoPrompt?.(chatMessages, ctx.maxContext || 4096, true, globalScanData);
+                wi = coercePromptText(wiResult instanceof Promise ? await wiResult : wiResult);
+            }
         } catch { /* WI unavailable */ }
-        if (wi) parts.push(`[World info — background only. Do NOT annotate it:\n${wi}]`);
+        if (wi) parts.push(`[World info — background only. Do NOT annotate it:
+${wi}]`);
     }
 
     if (!opts.skipForbidden) {

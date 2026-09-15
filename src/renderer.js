@@ -1023,6 +1023,24 @@ function onOutsidePopup(e) {
  * coalesced into one rAF; inside the frame the popup either re-anchors via
  * positionPopup or closes when its marker scrolled out of view / was removed.
  */
+/**
+ * Popup auto-close gate for the follow pump. Pure.
+ *
+ * The anchor is gone when its rect left the viewport on any edge — or when it
+ * collapsed to a ZERO-AREA rect: a connected marker inside a hidden message
+ * (e.g. Message Collapser sets display:none on .mes_text) reports 0×0 at the
+ * viewport corner, which the plain bounds check read as "in view" and kept
+ * the popup open forever over collapsed content.
+ * @param {{ top: number, bottom: number, left: number, right: number, width: number, height: number }} rect
+ * @param {number} vw viewport width
+ * @param {number} vh viewport height
+ * @returns {boolean}
+ */
+export function isAnchorGone(rect, vw, vh) {
+    if (rect.width === 0 && rect.height === 0) return true;
+    return rect.bottom < 0 || rect.top > vh || rect.right < 0 || rect.left > vw;
+}
+
 function onPopupViewportChange(e) {
     if (!_currentPopup) return;
     if (e.type === 'scroll' && e.target instanceof Element && _currentPopup.contains(e.target)) return;
@@ -1032,9 +1050,7 @@ function onPopupViewportChange(e) {
         if (!_currentPopup || !_popupAnchor) return;
         if (!_popupAnchor.isConnected) { closePopup(); return; }
         const rect = _popupAnchor.getBoundingClientRect();
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        if (rect.bottom < 0 || rect.top > vh || rect.right < 0 || rect.left > vw) {
+        if (isAnchorGone(rect, window.innerWidth, window.innerHeight)) {
             closePopup();
             return;
         }

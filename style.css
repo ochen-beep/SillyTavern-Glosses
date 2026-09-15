@@ -2098,6 +2098,8 @@
     border-top: 1px solid var(--gls-line);
 }
 .gls-css-status { margin-right: auto; min-height: 1em; }
+/* Long action labels ("Insert base template") must not wrap into a 3-line button. */
+.gls-css-dialog-foot .menu_button { white-space: nowrap; }
 
 @media (max-width: 720px) {
     .gls-css-dialog-cols { grid-template-columns: 1fr; overflow: auto; }

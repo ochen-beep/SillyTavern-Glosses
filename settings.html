@@ -623,6 +623,30 @@
                     <span data-i18n="Lorebook / World Info">Lorebook / World Info</span>
                 </label>
             </div>
+            <!-- Per-chat lorebook context (chatMetadata.gls_lorebook): rides the
+                 entries ST's main generation actually activated. ATTACHED scopes
+                 them to the books bound to this chat (card/chat/persona); on an
+                 activation-cache miss (regen of an older post) the generator
+                 degrades to the full scan. Overrides gls_inc_wi when enabled. -->
+            <div class="gls-s-context-group" id="gls_lore_group">
+                <div class="gls-s-context-title">
+                    <span data-i18n="Lorebook context (this chat)">Lorebook context (this chat)</span>
+                </div>
+                <label class="gls-s-toggle-row gls-s-toggle-row--indent">
+                    <input type="checkbox" id="gls_lore_enabled" class="checkbox">
+                    <span data-i18n="Use entries activated by the main generation">Use entries activated by the main generation</span>
+                </label>
+                <div class="gls-s-field-row" id="gls_lore_mode_row">
+                    <label class="gls-s-field-label gls-s-inline-label" for="gls_lore_mode">
+                        <span data-i18n="Scope">Scope</span>
+                    </label>
+                    <select id="gls_lore_mode" class="gls-s-select gls-s-grow">
+                        <option value="all" data-i18n="All activated entries">All activated entries</option>
+                        <option value="attached" data-i18n="Only chat-attached books (card / chat / persona)">Only chat-attached books (card / chat / persona)</option>
+                    </select>
+                </div>
+                <small class="gls-s-hint gls-s-toggle-row--indent" data-i18n="Per-chat setting. When the activation cache is unavailable (regen of an older post), the full World Info scan is used instead. Overrides the toggle above while enabled.">Per-chat setting. When the activation cache is unavailable (regen of an older post), the full World Info scan is used instead. Overrides the toggle above while enabled.</small>
+            </div>
         </div>
     </div>
 
