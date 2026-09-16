@@ -71,7 +71,7 @@ function setPreset(key) {
 
 /** Sync the visible settings controls DOWN to current S() after a preset
  *  apply (or after loadSettings rehydrates a stored selectedPreset on init).
- *  Touches: prompt style, output lang, target lang, CEFR, and the 5 hybrid
+ *  Touches: prompt style, output lang, target lang, CEFR, and the 6 hybrid
  *  lens checkboxes. No-ops for elements that aren't present. */
 function updatePresetShowing() {
     const s = S();
@@ -83,7 +83,7 @@ function updatePresetShowing() {
     if (tlEl) tlEl.value = s.targetLanguage;
     const cefrEl = document.getElementById('gls_cefr_level');
     if (cefrEl) cefrEl.value = s.cefrLevel;
-    for (const lens of ['language', 'pratchett', 'canon', 'academic', 'meta']) {
+    for (const lens of ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion']) {
         const el = document.getElementById(`gls_hybrid_lens_${lens}`);
         if (el) el.checked = !!s.hybridLenses?.[lens];
     }
@@ -298,7 +298,7 @@ export function bindSettingsUI() {
     // hybrid prompts and loadPromptStyle rebuilds on next generation.
     // Toggling the Language lens also reveals/hides gls_language_panel
     // (handled by updatePromptPanels, called here).
-    for (const lens of ['language', 'pratchett', 'canon', 'academic', 'meta']) {
+    for (const lens of ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion']) {
         const el = $(`gls_hybrid_lens_${lens}`);
         if (!el) continue;
         el.checked = !!S().hybridLenses?.[lens];

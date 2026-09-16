@@ -175,6 +175,8 @@ test('loadSettings migrates removed Hybrid ALL and normalizes footnote language'
         selectedPreset: 'hybrid-all-ru',
         promptStyle: 'hybrid',
         outputLanguage: 'de',
+        // Pre-expansion stored blob: no `expansion` key yet — loadSettings
+        // must backfill it from DEFAULTS (upgrade path for existing users).
         hybridLenses: {
             language: true, pratchett: true, canon: true, academic: true, meta: true,
         },
@@ -185,6 +187,7 @@ test('loadSettings migrates removed Hybrid ALL and normalizes footnote language'
     assert.equal(S().outputLanguage, 'ru');
     assert.deepEqual(S().hybridLenses, {
         language: true, pratchett: true, canon: true, academic: true, meta: true,
+        expansion: false,
     });
     assert.equal(globalThis._stCtx.extensionSettings.Glosses.selectedPreset, '');
     assert.equal(globalThis._stCtx.extensionSettings.Glosses.outputLanguage, 'ru');

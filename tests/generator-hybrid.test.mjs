@@ -9,8 +9,8 @@ import assert from 'node:assert/strict';
 // test still passes for the wrong reason — the spec calls that out as
 // acceptable for v3.1, with a follow-up to assert against the real module).
 
-const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta'];
-const DEFAULT_HYBRID_LENSSES = { language: true, pratchett: true, canon: true, academic: false, meta: false };
+const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion'];
+const DEFAULT_HYBRID_LENSSES = { language: true, pratchett: true, canon: true, academic: false, meta: false, expansion: false };
 
 function resolveActiveLenses(lenses, defaults) {
     const src = (lenses && typeof lenses === 'object') ? lenses : {};
@@ -24,7 +24,7 @@ function resolveActiveLenses(lenses, defaults) {
 
 test('resolveActiveLenses backfills defaults for missing/typed-wrong keys', () => {
     const defaults = DEFAULT_HYBRID_LENSSES;
-    // Hand-edit blob missing `academic` and a wrongly-typed `meta`.
+    // Hand-edit blob missing `academic`/`expansion` and a wrongly-typed `meta`.
     const lenses = { language: false, pratchett: true, canon: 'on', meta: 1 };
     const out = resolveActiveLenses(lenses, defaults);
     assert.deepEqual(out, {
@@ -33,6 +33,7 @@ test('resolveActiveLenses backfills defaults for missing/typed-wrong keys', () =
         canon: true,        // 'on' is not boolean → default true
         academic: false,    // missing → default false
         meta: false,        // 1 is not boolean → default false
+        expansion: false,   // missing → default false
     });
 });
 
@@ -43,6 +44,6 @@ test('resolveActiveLenses handles null/undefined lenses gracefully', () => {
 });
 
 test('resolveActiveLenses respects explicit false booleans', () => {
-    const lenses = { language: false, pratchett: false, canon: false, academic: false, meta: false };
+    const lenses = { language: false, pratchett: false, canon: false, academic: false, meta: false, expansion: false };
     assert.deepEqual(resolveActiveLenses(lenses, DEFAULT_HYBRID_LENSSES), lenses);
 });

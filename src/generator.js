@@ -421,7 +421,7 @@ export async function assembleStyle() {
         // best-fitting ACTIVE LENS. The envelope (prompts/hybrid.md) carries the
         // COMMON rules (output language, translation boundary, format) ONCE; each
         // active lens contributes only its own role (voice + when + label).
-        // Custom lenses (user-authored) travel alongside the 5 built-ins, so the
+        // Custom lenses (user-authored) travel alongside the 6 built-ins, so the
         // constructor accepts any mix.
         //
         // Cache key is built from (a) the active built-in lens names + (b) the
@@ -529,7 +529,7 @@ function interpolateLangPrompt(template) {
 // The envelope (prompts/hybrid.md) carries the COMMON rules ONCE; each active
 // lens contributes only its role. Custom lenses (user-authored) travel inline.
 // One footnote per anchor: the model picks the single best-fitting ACTIVE LENS.
-const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta'];
+const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion'];
 
 /**
  * Resolve the active lens flags using DEFAULT_SETTINGS as the single source
@@ -605,7 +605,7 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
         } catch (e) {
             warn(`Failed to load hybrid lens "${lens}":`, e);
             // Skip the missing lens rather than nuking the whole prompt — a
-            // packaging bug on ONE lens shouldn't blank the other four.
+            // packaging bug on ONE lens shouldn't blank the other five.
         }
     }
     for (const c of customActive) {

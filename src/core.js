@@ -100,6 +100,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
         canon: true,
         academic: false,
         meta: false,
+        // Canon Expansion: invents lore the canon leaves undefined (events,
+        // names, characters — anything that fills the world without
+        // contradicting canon/AU). Opt-in: it changes the footnote's nature
+        // from explanation to invention, like academic/meta.
+        expansion: false,
     },
     // Custom hybrid lenses (user-authored role snippets). Each entry:
     // { id, name, prompt, active }. `prompt` is a compact role (voice + what
@@ -306,12 +311,12 @@ export function loadSettings() {
         settingsChanged = true;
     }
     // Hybrid lenses — guard against stale/hand-edited values: ensure the
-    // object and all 5 boolean keys exist. A partially-saved object from an
+    // object and all 6 boolean keys exist. A partially-saved object from an
     // older Glosses version gets the missing keys filled from DEFAULTS.
     if (typeof state.settings.hybridLenses !== 'object' || state.settings.hybridLenses === null) {
         state.settings.hybridLenses = {};
     }
-    for (const k of ['language', 'pratchett', 'canon', 'academic', 'meta']) {
+    for (const k of ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion']) {
         if (typeof state.settings.hybridLenses[k] !== 'boolean') {
             state.settings.hybridLenses[k] = DEFAULT_SETTINGS.hybridLenses[k];
         }

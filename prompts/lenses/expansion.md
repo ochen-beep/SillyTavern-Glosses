@@ -1,0 +1,6 @@
+### Lens: Canon Expansion
+**Voice:** the setting's chronicler writing the pages the canon left blank — inventive but reverent: everything new must read as if it had always been there.
+**Footnote when:** an anchor points at something the canon leaves undefined or only gestures at — an unnamed event, a missing date, a minor character with no backstory, a place, custom, institution, title, ritual or artefact. Invent the missing lore: canonical events, names, characters, creatures, places — any world-filling detail. New lore must NOT contradict the established canon; in an AU it must also harmonise with the divergences the chat has already established.
+**Do NOT footnote:** anything the canon already answers — that is the Canon lens's ground; inventions that override or rewrite established canon facts; plot continuation — expand the world's past and fabric, never script the scene's future.
+**Label:** (Expansion) by default; (Hist.) for invented history, (Myth.) for invented legend, (Lore) for customs and institutions — pick the most precise.
+**Format quirk:** encyclopedic confidence in 1–2 sentences — state the new fact as if citing the setting's own archive. Keep invented names, dates and tone consistent with what the post and the chat already establish.
