@@ -69,12 +69,19 @@ export function classifyEndpoint(raw) {
         ? 'https'
         : (isLoopbackHost(parsed.hostname) ? 'loopback-http' : 'insecure-http');
 
-    // Canonicalize: strip trailing slashes, then normalize to /v1/chat/completions.
-    const base = input.replace(/\/+$/, '');
-    let normalized;
-    if (/\/chat\/completions$/i.test(base)) normalized = base;
-    else if (/\/v1$/i.test(base)) normalized = `${base}/chat/completions`;
-    else normalized = `${base}/v1/chat/completions`;
+    // Canonicalize: strip the hash, keep the query aside, normalize the PATH to
+    // a chat completions URL, then re-attach the query. Operating on the raw
+    // string glued /v1/chat/completions onto query strings
+    // (https://host/v1?key=x → …?key=x/v1/chat/completions — a dead endpoint).
+    parsed.hash = '';
+    const query = parsed.search;
+    parsed.search = '';
+    const pathOnly = parsed.pathname.replace(/\/+$/, '');
+    let normalizedPath;
+    if (/\/chat\/completions$/i.test(pathOnly)) normalizedPath = pathOnly;
+    else if (/\/v1$/i.test(pathOnly)) normalizedPath = `${pathOnly}/chat/completions`;
+    else normalizedPath = `${pathOnly}/v1/chat/completions`;
+    const normalized = `${parsed.origin}${normalizedPath}${query}`;
 
     return { ok: true, kind, normalized, host };
 }
