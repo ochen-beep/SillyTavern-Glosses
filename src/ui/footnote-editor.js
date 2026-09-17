@@ -85,7 +85,9 @@ export function mountInlineEditor(hostEl, opts) {
     save.textContent = t('Save');
     const cancel = document.createElement('button');
     cancel.type = 'button';
-    cancel.className = 'gls-btn';
+    // gls-edit-cancel: the popup keydown handler delegates Escape here when
+    // focus is anywhere outside the textarea (whose own keydown handles it).
+    cancel.className = 'gls-btn gls-edit-cancel';
     cancel.textContent = t('Cancel');
 
     const actions = document.createElement('div');

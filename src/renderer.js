@@ -1066,11 +1066,16 @@ export function isAnchorGone(rect, vw, vh) {
 function onPopupViewportChange(e) {
     if (!_currentPopup) return;
     if (e.type === 'scroll' && e.target instanceof Element && _currentPopup.contains(e.target)) return;
+    // Dead anchor is terminal in ANY mode: the message was deleted / swiped
+    // away under the popup. Synchronous + cheap, so it runs even while the
+    // editor freezes follow — otherwise deletion during an edit leaves a
+    // zombie popup with a live editor over empty space.
+    if (_popupAnchor && !_popupAnchor.isConnected) { closePopup(); return; }
     // While the inline editor is mounted, FREEZE follow + auto-close. Opening
     // the mobile keyboard fires resize/scroll; the visual viewport then pans
-    // and the anchor can read as "gone" (popup snaps shut mid-edit) or the
-    // popup gets re-anchored somewhere behind the keyboard. The edit is
-    // modal in practice — re-anchoring resumes once it's saved/cancelled.
+    // and the anchor can read as "gone" by rect (popup snaps shut mid-edit)
+    // or the popup gets re-anchored somewhere behind the keyboard. The edit
+    // is modal in practice — re-anchoring resumes once it's saved/cancelled.
     if (_popupEditing) return;
     if (_popupFollowRaf) return;
     _popupFollowRaf = requestAnimationFrame(() => {
@@ -1090,8 +1095,18 @@ function onPopupViewportChange(e) {
 
 function onPopupKeydown(e) {
     if (e.key !== 'Escape') return;
-    // While the inline editor is mounted, Escape should cancel the edit (by
-    // blurring / triggering Cancel) rather than discarding the whole popup.
-    if (_popupEditing) return;
+    // While the inline editor is mounted, Escape should cancel the edit rather
+    // than discarding the whole popup. The editor's keydown is scoped to its
+    // textarea, so with focus anywhere else (header buttons, popup body) the
+    // key used to die completely — delegate to the editor's Cancel button.
+    // This handler is document-level CAPTURE, so it fires before the
+    // textarea's own keydown; skip the textarea case or the edit would cancel
+    // twice.
+    if (_popupEditing) {
+        if (!(e.target instanceof HTMLTextAreaElement)) {
+            _currentPopup?.querySelector('.gls-edit-cancel')?.click();
+        }
+        return;
+    }
     closePopup();
 }
