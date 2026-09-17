@@ -29,6 +29,7 @@ import { buildTextIndex, computeContextSelectors, findFuzzySpan } from './text-i
 import { parseResponse, validateFootnotes, validateFootnotesAgainstText, normalizeFootnotes, indexToSuperscript } from './parser.js';
 import { injectHighlights, setSpinner } from './renderer.js';
 import { updatePanel, panelInvalidate } from './ui/window.js';
+import { uiBusyBegin, uiBusyEnd } from './ui/busy.js';
 import { playSound } from './sound.js';
 import { generationCoordinator } from './application/generation-coordinator.js';
 
@@ -945,16 +946,10 @@ function buildDomTextModel(mesEl) {
 // Launcher pulse + panel progress bar: while any generation is in flight, both
 // launcher controls (QR-bar button + floating FAB) pulse via .gls_generating
 // (style.css) and the floating panel sweeps its top progress bar. Generations
-// are per-message and can overlap (a regen on another message), so the class
-// is reference-counted; superseded runs decrement too — their finally still
-// runs after beginRun() replaced their controller.
-let _generatingRuns = 0;
-
-function setLaunchersGenerating(on) {
-    for (const id of ['gls_launcher', 'gls_fab', 'gls-panel']) {
-        document.getElementById(id)?.classList.toggle('gls_generating', on);
-    }
-}
+// are per-message and can overlap (a regen on another message) — and targeted
+// runs overlap them too — so the class is owned by the shared refcounted
+// uiBusyBegin/uiBusyEnd pair; superseded runs release too — their finally
+// still runs after beginRun() replaced their controller.
 
 export async function generateFootnotes(messageId, swipeIdx, mesEl) {
     // Translate-guard (manual paths included): regenerating over a translated
@@ -976,7 +971,7 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
     const run = generationCoordinator.beginRun(messageId);
     const ctrl = run.ctrl;
     setSpinner(messageId, true);
-    if (_generatingRuns++ === 0) setLaunchersGenerating(true);
+    uiBusyBegin();
 
     try {
         const signal = ctrl.signal;
@@ -1080,7 +1075,7 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
         state.configuredState = { ok: false, reason: e.message || String(e) };
         toastr?.error?.(`[Glosses] ${e.message}`);
     } finally {
-        if (--_generatingRuns <= 0) { _generatingRuns = 0; setLaunchersGenerating(false); }
+        uiBusyEnd();
         // Only clean up if THIS call is still the active controller for the
         // message. If a later call (B) superseded us, its own finally cleans up;
         // touching state here would abort/hide B mid-flight. endRun guards on

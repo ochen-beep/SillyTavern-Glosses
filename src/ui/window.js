@@ -37,7 +37,8 @@ import {
 import { playSound } from '../sound.js';
 import { iconHtml } from './icons.js';
 import { detectEmptyReason, renderEmptyStateHTML } from './empty.js';
-import { buildFootnoteActions } from './footnote-actions.js';
+import { buildFootnoteActions, makeActionButton } from './footnote-actions.js';
+import { uiBusyBegin, uiBusyEnd } from './busy.js';
 
 let _floatingPanel = null;
 let _tabController = null;
@@ -81,7 +82,10 @@ async function runTargetedGeneration() {
     const parseNotice = parsed.duplicateCount || parsed.truncatedCount
         ? t('Duplicates removed, excess truncated') : '';
     _targetedState.generating = true;
-    getPanel()?.classList.add('gls_generating');
+    // Busy indicator goes through the shared refcount: a chat switch bumps
+    // requestId and this run's finally must STILL release its reference —
+    // staleness guards below protect only the state writes, not resources.
+    uiBusyBegin();
     _targetedState.status = parseNotice || t('Generating');
     _tabController?.refreshActiveTab();
     try {
@@ -169,9 +173,12 @@ async function runTargetedGeneration() {
         if (requestId !== _targetedState.requestId) return;
         _targetedState.status = error?.message || t('Generation failed');
     } finally {
+        // Unconditional: begin was unconditional, and the requestId guard may
+        // legitimately fail here (chat switch superseded this run). Only the
+        // state refresh below stays guarded.
+        uiBusyEnd();
         if (requestId === _targetedState.requestId) {
             _targetedState.generating = false;
-            getPanel()?.classList.remove('gls_generating');
             _tabController?.refreshActiveTab();
         }
         panelInvalidate();
@@ -1353,20 +1360,12 @@ function makeOrphanBanner(count, focusId, swipeIdx) {
     return banner;
 }
 
-function makeActionButton(cls, icon, label, handler) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = cls;
-    btn.title = label;
-    btn.innerHTML = `${iconHtml(icon, { size: 12 })}<span>${label}</span>`;
-    btn.addEventListener('click', handler);
-    return btn;
-}
-
 // Alias kept for the trash-tab / pool-tab callers (delete-footnote,
 // exclude-from-pool, restore) — they predate the shared action module and use
 // the original name. The footnote Copy/Edit/Delete rows go through
-// buildFootnoteActions; only these auxiliary buttons stay local.
+// buildFootnoteActions; only these auxiliary buttons stay local. The shared
+// builder is the single source: it also sets aria-label, which the removed
+// local duplicate never did.
 const makeRowButton = makeActionButton;
 
 function navigatePanel(dir) {
