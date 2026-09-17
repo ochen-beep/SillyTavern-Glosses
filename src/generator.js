@@ -1124,7 +1124,7 @@ async function callAPI(systemPrompt, userPrompt, signal) {
     // instruct formatting and other extensions' injections). Only the two
     // isolated sources above are supported; an unset/stale source is a
     // configuration error the user must resolve in settings.
-    throw new Error('Select a generation source (Connection Profile or Custom) in Glosses settings.');
+    throw new Error(t('Select a generation source (Connection Profile or Custom) in Glosses settings.'));
 }
 
 // ── Test-only hooks (gated on NODE_TEST) ──

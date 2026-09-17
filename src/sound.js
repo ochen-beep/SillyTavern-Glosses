@@ -238,7 +238,7 @@ export function populateSoundSelect(selectEl) {
     for (const s of BUNDLED_SOUNDS) {
         const opt = document.createElement('option');
         opt.value = `folder:${s.file}`;
-        opt.textContent = s.label;
+        opt.textContent = t(s.label);
         selectEl.appendChild(opt);
     }
     for (const [key, meta] of Object.entries(normalizeSoundFiles(S().soundFiles))) {

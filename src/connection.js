@@ -99,6 +99,23 @@ export async function getProfileDetails(profileId) {
 }
 
 /**
+ * Localize a classifyEndpoint() error for user-facing surfaces. The policy
+ * layer stays English-only (host-agnostic + its unit tests assert on the
+ * English text), so translation happens here: the static messages translate
+ * by exact key, the two interpolated ones are re-matched and translated with
+ * placeholders. Non-matching strings pass through unchanged.
+ * @param {string} error
+ */
+function tEndpointError(error) {
+    if (typeof error !== 'string') return error;
+    const badUrl = error.match(/^Invalid URL: "(.*)"\. Use http\(s\):\/\/host\[:port\]\/path\.$/);
+    if (badUrl) return t('Invalid URL: "{0}". Use http(s)://host[:port]/path.', badUrl[1]);
+    const badProto = error.match(/^Unsupported protocol "(.*)"\. Only http\(s\):\/\/ is allowed\.$/);
+    if (badProto) return t('Unsupported protocol "{0}". Only http(s):// is allowed.', badProto[1]);
+    return t(error);
+}
+
+/**
  * Pre-flight: is the generation source configured enough to ATTEMPT an
  * auto-generation? Mirrors the config-level throws in generateWithProfile /
  * generateWithCustomEndpoint - NOT the runtime CM-availability / profile-existence
@@ -115,52 +132,52 @@ export async function checkSourceConfigured() {
     const s = S();
     if (s.source === 'profile') {
         if (!s.selectedProfile) {
-            return { ok: false, reason: 'No connection profile selected. Select a profile in Glosses settings.' };
+            return { ok: false, reason: t('No connection profile selected. Select a profile in Glosses settings.') };
         }
         return { ok: true, reason: '' };
     }
     if (s.source === 'custom') {
         if (!(s.customEndpoint || '').trim()) {
-            return { ok: false, reason: 'Custom endpoint URL is empty. Set it in Glosses settings -> Custom.' };
+            return { ok: false, reason: t('Custom endpoint URL is empty. Set it in Glosses settings → Custom.') };
         }
         // Stage 8: authorize the endpoint URL BEFORE reading the API key. A
         // malformed / non-http / credentialed URL must never reach the key read.
         const verdict = classifyEndpoint(s.customEndpoint);
         if (!verdict.ok) {
-            return { ok: false, reason: verdict.error };
+            return { ok: false, reason: tEndpointError(verdict.error) };
         }
         if (verdict.kind === 'insecure-http'
             && !isOriginAllowed(verdict.normalized, s.customEndpointAllowlist || [])) {
-            return { ok: false, reason: 'Custom endpoint uses plain HTTP on a non-local host. Confirm this origin in Glosses settings before use.' };
+            return { ok: false, reason: t('Custom endpoint uses plain HTTP on a non-local host. Confirm this origin in Glosses settings before use.') };
         }
         const apiKey = await getApiKey();
         if (!apiKey) {
-            return { ok: false, reason: 'Custom API key is not set. Set it in Glosses settings -> Custom.' };
+            return { ok: false, reason: t('Custom API key is not set. Set it in Glosses settings → Custom.') };
         }
         return { ok: true, reason: '' };
     }
-    return { ok: false, reason: 'Select a generation source (Connection Profile or Custom) in Glosses settings.' };
+    return { ok: false, reason: t('Select a generation source (Connection Profile or Custom) in Glosses settings.') };
 }
 
 /**
  * Generate via a named Connection Profile.
  *
- * Human-readable errors are thrown in English (Glosses does not localize
- * thrown error messages; UI labels are localized via data-i18n). Abort is
- * normalized to a real AbortError DOMException so the generator renders the
- * "cancelled" state, not an error toast.
+ * Thrown error messages are English dict keys localized via t() at the throw
+ * site (they surface verbatim as toasts via generateFootnotes / the floating
+ * panel badge). Abort is normalized to a real AbortError DOMException so the
+ * generator renders the "cancelled" state, not an error toast.
  */
 export async function generateWithProfile(sel, systemPrompt, userPrompt, signal) {
     const ctx = getCtx();
 
     if (!sel) {
-        throw new Error('No connection profile selected (Source = "Profile", but the profile is empty). Select a profile in Glosses settings.');
+        throw new Error(t('No connection profile selected (Source = "Profile", but the profile is empty). Select a profile in Glosses settings.'));
     }
     if (!ctx.ConnectionManagerRequestService?.sendRequest) {
-        throw new Error('Connection Manager unavailable — enable the connection-manager extension or pick another source.');
+        throw new Error(t('Connection Manager unavailable — enable the connection-manager extension or pick another source.'));
     }
     if (!(await waitForConnectionManager())) {
-        throw new Error('Connection Manager did not respond in time — verify a profile is selected in Connection Manager.');
+        throw new Error(t('Connection Manager did not respond in time — verify a profile is selected in Connection Manager.'));
     }
 
     let profile = null;
@@ -168,10 +185,10 @@ export async function generateWithProfile(sel, systemPrompt, userPrompt, signal)
         const all = _getCMProfiles();
         profile = all.find(p => p.id === sel || p.name === sel) || null;
     } catch (e) {
-        throw new Error(`Could not read Connection Manager profiles: ${e?.message || e}`);
+        throw new Error(t('Could not read Connection Manager profiles: {0}', e?.message || e));
     }
     if (!profile) {
-        throw new Error(`Connection profile not found: "${sel}". It may have been deleted — reselect a profile in Glosses settings.`);
+        throw new Error(t('Connection profile not found: "{0}". It may have been deleted — reselect a profile in Glosses settings.', sel));
     }
 
     const messages = [
@@ -194,12 +211,12 @@ export async function generateWithProfile(sel, systemPrompt, userPrompt, signal)
         }
         const cause = e?.cause;
         const detail = cause?.message ? cause.message : (e?.message || String(e));
-        throw new Error(`Profile "${profile.name}": ${detail}`);
+        throw new Error(t('Profile "{0}": {1}', profile.name, detail));
     }
 
     const text = extractTextFromResponse(response);
     if (text !== null) return text;
-    throw new Error(`Profile "${profile.name}" responded, but text could not be extracted.`);
+    throw new Error(t('Profile "{0}" responded, but text could not be extracted.', profile.name));
 }
 
 /** Back-compat shim for the removed `callProfileAPI` import — deleted in
@@ -335,10 +352,10 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     // classifyEndpoint rejects non-http(s), credentialed, and malformed URLs;
     // a non-loopback http URL must be on the confirmed allow-list.
     const verdict = classifyEndpoint(endpointUrl);
-    if (!verdict.ok) throw new Error(verdict.error);
+    if (!verdict.ok) throw new Error(tEndpointError(verdict.error));
     if (verdict.kind === 'insecure-http'
         && !isOriginAllowed(verdict.normalized, S().customEndpointAllowlist || [])) {
-        throw new Error('Custom endpoint uses plain HTTP on a non-local host. Confirm this origin in Glosses settings before use.');
+        throw new Error(t('Custom endpoint uses plain HTTP on a non-local host. Confirm this origin in Glosses settings before use.'));
     }
     if (verdict.kind === 'loopback-http' && !_loopbackWarned) {
         // README promises "allowed with a warning" — deliver it once per page.
@@ -349,7 +366,7 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     const url = verdict.normalized;
 
     const apiKey = await getApiKey();
-    if (!apiKey) throw new Error('Custom API key is not set. Set it in Glosses settings → Custom.');
+    if (!apiKey) throw new Error(t('Custom API key is not set. Set it in Glosses settings → Custom.'));
 
     const headers = {
         'Content-Type': 'application/json',
@@ -394,7 +411,7 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
         });
     } catch (e) {
         if (e?.name === 'TimeoutError') {
-            throw new Error('Custom endpoint timed out (60s) - the server accepted the connection but did not respond.');
+            throw new Error(t('Custom endpoint timed out (60s) - the server accepted the connection but did not respond.'));
         }
         throw e;
     }
@@ -406,7 +423,7 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
         const errMsg = `HTTP ${response.status}: ${errText.slice(0, 300)}`;
         lastCustomEndpointDebug.error = { message: errMsg, status: response.status, timestamp: Date.now() };
         console.error(`[Glosses] [Custom Endpoint] ✗ ${errMsg}`);
-        throw new Error(`Custom endpoint ${errMsg}`);
+        throw new Error(t('Custom endpoint HTTP {0}: {1}', response.status, errText.slice(0, 300)));
     }
 
     let data;
@@ -415,7 +432,7 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     } catch {
         // 200 with a non-JSON body (proxy splash page, CSP notice, empty body)
         // used to surface as a raw SyntaxError from JSON parsing.
-        const msg = `Custom endpoint returned a non-JSON response (HTTP ${response.status}). Check that the URL points to a chat-completions API.`;
+        const msg = t('Custom endpoint returned a non-JSON response (HTTP {0}). Check that the URL points to a chat-completions API.', response.status);
         lastCustomEndpointDebug.error = { message: msg, status: response.status, timestamp: Date.now() };
         throw new Error(msg);
     }

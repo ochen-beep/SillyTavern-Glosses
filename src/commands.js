@@ -8,7 +8,7 @@
  * in try/catch so a missing API on older builds degrades gracefully.
  */
 
-import { state, S, getCtx, saveSettings, log, warn } from './core.js';
+import { state, S, getCtx, saveSettings, log, warn, t } from './core.js';
 import { clearAll, stats } from './cache.js';
 import { removeHighlights, restoreHighlightsAll } from './renderer.js';
 import { generateFootnotes } from './generator.js';
@@ -58,7 +58,7 @@ export function registerSlashCommands() {
 
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
             name: 'glosses_toggle',
-            helpString: 'Toggle Glosses footnotes on/off',
+            helpString: t('Toggle Glosses footnotes on/off'),
             callback: () => {
                 S().enabled = !S().enabled;
                 saveSettings();
@@ -77,38 +77,38 @@ export function registerSlashCommands() {
                     // (otherwise it lingered until the next chat switch).
                     try { ensureLauncher(); } catch { /* non-critical */ }
                 }
-                return S().enabled ? 'Glosses enabled' : 'Glosses disabled';
+                return S().enabled ? t('Glosses enabled') : t('Glosses disabled');
             },
         }));
 
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
             name: 'glosses_regen',
-            helpString: 'Regenerate footnotes for the last message',
+            helpString: t('Regenerate footnotes for the last message'),
             callback: () => {
-                if (!S().enabled || !state.runtimeActive) return 'Glosses is disabled';
+                if (!S().enabled || !state.runtimeActive) return t('Glosses is disabled');
                 const ctx2 = getCtx();
                 const msgIds = _allAnnotatableMsgIds(ctx2);
                 const lastId = msgIds[msgIds.length - 1];
-                if (!lastId) return 'No annotatable messages in this chat';
+                if (!lastId) return t('No annotatable messages in this chat');
                 const msg = ctx2.chat?.[parseInt(lastId)];
-                if (!msg) return 'Message not found';
+                if (!msg) return t('Message not found');
                 const swipeIdx = msg.swipe_id ?? 0;
                 const mesEl = document.querySelector(`.mes[mesid="${lastId}"]`);
                 generateFootnotes(lastId, swipeIdx, mesEl);
-                return 'Regenerating footnotes…';
+                return t('Regenerating footnotes…');
             },
         }));
 
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
             name: 'glosses_clear',
-            helpString: 'Clear all footnotes cache for the current chat',
+            helpString: t('Clear all footnotes cache for the current chat'),
             callback: () => {
-                if (!state.runtimeActive) return 'Glosses is disabled';
+                if (!state.runtimeActive) return t('Glosses is disabled');
                 clearAll();
                 document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
                 panelInvalidate();
                 updatePanel();
-                return 'Footnotes cache cleared';
+                return t('Footnotes cache cleared');
             },
         }));
 
@@ -145,14 +145,14 @@ export function registerDebugFunctions() {
         if (!_debugIds.has('gls_cache_info')) {
             registerDebugFunction(
                 'gls_cache_info',
-                'Glosses: Cache Info',
-                'Show cache statistics for the current chat',
+                t('Glosses: Cache Info'),
+                t('Show cache statistics for the current chat'),
                 () => {
                     const s = stats();
-                    if (!s.entries) return { ok: true, message: 'No cache.' };
+                    if (!s.entries) return { ok: true, message: t('No cache.') };
                     return {
                         ok: true,
-                        message: `Variants glossed: ${s.entries}, total footnotes: ${s.footnotes}`,
+                        message: t('Variants glossed: {0}, total footnotes: {1}', s.entries, s.footnotes),
                     };
                 },
             );
@@ -162,13 +162,13 @@ export function registerDebugFunctions() {
         if (!_debugIds.has('gls_clear_cache')) {
             registerDebugFunction(
                 'gls_clear_cache',
-                'Glosses: Clear Cache',
-                'Delete all cached footnotes for the current chat',
+                t('Glosses: Clear Cache'),
+                t('Delete all cached footnotes for the current chat'),
                 () => {
                     clearAll();
                     panelInvalidate();
                     updatePanel();
-                    return { ok: true, message: 'Glosses cache cleared.' };
+                    return { ok: true, message: t('Glosses cache cleared.') };
                 },
             );
             _debugIds.add('gls_clear_cache');
@@ -176,8 +176,8 @@ export function registerDebugFunctions() {
         if (!_debugIds.has('gls_toggle_debug_capture')) {
             registerDebugFunction(
                 'gls_toggle_debug_capture',
-                'Glosses: Toggle Debug Capture',
-                'When ON, lastCustomEndpointDebug keeps full request/response bodies (prompt text included); when OFF (default) only metadata (URL, model, char counts) is kept.',
+                t('Glosses: Toggle Debug Capture'),
+                t('When ON, lastCustomEndpointDebug keeps full request/response bodies (prompt text included); when OFF (default) only metadata (URL, model, char counts) is kept.'),
                 () => {
                     const next = !(S().debugMode === true);
                     S().debugMode = next;
@@ -189,7 +189,7 @@ export function registerDebugFunctions() {
                         lastCustomEndpointDebug.response = null;
                         lastCustomEndpointDebug.error = null;
                     }
-                    return { ok: true, message: `Debug capture ${next ? 'ON — full bodies retained' : 'OFF — metadata only'}.` };
+                    return { ok: true, message: next ? t('Debug capture ON — full bodies retained.') : t('Debug capture OFF — metadata only.') };
                 },
             );
             _debugIds.add('gls_toggle_debug_capture');

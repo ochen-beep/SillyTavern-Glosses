@@ -426,7 +426,7 @@ async function autoGenerateIfConfigured(messageId, swipeIdx, mesEl) {
     if (!cfg.ok) {
         if (!state.configWarned) {
             state.configWarned = true;
-            toastr?.info?.(`[Glosses] Auto-generation paused: ${cfg.reason}`);
+            toastr?.info?.(`[Glosses] ${t('Auto-generation paused: {0}', cfg.reason)}`);
         }
         return;
     }
