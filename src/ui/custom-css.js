@@ -265,9 +265,9 @@ function buildPreviewTwin() {
     wrap.innerHTML = [
         '<div class="gls-popup-header">',
         '<div class="gls-popup-actions">',
-        '<span class="gls-popup-action-btn" title="Copy"><i class="fa-solid fa-copy fa-fw" aria-hidden="true"></i></span>',
-        '<span class="gls-popup-action-btn" title="Edit"><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i></span>',
-        '<span class="gls-popup-action-btn" title="Delete"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i></span>',
+        `<span class="gls-popup-action-btn" title="${escHtml(t('Copy'))}"><i class="fa-solid fa-copy fa-fw" aria-hidden="true"></i></span>`,
+        `<span class="gls-popup-action-btn" title="${escHtml(t('Edit'))}"><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i></span>`,
+        `<span class="gls-popup-action-btn" title="${escHtml(t('Delete'))}"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i></span>`,
         '</div>',
         '<span class="gls-popup-close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></span>',
         '</div>',
