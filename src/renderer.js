@@ -663,8 +663,8 @@ export function applyHighlightStyles() {
     // ride classes on :root — each level maps to a fixed CSS rule, so a bad
     // stored value can only fall back to the unclassed default. Radius is a
     // continuous slider, so it publishes a px var instead.
-    const skin = ['adaptive', 'paper', 'terminal', 'telegram', 'bubble', 'glass', 'codex', 'neon'].includes(s.popupTheme) ? s.popupTheme : 'adaptive';
-    root.classList.remove('gls-popup-skin-adaptive', 'gls-popup-skin-paper', 'gls-popup-skin-terminal', 'gls-popup-skin-telegram', 'gls-popup-skin-bubble', 'gls-popup-skin-glass', 'gls-popup-skin-codex', 'gls-popup-skin-neon');
+    const skin = ['adaptive', 'paper', 'terminal', 'telegram', 'bubble', 'glass', 'codex', 'neon', 'vellum', 'inkwell', 'washi', 'tideglass', 'herbarium', 'marquee', 'rime', 'adobe', 'velvet', 'phosphor', 'rosewindow', 'mahou', 'moonjar', 'cinnabar', 'koyo', 'gloam', 'afterglow', 'starseed'].includes(s.popupTheme) ? s.popupTheme : 'adaptive';
+    root.classList.remove('gls-popup-skin-adaptive', 'gls-popup-skin-paper', 'gls-popup-skin-terminal', 'gls-popup-skin-telegram', 'gls-popup-skin-bubble', 'gls-popup-skin-glass', 'gls-popup-skin-codex', 'gls-popup-skin-neon', 'gls-popup-skin-vellum', 'gls-popup-skin-inkwell', 'gls-popup-skin-washi', 'gls-popup-skin-tideglass', 'gls-popup-skin-herbarium', 'gls-popup-skin-marquee', 'gls-popup-skin-rime', 'gls-popup-skin-adobe', 'gls-popup-skin-velvet', 'gls-popup-skin-phosphor', 'gls-popup-skin-rosewindow', 'gls-popup-skin-mahou', 'gls-popup-skin-moonjar', 'gls-popup-skin-cinnabar', 'gls-popup-skin-koyo', 'gls-popup-skin-gloam', 'gls-popup-skin-afterglow', 'gls-popup-skin-starseed');
     root.classList.add(`gls-popup-skin-${skin}`);
     root.classList.toggle('gls-popup-compact', s.popupDensity === 'compact');
     root.classList.toggle('gls-popup-shadow-soft', s.popupShadow === 'soft');

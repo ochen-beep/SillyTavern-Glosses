@@ -151,7 +151,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // popup's color tokens with a fixed palette and layered background
     // decorations via .gls-popup-skin-* classes — 'paper', 'terminal',
     // 'telegram', 'bubble', plus the v2 set 'glass' (frosted translucency),
-    // 'codex' (illuminated manuscript) and 'neon' (charged night rim). Skins
+    // 'codex' (illuminated manuscript), 'neon' (charged night rim), and the
+    // ornament galleries — 'vellum' plus 'inkwell', 'washi', 'tideglass',
+    // 'herbarium', 'marquee', 'rime', 'adobe', 'velvet', 'phosphor',
+    // 'rosewindow' and 'mahou', 'moonjar', 'cinnabar', 'koyo', 'gloam',
+    // 'afterglow', 'starseed', which share the gallery chrome block in
+    // style.css (gallery II carries the animated FX layers). Skins
     // never touch radius/density/shadow — those stay with the knobs above —
     // and their font applies only while footnoteFontFamily is 'inherit' (an
     // explicit font choice always wins over the skin).
