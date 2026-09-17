@@ -246,7 +246,11 @@ function wrapAnchors(mesText, sortedFns) {
     const order = [...placed.values()].sort((a, b) => b.start - a.start);
     for (const candidate of order) {
         const segments = segmentsFor(index, candidate.start, candidate.end);
-        segments.forEach((seg, i) => wrapSegment(seg, candidate.fn, i === 0));
+        // Superscript rides the LAST piece: ST's markdown wraps «…» / "…"
+        // quotes in <q>, splitting the anchor's text nodes mid-phrase, and a
+        // sup on the first piece would land before the quoted term.
+        const primaryIdx = segments.length - 1;
+        segments.forEach((seg, i) => wrapSegment(seg, candidate.fn, i === primaryIdx));
     }
 
     report.placed = placed.size;
@@ -260,8 +264,9 @@ function wrapAnchors(mesText, sortedFns) {
 /**
  * Wrap one segment (a run inside a single text node) of a footnote's span.
  * Splitting isolates the exact run; the run is then replaced by the marker
- * piece. Non-first segments get a continuation class (same styling, no
- * superscript) so a phrase crossing element boundaries still reads as one
+ * piece. The primary piece (the LAST one — see wrapAnchors) carries the
+ * superscript; every earlier piece gets a continuation class (same styling,
+ * no superscript) so a phrase crossing element boundaries still reads as one
  * anchor.
  */
 function wrapSegment(seg, fn, primary) {
