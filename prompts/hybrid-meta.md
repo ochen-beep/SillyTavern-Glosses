@@ -21,6 +21,8 @@ When multiple apply, pick the one most likely to make the reader snort.
   and Russian output — they are abbreviations, not translated).
 - "anchor" = EXACT verbatim phrase from [Post text] (a word, a phrase, or a long
   verbatim clause when the footnote targets a situation / trope / bathos).
-- "text" = superscript index + the verbatim source phrase (in nominative form
-  for the label, verbatim in "anchor") + (category) + em-dash + deconstructive
+- "text" = superscript index + a SHORT nominative label (1–3 words naming the
+  mocked thing, like a chapter title — NOT the anchored phrase itself: that
+  clause is already highlighted in the post and stored verbatim in "anchor";
+  quoting it back duplicates it) + (category) + em-dash + deconstructive
   remark. Keep it 2–4 sentences — economy of wit, every sentence earns its place.

@@ -835,6 +835,10 @@ export function showPopup(fn, anchorEl, ctx = null) {
         // Close button always present in the header. Copy/Edit/Delete are built via
         // the shared action module so the popup and the floating panel behave
         // identically; Edit/Delete require a cache context (msgId/swipeIdx/fp).
+        // The action buttons live in their own left-side group (.gls-popup-
+        // actions) so the header can pin the ✕ to the right edge at any width.
+        const actionsGroup = document.createElement('div');
+        actionsGroup.className = 'gls-popup-actions';
         const closeBtn = document.createElement('button');
         closeBtn.className = 'gls-popup-close';
         closeBtn.innerHTML = iconHtml('xmark', { size: 14 });
@@ -894,7 +898,7 @@ export function showPopup(fn, anchorEl, ctx = null) {
             });
             mo.observe(body, { childList: true, subtree: true });
             popup._glsEditObserver = mo;
-            header.append(buttons.copy, buttons.edit, buttons.del);
+            actionsGroup.append(buttons.copy, buttons.edit, buttons.del);
         } else {
             // No cache context: offer Copy only, with inline "Copied ✓" feedback.
             const copyOnly = buildFootnoteActions({
@@ -906,8 +910,9 @@ export function showPopup(fn, anchorEl, ctx = null) {
                 onAfterEdit: () => {},
                 onAfterDelete: () => {},
             });
-            header.append(copyOnly.copy);
+            actionsGroup.append(copyOnly.copy);
         }
+        header.appendChild(actionsGroup);
         header.appendChild(closeBtn);
         popup.appendChild(header);
     }
@@ -1061,11 +1066,19 @@ export function isAnchorGone(rect, vw, vh) {
 function onPopupViewportChange(e) {
     if (!_currentPopup) return;
     if (e.type === 'scroll' && e.target instanceof Element && _currentPopup.contains(e.target)) return;
+    // While the inline editor is mounted, FREEZE follow + auto-close. Opening
+    // the mobile keyboard fires resize/scroll; the visual viewport then pans
+    // and the anchor can read as "gone" (popup snaps shut mid-edit) or the
+    // popup gets re-anchored somewhere behind the keyboard. The edit is
+    // modal in practice — re-anchoring resumes once it's saved/cancelled.
+    if (_popupEditing) return;
     if (_popupFollowRaf) return;
     _popupFollowRaf = requestAnimationFrame(() => {
         _popupFollowRaf = 0;
         if (!_currentPopup || !_popupAnchor) return;
         if (!_popupAnchor.isConnected) { closePopup(); return; }
+        // Re-check after the frame: the editor may have mounted in between.
+        if (_popupEditing) return;
         const rect = _popupAnchor.getBoundingClientRect();
         if (isAnchorGone(rect, window.innerWidth, window.innerHeight)) {
             closePopup();

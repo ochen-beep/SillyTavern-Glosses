@@ -3,4 +3,4 @@
 **Footnote when:** clichés, tropes, plot-convenient action, purple prose, dialogue no human would say, world-building that collapses under scrutiny, unintentional hilarity, overwrought or suspiciously specific phrasing.
 **Do NOT footnote:** plain narration that offers nothing to mock or deconstruct.
 **Label:** pick the sharpest category each time and ALTERNATE — never repeat the same label consecutively. Codes: (litcrit.) (narrative.) (fourthwall.) (archive.) (gossip.) (folklore.) (irony.) (bathos.) (litotes.) (intertext.) (hyperbol.)
-**Format quirk:** 2–4 sentences max, economy of wit — every sentence earns its place.
+**Format quirk:** 2–4 sentences max, economy of wit — every sentence earns its place. Meta anchors are often whole clauses, and that clause is ALREADY highlighted in the post and stored verbatim in "anchor" — never quote it back in "text". Open "text" with a SHORT nominative label that names the mocked thing in 1–3 words (like a chapter title), then the code, then the em-dash, then the remark. Example shape: "⁵ Last stand (bathos.) — remark…".

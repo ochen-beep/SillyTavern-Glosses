@@ -81,6 +81,7 @@ async function runTargetedGeneration() {
     const parseNotice = parsed.duplicateCount || parsed.truncatedCount
         ? t('Duplicates removed, excess truncated') : '';
     _targetedState.generating = true;
+    getPanel()?.classList.add('gls_generating');
     _targetedState.status = parseNotice || t('Generating');
     _tabController?.refreshActiveTab();
     try {
@@ -170,6 +171,7 @@ async function runTargetedGeneration() {
     } finally {
         if (requestId === _targetedState.requestId) {
             _targetedState.generating = false;
+            getPanel()?.classList.remove('gls_generating');
             _tabController?.refreshActiveTab();
         }
         panelInvalidate();
@@ -206,7 +208,13 @@ function renderTargetedTab(body) {
     const generate = document.createElement('button');
     generate.type = 'button';
     generate.className = 'gls-btn';
-    generate.textContent = t('Generate');
+    // Busy state: spinner + label swap so the run's start is instantly visible
+    // (a bare disabled button read as "nothing happened").
+    if (_targetedState.generating) {
+        generate.innerHTML = `${iconHtml('spinner', { spin: true })}<span>${t('Generating')}</span>`;
+    } else {
+        generate.textContent = t('Generate');
+    }
     // Disabled state comes from the persistent flag, not a DOM mutation — the
     // old `generate.disabled = true` died with the very next refreshActiveTab
     // rebuild and never actually locked the button.

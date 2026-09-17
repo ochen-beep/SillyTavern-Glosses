@@ -575,8 +575,8 @@
 }
 .gls-popup-preview--no-header .gls-popup-header { display: none; }
 /* Preview header buttons are static spans; FA icons stand in for the real
-   inline-SVG sprite at the same 12px box. */
-.gls-popup-preview .fa-fw { font-size: 12px; }
+   inline-SVG sprite at the same 16px box the popup buttons use. */
+.gls-popup-preview .fa-fw { font-size: 16px; }
 
 /* Caption above each snapshot. */
 .gls-s-preview-label {
@@ -857,8 +857,26 @@
 
 /* ════════════════════════════════════════════════════════════
    POPUP APPEARANCE KNOBS + SKINS
-   ════════════════════════════════════════════════════════════
-   Level 1 knobs (density, shadow strength) and Level 2 skins are :root
+   ════════════════════════════════════════════════════════════ */
+
+/* Re-derive the derived tokens ON the card. Custom properties resolve where
+   they are DECLARED: at :root, --gls-text-2/-3 and --gls-edge/--gls-line are
+   computed from the THEME body color (light on dark themes). A light skin
+   (paper/telegram/codex) overrides --gls-text with a dark ink, but the
+   :root-computed dim/line tokens stayed light — washing the header buttons,
+   the ✕ and the dividers out on the light surface. Declared here they
+   re-derive from the nearest --gls-text (the skin's ink when it sets one,
+   the theme color otherwise); skins re-overriding these tokens themselves
+   still win on higher specificity. */
+.gls-popup,
+.gls-popup-preview {
+    --gls-text-2: color-mix(in srgb, var(--gls-text) 86%, transparent);
+    --gls-text-3: color-mix(in srgb, var(--gls-text) 72%, transparent);
+    --gls-edge: color-mix(in srgb, var(--gls-text) 24%, transparent);
+    --gls-line: color-mix(in srgb, var(--gls-text) 10%, transparent);
+}
+
+/* Level 1 knobs (density, shadow strength) and Level 2 skins are :root
    classes written by applyHighlightStyles. Scoped to .gls-popup AND the
    settings snapshot .gls-popup-preview so the preview mirrors the real
    popup. The floating panel, picker popover and markers never see these
@@ -2967,10 +2985,14 @@
     50% { box-shadow: 0 0 0 1px rgba(232, 208, 154, 0.4), 0 0 14px rgba(232, 208, 154, 0.4); }
 }
 
+/* Actions (Copy · Edit · Delete) hug the left edge, the ✕ is pinned right;
+   on tiny screens the row wraps instead of clipping (long Russian labels can
+   exceed the 92vw popup width — flex-end used to push Copy out of the card). */
 .gls-popup-header {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--gls-sp-1);
     padding: var(--gls-sp-2) var(--gls-sp-3) var(--gls-sp-1);
     border-bottom: 1px solid var(--gls-line);
@@ -2978,11 +3000,23 @@
     font-family: var(--gls-font-family);
 }
 
+/* Left-side group of the header: Copy / Edit / Delete together. */
+.gls-popup-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--gls-sp-1);
+    min-width: 0;
+}
+
 .gls-popup-close {
     background: none;
     border: none;
     color: var(--gls-text-2);
     cursor: pointer;
+    /* Pinned right even when the wrapped header puts the ✕ on its own row
+       (auto margins absorb the free space in both cases). */
+    margin-left: auto;
     /* 28px hit area — comfortably over the 24px WCAG 2.5.8 floor. */
     width: 28px;
     height: 28px;
@@ -3042,10 +3076,11 @@
 .gls-inline-fn-text code,
 .gls-panel-text code {
     /* Opaque + theme-adaptive: a faint tint of the body text blended onto the
-       panel/inline background, so the chip tracks light/dark themes instead of
-       the old fixed mid-grey rgba(127,127,127,0.22). Composes over the already
-       opaque --gls-bg, so it never shows the chat through. */
-    background: color-mix(in srgb, var(--gls-text) 12%, var(--gls-bg));
+       local surface, so the chip tracks light/dark themes AND light skins
+       (mixing against --gls-bg kept a dark chip under light skins like
+       paper/telegram, where dark inherited text drowned). --gls-surface
+       equals --gls-bg for non-skinned surfaces, so this is a no-op there. */
+    background: color-mix(in srgb, var(--gls-text) 12%, var(--gls-surface));
     padding: 1px 4px;
     border-radius: 3px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -3064,19 +3099,29 @@
 .gls-popup-action-btn {
     background: none;
     border: 1px solid var(--gls-border);
-    color: var(--gls-text);
+    color: var(--gls-text-2);
     cursor: pointer;
-    padding: 4px 10px;
+    /* Icon-only buttons (labels live in title/aria-label): symmetric padding
+       keeps the tap target square-ish without stretching the card. */
+    padding: 5px 8px;
     border-radius: 4px;
     font-size: 0.88em;
+    /* The label is one unbreakable token ("Редактировать") — a mid-label wrap
+       reads as two buttons. The wrapping happens at the group level instead. */
+    white-space: nowrap;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     min-height: 28px;
+    min-width: 28px;
+    box-sizing: border-box;
 }
-.gls-popup-action-btn .gls-icon { width: 12px; height: 12px; }
+/* Icon-only header buttons: 16px glyphs — readable at a glance, yet small
+   next to the reading text they serve. */
+.gls-popup-action-btn .gls-icon { width: 16px; height: 16px; }
 /* Inline "Copied ✓" feedback state for the popup Copy button — mirrors the
    panel's .gls-panel-copy--done accent. */
 .gls-popup-action-btn--done {
@@ -3182,6 +3227,21 @@
     will-change: left, top;
 }
 
+/* ══════════════════════════════════════════════════════════
+   QUICK-BAR LAUNCHER (#gls_launcher — src/ui/launcher.js)
+   A bare div.qr--button collapses to the fa-superscript glyph width
+   (~29px) — visibly narrower than every neighboring quick-bar control.
+   Pin it to the same square footprint as the rest of the row.
+   ══════════════════════════════════════════════════════════ */
+
+#gls_launcher {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+}
+
 /* Generation in progress — both launcher controls pulse (generator.js toggles
    .gls_generating on #gls_launcher + #gls_fab for the whole run). */
 .gls_launcher.gls_generating,
@@ -3235,6 +3295,37 @@
        keeps internal mutations from invalidating the chat behind it. 'size'
        omitted so the custom JS resize handler can set width/height directly. */
     contain: layout paint style;
+}
+
+/* Generation busy state (generator.js toggles .gls_generating on #gls-panel
+   alongside the launchers): a thin accent bar sweeping along the top edge.
+   Transform-only animation — no layout work, negligible on weak phones. */
+.gls-panel::before {
+    content: '';
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    z-index: 5;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--gls-accent), transparent);
+}
+.gls-panel.gls_generating::before {
+    display: block;
+    animation: gls-panel-progress 1.2s linear infinite;
+}
+@keyframes gls-panel-progress {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gls-panel.gls_generating::before {
+        animation: none;
+        /* A static bar keeps the "running" signal without motion. */
+        background: var(--gls-accent);
+    }
 }
 
 .gls-panel.gls-panel--side {
@@ -3680,6 +3771,14 @@
     word-break: break-word;
     font-style: normal;
 }
+/* CTAs inside the centered empty state ("Generate" / "Open settings"):
+   ST's .menu_button is a block-level flex box, so the parent's
+   text-align:center doesn't reach it — auto margins do. */
+.gls-empty .menu_button {
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: var(--gls-sp-2);
+}
 .gls-empty-configure {
     margin-top: var(--gls-sp-2);
     align-self: center;
@@ -3902,23 +4001,36 @@
 
 .gls-css-overlay {
     position: fixed;
-    inset: 0;
-    /* Above ST side panels and the chat; bump if it ever lands under an ST
-       dialog on a specific theme. */
+    /* NOT `inset: 0`: ST keeps an identity transform on <html> while <body>
+       is position:fixed (<html> collapses to 0 height), and a transformed
+       ancestor becomes the containing block for fixed descendants — `inset: 0`
+       then stretches the overlay over a 0px-tall box and the centered dialog
+       lands half off-screen (worst on phones). Viewport units always resolve
+       against the real viewport, transforms or not. */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    /* Center via auto margins: centered when it fits, flush to the start edge
+       and overlay-scrollable when it doesn't (align-items:center would clip
+       the dialog's TOP edge out of reach). */
+    overflow: auto;
     z-index: 30000;
     background: rgba(0, 0, 0, 0.55);
     display: flex;
-    align-items: center;
-    justify-content: center;
     padding: var(--gls-sp-4);
+    box-sizing: border-box;
 }
 .gls-css-overlay[hidden] { display: none; }
 
 .gls-css-dialog {
     display: flex;
     flex-direction: column;
+    margin: auto;
     width: min(880px, 100%);
     max-height: min(86vh, 720px);
+    max-height: min(86dvh, 720px);
     background: var(--gls-surface, var(--gls-bg));
     border: 1px solid var(--gls-edge);
     border-radius: var(--gls-radius-lg);
@@ -4022,6 +4134,9 @@
 .gls-css-dialog-foot {
     display: flex;
     align-items: center;
+    /* Narrow phones: the three labelled buttons + status exceed 360px — wrap
+       to a second row instead of clipping ("Готово" used to fall off-screen). */
+    flex-wrap: wrap;
     gap: var(--gls-sp-2);
     padding: var(--gls-sp-2) var(--gls-sp-4) var(--gls-sp-3);
     border-top: 1px solid var(--gls-line);

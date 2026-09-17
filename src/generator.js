@@ -942,15 +942,16 @@ function buildDomTextModel(mesEl) {
  * the commit guard discards the result when the variant was switched or its
  * text changed (edit / continue) while the request was in flight.
  */
-// Launcher pulse: while any generation is in flight, both launcher controls
-// (QR-bar button + floating FAB) pulse via .gls_generating (style.css).
-// Generations are per-message and can overlap (a regen on another message), so
-// the class is reference-counted; superseded runs decrement too — their finally
-// still runs after beginRun() replaced their controller.
+// Launcher pulse + panel progress bar: while any generation is in flight, both
+// launcher controls (QR-bar button + floating FAB) pulse via .gls_generating
+// (style.css) and the floating panel sweeps its top progress bar. Generations
+// are per-message and can overlap (a regen on another message), so the class
+// is reference-counted; superseded runs decrement too — their finally still
+// runs after beginRun() replaced their controller.
 let _generatingRuns = 0;
 
 function setLaunchersGenerating(on) {
-    for (const id of ['gls_launcher', 'gls_fab']) {
+    for (const id of ['gls_launcher', 'gls_fab', 'gls-panel']) {
         document.getElementById(id)?.classList.toggle('gls_generating', on);
     }
 }

@@ -42,14 +42,21 @@ export { mountInlineEditor };
  * @param {string} icon     - icon name from the ICONS map (see icons.js).
  * @param {string} label    - visible + tooltip text (already translated).
  * @param {(e: Event) => void} handler
+ * @param {{ iconSize?: number, iconOnly?: boolean }} [opts]
+ *        iconOnly drops the text label (title/aria-label still carry it for
+ *        a11y + tooltips) — the popup header uses this so oversized popup
+ *        fonts can't stretch the card with three long words.
  * @returns {HTMLButtonElement}
  */
-export function makeActionButton(cls, icon, label, handler) {
+export function makeActionButton(cls, icon, label, handler, { iconSize = 12, iconOnly = false } = {}) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = cls;
     btn.title = label;
-    btn.innerHTML = `${iconHtml(icon, { size: 12 })}<span>${label}</span>`;
+    btn.setAttribute('aria-label', label);
+    btn.innerHTML = iconOnly
+        ? iconHtml(icon, { size: iconSize })
+        : `${iconHtml(icon, { size: iconSize })}<span>${label}</span>`;
     btn.addEventListener('click', handler);
     return btn;
 }
@@ -58,14 +65,16 @@ export function makeActionButton(cls, icon, label, handler) {
  * Show a transient "Copied ✓" state on a copy button, then restore it.
  * Idempotent — a second call while feedback is showing is ignored.
  * @param {HTMLButtonElement} btn
- * @param {{ iconSize?: number, doneClass?: string }} [opts]
+ * @param {{ iconSize?: number, doneClass?: string, labelled?: boolean }} [opts]
+ *        labelled=false mirrors an icon-only button: the check icon alone
+ *        (accent-tinted via doneClass) carries the feedback.
  */
-export function showCopied(btn, { iconSize = 12, doneClass = 'gls-panel-copy--done' } = {}) {
+export function showCopied(btn, { iconSize = 12, doneClass = 'gls-panel-copy--done', labelled = true } = {}) {
     if (btn.dataset.restore) return; // already showing feedback
     const restore = btn.innerHTML;
     btn.dataset.restore = '1';
     btn.classList.add(doneClass);
-    btn.innerHTML = `${iconHtml('check', { size: iconSize })}<span>${t('Copied')}</span>`;
+    btn.innerHTML = `${iconHtml('check', { size: iconSize })}${labelled ? `<span>${t('Copied')}</span>` : ''}`;
     setTimeout(() => {
         btn.innerHTML = restore;
         btn.classList.remove(doneClass);
@@ -104,6 +113,12 @@ export function showCopied(btn, { iconSize = 12, doneClass = 'gls-panel-copy--do
 export function buildFootnoteActions(opts) {
     const variant = opts.variant === 'popup' ? 'popup' : 'panel';
     const kind = opts.kind === 't' ? 't' : 'fn';
+    // Popup header: icon-only buttons at a larger size — long labels
+    // ("Копировать/Редактировать/Удалить") at big popup fonts used to stretch
+    // the card; labels survive as title/aria-label tooltips. The panel keeps
+    // the labelled compact style (rows have room, and labels aid scanning).
+    const iconOnly = variant === 'popup';
+    const iconSize = iconOnly ? 16 : 12;
     const copyCls = variant === 'popup'
         ? 'gls-popup-action-btn gls-popup-copy'
         : 'gls-panel-copy';
@@ -125,12 +140,12 @@ export function buildFootnoteActions(opts) {
     const copy = makeActionButton(copyCls, 'copy', t('Copy'), async () => {
         const ok = await copyText(opts.fn.text);
         if (ok) {
-            showCopied(copy, { doneClass: copyDoneCls });
+            showCopied(copy, { doneClass: copyDoneCls, iconSize, labelled: !iconOnly });
             opts.onAfterCopy?.();
         } else {
             toastr?.error?.(t('Copy failed'));
         }
-    });
+    }, { iconSize, iconOnly });
     const edit = makeActionButton(editCls, 'pen', t('Edit'), () => {
         // A repeated tap while the editor is already mounted (the popup keeps
         // its header mounted over the editor body) must not re-mount and wipe
@@ -147,9 +162,10 @@ export function buildFootnoteActions(opts) {
             onSaved: opts.onAfterEdit,
             onCancelled: opts.onAfterEdit,
         });
-    });
-    // Delete enforces the SAME exact-context contract as Edit.
-    const del = makeActionButton(delCls, 'xmark', t('Delete'), () => {
+    }, { iconSize, iconOnly });
+    // Delete: trash glyph — a bare ✕ read as "close this footnote" next to the
+    // header's actual close button.
+    const del = makeActionButton(delCls, 'trash', t('Delete'), () => {
         const result = deleteFootnote({
             msgId: opts.msgId,
             swipeIdx: opts.swipeIdx,
@@ -168,6 +184,6 @@ export function buildFootnoteActions(opts) {
         // null footnotes signals "entry emptied" — caller should clear the DOM.
         opts.onRefreshHighlights?.(result.emptied ? null : result.footnotes, result.msgId);
         opts.onAfterDelete?.();
-    });
+    }, { iconSize, iconOnly });
     return { copy, edit, del };
 }
