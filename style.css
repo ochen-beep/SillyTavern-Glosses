@@ -3656,6 +3656,83 @@
     word-break: break-word;
 }
 
+/* Compact panel rows (panelCompactRows): clamp every footnote body to two
+   lines so a 20-entry list fits one screen; clicking a row expands it
+   (delegated toggle in buildPanel). Line-clamp needs the box layout — the
+   expanded state restores plain inline flow so inline code/bold keep
+   wrapping naturally. */
+.gls-panel-body.gls-panel--compact .gls-panel-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.gls-panel-body.gls-panel--compact .gls-panel-entry-main {
+    cursor: pointer;
+}
+.gls-panel-body.gls-panel--compact .gls-panel-entry--expanded .gls-panel-text {
+    display: inline;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+}
+/* A clamped row hints there is more: the accent index brightens on hover. */
+.gls-panel-body.gls-panel--compact .gls-panel-entry:not(.gls-panel-entry--expanded):hover .gls-panel-num {
+    opacity: 1;
+}
+
+/* ── Skin gallery (Display section) ──────────────────────────────────────
+   One chip per popup skin: a palette swatch read from the skin's own
+   computed styles (skin-gallery.js) + the skin name. Clicking routes
+   through the #gls_popup_theme select's change event. */
+.gls-skin-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.gls-skin-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+    width: 76px;
+}
+.gls-skin-chip:hover {
+    background: color-mix(in srgb, var(--gls-accent) 12%, transparent);
+}
+.gls-skin-chip--active {
+    border-color: var(--gls-accent);
+}
+.gls-skin-chip-swatch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 34px;
+    border: 1px solid;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.25);
+}
+.gls-skin-chip-name {
+    font-size: 10px;
+    line-height: 1.2;
+    text-align: center;
+    color: var(--gls-muted, currentColor);
+    opacity: 0.85;
+    /* Two-line clamp keeps the strip uniform across long names. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
 /* Targeted-footnote markers («Точечно»): the typographic symbol run
    (* † ‡ § ‖ ¶) instead of superscript digits. Slightly muted vs the numeric
    run so the two sequences read apart at a glance. */

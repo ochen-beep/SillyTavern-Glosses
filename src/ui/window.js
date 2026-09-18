@@ -187,6 +187,7 @@ async function runTargetedGeneration() {
 }
 
 function renderTargetedTab(body) {
+    body.classList.toggle('gls-panel--compact', S().panelCompactRows === true);
     // Focus/caret preservation: the tab re-renders on external churn (scroll
     // observer picking a new focused message, new AI posts). Typing must
     // survive it — text lives in _targetedState, focus is restored by hand.
@@ -979,6 +980,16 @@ export function buildPanel() {
     body.id = 'gls-panel-body';
     body.setAttribute('role', 'tabpanel');
     body.setAttribute('aria-labelledby', 'gls-tab-footnotes');
+    // Compact rows: one delegated toggle for every row this body will ever
+    // host (rows are rebuilt on each render). Only the text area toggles —
+    // the action buttons live outside .gls-panel-entry-main.
+    body.addEventListener('click', (e) => {
+        if (!S().panelCompactRows) return;
+        const main = e.target.closest?.('.gls-panel-entry-main');
+        if (main && body.contains(main)) {
+            main.closest('.gls-panel-entry')?.classList.toggle('gls-panel-entry--expanded');
+        }
+    });
 
     panel.appendChild(header);
 
@@ -1147,6 +1158,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
     const body = document.getElementById('gls-panel-body');
     const navLabel = document.getElementById('gls-panel-nav-label');
     if (!body) return;
+    body.classList.toggle('gls-panel--compact', S().panelCompactRows === true);
 
     const ctx = getCtx();
     const annotatableIds = getAllAnnotatableMsgIds();

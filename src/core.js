@@ -123,6 +123,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
     footnoteFontSize: '0.9em',
     panelFontFamily: 'inherit',
     panelFontSize: '0.9em',
+    // Compact panel rows: clamp each footnote body to two lines; clicking a
+    // row expands it. Long gloss lists (20 entries) then fit one screen.
+    panelCompactRows: false,
     markerFontSize: '0.75em',
     // Popup: max width cap (px) and whether the action header (Copy/Edit/
     // Delete/Close) renders. With the header off, the popup still closes via

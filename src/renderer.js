@@ -20,7 +20,7 @@ import { indexToSuperscript, indexToTargetedSymbol, stripLeadingNumber } from '.
 import { findAllAnchorSpans, normalizeAnchorKey } from './anchor-utils.js';
 import { buildTextIndex, segmentsFor } from './text-index.js';
 import { rankOccurrencesByContext } from './domain/rebind.js';
-import { iconHtml } from './ui/icons.js';
+import { buildPopupHeader } from './ui/popup-header.js';
 import { buildFootnoteActions } from './ui/footnote-actions.js';
 import { applyCustomCss } from './ui/custom-css.js';
 
@@ -829,21 +829,16 @@ export function showPopup(fn, anchorEl, ctx = null) {
     // click, or clicking the same marker toggles it - and Copy/Edit/Delete
     // remain available on the floating panel's rows.
     if (S().popupShowHeader) {
-        const header = document.createElement('div');
-        header.className = 'gls-popup-header';
-
-        // Close button always present in the header. Copy/Edit/Delete are built via
-        // the shared action module so the popup and the floating panel behave
-        // identically; Edit/Delete require a cache context (msgId/swipeIdx/fp).
-        // The action buttons live in their own left-side group (.gls-popup-
-        // actions) so the header can pin the ✕ to the right edge at any width.
-        const actionsGroup = document.createElement('div');
-        actionsGroup.className = 'gls-popup-actions';
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'gls-popup-close';
-        closeBtn.innerHTML = iconHtml('xmark', { size: 14 });
-        closeBtn.setAttribute('aria-label', 'Close');
-        closeBtn.addEventListener('click', closePopup);
+        // Header structure (actions group + ✕) comes from the shared builder —
+        // the same one that paints the settings/twin previews, so the three
+        // copies can't drift again. Only the behavior-bearing buttons are
+        // wired here, via buildFootnoteActions. Copy/Edit/Delete require a
+        // cache context (msgId/swipeIdx/fp). The action buttons live in their
+        // own left-side group (.gls-popup-actions) so the header can pin the
+        // ✕ to the right edge at any width.
+        const { header, actions: actionsGroup, close: builderClose } = buildPopupHeader({
+            onClose: closePopup,
+        });
 
         const hasContext = ctx && ctx.msgId != null;
         if (hasContext) {
@@ -913,7 +908,7 @@ export function showPopup(fn, anchorEl, ctx = null) {
             actionsGroup.append(copyOnly.copy);
         }
         header.appendChild(actionsGroup);
-        header.appendChild(closeBtn);
+        header.appendChild(builderClose);
         popup.appendChild(header);
     }
     popup.appendChild(body);

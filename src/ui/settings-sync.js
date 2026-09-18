@@ -14,7 +14,9 @@ import {
 import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll } from '../renderer.js';
 import { getProfiles, getProfileDetails, confirmInsecureEndpoint } from '../connection.js';
 import { classifyEndpoint, isOriginAllowed } from '../infrastructure/endpoint-policy.js';
-import { updatePanel, invalidateAiMsgCache } from './window.js';
+import { updatePanel, invalidateAiMsgCache, panelInvalidate } from './window.js';
+import { buildPopupHeader } from './popup-header.js';
+import { buildSkinGallery } from './skin-gallery.js';
 import { ensureLauncher } from './launcher.js';
 import { initScrollObserver } from '../events.js';
 import {
@@ -380,6 +382,11 @@ export function bindSettingsUI() {
         }
         const popupPrev = $('gls_popup_preview');
         if (popupPrev) {
+            // The static HTML ships only an empty header placeholder — build
+            // it once from the shared popup-header builder (single source
+            // with the real popup and the CSS-dialog twin).
+            const placeholder = popupPrev.querySelector('[data-gls-preview-header]');
+            if (placeholder) placeholder.replaceWith(buildPopupHeader({ preview: true }).header);
             popupPrev.classList.toggle('gls-popup-preview--no-header', S().popupShowHeader === false);
         }
     }
@@ -480,6 +487,21 @@ export function bindSettingsUI() {
 
     on($('gls_marker_size'), 'change', function () { S().markerFontSize = this.value; applyHighlightStyles(); saveSettings(); });
 
+    // Compact panel rows: clamp each footnote body to two lines, click a row
+    // to expand. The class rides #gls-panel-body, so a toggle restyles the
+    // open panel immediately (the next render re-asserts it anyway).
+    const pcCb = $('gls_panel_compact');
+    if (pcCb) {
+        pcCb.checked = S().panelCompactRows === true;
+        on(pcCb, 'change', () => {
+            S().panelCompactRows = pcCb.checked;
+            document.getElementById('gls-panel-body')?.classList.toggle('gls-panel--compact', pcCb.checked);
+            panelInvalidate();
+            updatePanel();
+            saveSettings();
+        });
+    }
+
     // Popup placement preference - read at positionPopup time (every open).
     const ppEl = $('gls_popup_position');
     if (ppEl) { ppEl.value = S().popupPosition || 'auto'; on(ppEl, 'change', () => { S().popupPosition = ppEl.value; saveSettings(); }); }
@@ -508,7 +530,24 @@ export function bindSettingsUI() {
     // (:root classes + the radius var), which restyles the live popup on its
     // next open AND the snapshot immediately — no syncDisplayPreviews needed.
     const ptEl = $('gls_popup_theme');
-    if (ptEl) { ptEl.value = S().popupTheme || 'adaptive'; on(ptEl, 'change', () => { S().popupTheme = ptEl.value; applyHighlightStyles(); saveSettings(); }); }
+    if (ptEl) {
+        ptEl.value = S().popupTheme || 'adaptive';
+        on(ptEl, 'change', () => { S().popupTheme = ptEl.value; applyHighlightStyles(); saveSettings(); });
+        // Palette chips under the select: one per skin, painted with that
+        // skin's real computed colors; a click routes through this select's
+        // change event, so apply/persist stays on the single path above.
+        // The gallery's own sync listener rides `on` — same abort signal as
+        // every other binding here, so unbind detaches it too. Insertion
+        // guards the classic API — the unit tests' fake DOM has neither
+        // Element.closest nor Element.after.
+        const gallery = buildSkinGallery(ptEl, { on });
+        const group = typeof ptEl.closest === 'function' ? ptEl.closest('.gls-s-field-group') : null;
+        if (group && typeof group.after === 'function') {
+            group.after(gallery);
+        } else if (ptEl.parentNode && typeof ptEl.parentNode.insertBefore === 'function') {
+            ptEl.parentNode.insertBefore(gallery, ptEl.nextSibling ?? null);
+        }
+    }
 
     const pdEl = $('gls_popup_density');
     if (pdEl) { pdEl.value = S().popupDensity || 'comfortable'; on(pdEl, 'change', () => { S().popupDensity = pdEl.value; applyHighlightStyles(); saveSettings(); }); }

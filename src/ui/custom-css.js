@@ -33,6 +33,7 @@
  */
 
 import { S, t, saveSettings } from '../core.js';
+import { buildPopupHeader } from './popup-header.js';
 
 export const STYLE_ID = 'gls-custom-css';
 export const MIRROR_ID = 'gls-custom-css-preview';
@@ -262,20 +263,16 @@ function buildPreviewTwin() {
     const wrap = document.createElement('div');
     wrap.className = 'gls-popup-preview gls-css-twin';
     wrap.setAttribute('aria-hidden', 'true');
-    wrap.innerHTML = [
-        '<div class="gls-popup-header">',
-        '<div class="gls-popup-actions">',
-        `<span class="gls-popup-action-btn" title="${escHtml(t('Copy'))}"><i class="fa-solid fa-copy fa-fw" aria-hidden="true"></i></span>`,
-        `<span class="gls-popup-action-btn" title="${escHtml(t('Edit'))}"><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i></span>`,
-        `<span class="gls-popup-action-btn" title="${escHtml(t('Delete'))}"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i></span>`,
-        '</div>',
-        '<span class="gls-popup-close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></span>',
-        '</div>',
-        '<div class="gls-popup-body">',
+    // Header comes from the shared builder (sprite glyphs + localized titles —
+    // the same source as the real popup and the settings snapshot).
+    wrap.appendChild(buildPopupHeader({ preview: true }).header);
+    const body = document.createElement('div');
+    body.className = 'gls-popup-body';
+    body.innerHTML = [
         `<div class="gls-popup-title"><sup class="gls-popup-title-idx">1</sup><span>${escHtml(t('Kraken'))}</span></div>`,
         `<p class="gls-popup-text">${escHtml(t('A colossal sea beast; sailors say its arms can crush a whole fleet.'))}</p>`,
-        '</div>',
     ].join('');
+    wrap.appendChild(body);
     return wrap;
 }
 
