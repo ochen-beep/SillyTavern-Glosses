@@ -93,15 +93,19 @@ export function buildSkinGallery(select, { on: onListen = null } = {}) {
     strip.className = 'gls-skin-gallery';
     strip.id = 'gls_skin_gallery';
 
-    // Hidden probe carrying BOTH classes the skin rules key on: it must be in
-    // the document for getComputedStyle, but it never paints (visibility).
-    // Without a measurable environment (unit-test fake DOM) the probe is
-    // skipped and chips render with default styling — layout still holds.
-    const canMeasure = typeof getComputedStyle === 'function';
+    // Hidden probe carrying BOTH classes the skin rules key on. Computed
+    // styles only resolve for in-document elements, and the caller inserts
+    // the strip AFTER this builder returns — so measurement temporarily
+    // attaches the strip to document.body and detaches it when done, all
+    // within one synchronous pass (never painted, no flicker). Without a
+    // measurable environment (unit-test fake DOM) measurement is skipped
+    // and chips render with default styling — layout still holds.
+    const canMeasure = typeof getComputedStyle === 'function' && !!document.body;
     const probe = document.createElement('div');
     probe.className = 'gls-popup gls-popup-preview';
     probe.style.cssText = 'position:absolute;width:10px;height:10px;visibility:hidden;pointer-events:none;';
-    if (canMeasure) strip.appendChild(probe);
+    if (canMeasure) document.body.appendChild(strip);
+    strip.appendChild(probe);
 
     const root = document.documentElement;
     /** Mount exactly one skin on :root (removing every known skin class). */
@@ -121,6 +125,7 @@ export function buildSkinGallery(select, { on: onListen = null } = {}) {
         // Restore the user's skin before anything can paint.
         setRootSkin(currentSkin());
         probe.remove();
+        strip.remove();
     }
 
     const chips = [];
