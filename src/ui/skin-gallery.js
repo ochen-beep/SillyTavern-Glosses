@@ -120,7 +120,15 @@ export function buildSkinGallery(select, { on: onListen = null } = {}) {
         for (const { value } of entries) {
             setRootSkin(value);
             const cs = getComputedStyle(probe);
-            palettes.set(value, { bg: cs.backgroundColor, color: cs.color, border: cs.borderColor });
+            palettes.set(value, {
+                bg: cs.backgroundColor,
+                // Skins like codex/vellum paint texture gradients via
+                // background-image; a flat backgroundColor alone reads much
+                // darker than the skin looks in practice.
+                image: cs.backgroundImage !== 'none' ? cs.backgroundImage : '',
+                color: cs.color,
+                border: cs.borderColor,
+            });
         }
         // Restore the user's skin before anything can paint.
         setRootSkin(currentSkin());
@@ -142,6 +150,7 @@ export function buildSkinGallery(select, { on: onListen = null } = {}) {
         const palette = palettes.get(value);
         if (palette) {
             swatch.style.background = palette.bg;
+            if (palette.image) swatch.style.backgroundImage = palette.image;
             swatch.style.color = palette.color;
             swatch.style.borderColor = palette.border;
         }
