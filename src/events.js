@@ -17,6 +17,9 @@ import {
 } from './cache.js';
 import { isTranslatedView } from './domain/message-identity.js';
 import {
+    PAYLOAD_KEY, readRawPayload, writePayload, clearPayload, digestForVariant,
+} from './domain/footnote-payload.js';
+import {
     injectHighlights, removeHighlights, restoreHighlightsAll, restoreMessage, addRegenButton,
     installMarkerDelegation, resetLazyInjector, closePopup,
 } from './renderer.js';
@@ -144,6 +147,7 @@ function onChatChanged() {
     // chat's targeted request, and the first render of the new chat never
     // shows the previous chat's draft/result for a frame.
     clearTargetedTabState();
+    _swipesLen.clear();
     updatePanel();
     // ST rebuilds #qr--bar on chat switch — re-mount the 📖 launcher so it
     // doesn't vanish from the quick-reply row.
@@ -227,6 +231,9 @@ async function onCharMsgRendered(messageId) {
         return null;
     })();
     const msg = msg0;
+    // Track swipes.length on EVERY render (before the guards) — a swipe of a
+    // message that never passed them must not look like an appending swipe.
+    _swipesLen.set(Number(messageId), Array.isArray(msg?.swipes) ? msg.swipes.length : 0);
     if (!msg || msg.is_user || msg.is_system || msg.is_hidden || !S().enabled) return;
 
     // False-start guard (mirrors DS Comments src/events.js CHARACTER_MESSAGE_RENDERED
@@ -249,6 +256,45 @@ async function onCharMsgRendered(messageId) {
     await presentVariant(messageId, swipeIdx, mesEl);
 }
 
+// swipes.length per message id, captured at render and at every swipe event.
+// The delta between two MESSAGE_SWIPED events is the only reliable "a slot
+// was just APPENDED" signal — ST offers no pre-swipe event, and the payload
+// relocation below must not run for plain navigation between existing slots.
+const _swipesLen = new Map();
+
+/**
+ * Undo SillyTavern's swipe-slot cloning (F#6). Creating a swipe snapshots the
+ * live `extra` — the PREVIOUS variant's payload — into the NEW slot and
+ * rebuilds the previous slot without it. Left as-is, the old variant loses
+ * its (possibly hand-edited) footnotes: swiping back regenerates instead of
+ * restoring. On an appending swipe, move the clone back to the slot it was
+ * generated for and clear it from the new one; the new variant then falls
+ * through to fresh generation via the normal present path. Navigation
+ * between existing variants never grows swipes.length and is skipped.
+ */
+function relocateClonedPayload(messageId) {
+    const ctx = getCtx();
+    const msg = ctx.chat?.[parseInt(messageId)];
+    if (!msg || !Array.isArray(msg.swipes) || !Array.isArray(msg.swipe_info)) return;
+    const newIdx = msg.swipe_id ?? 0;
+    const prevLen = _swipesLen.get(Number(messageId));
+    _swipesLen.set(Number(messageId), msg.swipes.length);
+    const isAppendingSwipe = typeof prevLen === 'number'
+        && msg.swipes.length > prevLen
+        && newIdx === msg.swipes.length - 1;
+    if (!isAppendingSwipe) return;
+    const prevIdx = newIdx - 1;
+    if (prevIdx < 0) return;
+    const prevSlot = msg.swipe_info[prevIdx];
+    if (prevSlot?.extra && PAYLOAD_KEY in prevSlot.extra) return; // prev kept its payload — nothing was lost
+    const cloned = readRawPayload(msg, newIdx);
+    if (!cloned) return;
+    // Only move a payload that verifiably belongs to the previous variant.
+    if (cloned.contentDigest !== digestForVariant(msg, prevIdx)) return;
+    writePayload(msg, prevIdx, cloned);
+    clearPayload(msg, newIdx);
+}
+
 async function onMsgSwiped(messageId) {
     // A swipe changes the text identity for THIS message. Bump its per-message
     // revision (aborting its run) instead of the global epoch, so an unrelated
@@ -257,6 +303,7 @@ async function onMsgSwiped(messageId) {
     state.panelFocusMsgId = String(messageId);
     const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
     removeHighlights(mesEl);
+    relocateClonedPayload(messageId);
     await presentCurrentSwipe(messageId, mesEl);
 }
 
@@ -309,6 +356,10 @@ async function presentCurrentSwipe(messageId, mesEl) {
 async function onMsgSwipeDeleted({ messageId } = {}) {
     if (messageId === undefined || messageId === null) return;
     generationCoordinator.bumpMessageRevision(messageId);
+    // The splice shrank swipes — resync the length cache so the next appending
+    // swipe is still detected as one.
+    const swipeMsg = getCtx().chat?.[parseInt(messageId)];
+    _swipesLen.set(Number(messageId), Array.isArray(swipeMsg?.swipes) ? swipeMsg.swipes.length : 0);
     const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
     removeHighlights(mesEl);
     panelInvalidate();
@@ -348,7 +399,7 @@ function onMsgEdited(messageId) {
  * cancelled. Skip rebind entirely while a translation is on screen; when the
  * user un-translates, the digest re-matches and the cached payload restores.
  */
-function onMsgUpdated(messageId) {
+async function onMsgUpdated(messageId) {
     const ctx = getCtx();
     const msg = ctx.chat?.[parseInt(messageId)];
     if (!msg || msg.is_system || !S().enabled) return;
@@ -356,6 +407,17 @@ function onMsgUpdated(messageId) {
 
     const swipeIdx = msg.swipe_id ?? 0;
     const result = rebindVariant(messageId, swipeIdx);
+    if (result?.foreign) {
+        // Same fall-through as the render path: the payload belonged to ANOTHER
+        // variant (ST's slot cloning) and was cleared, so this one regenerates —
+        // otherwise an edit that trips the foreign rule would leave the post
+        // silently without footnotes and without a lost-anchors banner.
+        const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
+        await autoGenerateIfConfigured(messageId, swipeIdx, mesEl);
+        panelInvalidate();
+        updatePanel();
+        return;
+    }
     if (result) {
         const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
         if (mesEl) {
@@ -444,9 +506,15 @@ let _scrollChatEl = null;
 let _scrollHandler = null;
 let _observedIds = new Set();
 let _observedEls = new Map();
-let _visibleRatios = new Map();
-let _scrollRaf = 0;
-let _panelPickRaf = 0;
+let _pickTimer = null;
+
+// Scroll-follow picking runs only after scrolling STOPS: a trailing debounce
+// collapses the IO/scroll event stream into ONE rect pass, so the panel
+// re-renders at most once per scroll gesture instead of churning per frame
+// (and the render-key cache in renderFootnotesTab dedupes repeat picks of the
+// same post). The old per-frame rAF fallback measured every observed post on
+// every scroll frame — the main source of the panel's sluggishness.
+const SCROLL_PICK_DEBOUNCE_MS = 200;
 
 export function initScrollObserver() {
     _scrollIO?.disconnect(); _scrollIO = null;
@@ -455,32 +523,24 @@ export function initScrollObserver() {
         _scrollChatEl.removeEventListener('scroll', _scrollHandler);
         _scrollChatEl.removeEventListener('touchend', _scrollHandler);
     }
-    if (_scrollRaf) cancelAnimationFrame(_scrollRaf);
-    if (_panelPickRaf) cancelAnimationFrame(_panelPickRaf);
-    _scrollRaf = 0; _panelPickRaf = 0;
-    _observedIds.clear(); _observedEls.clear(); _visibleRatios.clear();
+    if (_pickTimer) { clearTimeout(_pickTimer); _pickTimer = null; }
+    _observedIds.clear(); _observedEls.clear();
 
-    if (!S().floatingPanelEnabled) return;
+    // Scroll-follow is a panel-display-mode feature: in inline/popup/both the
+    // footnotes are read where they sit, so the panel has no reason to chase
+    // the viewport (and paying a re-render per scroll would be pure churn).
+    if (!S().floatingPanelEnabled || S().displayMode !== 'panel') return;
     const chatEl = document.getElementById('chat');
     if (!chatEl) return;
     _scrollChatEl = chatEl;
 
-    _scrollIO = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-            const id = entry.target.getAttribute('mesid');
-            if (!id) continue;
-            if (entry.isIntersecting && entry.intersectionRatio > 0) {
-                _visibleRatios.set(id, entry.intersectionRatio);
-            } else {
-                _visibleRatios.delete(id);
-            }
-        }
-        schedulePick();
-    }, { threshold: [0, 0.25, 0.6, 1.0] });
+    // The IO is only a TRIGGER (nodes entering/leaving the viewport) — the
+    // pick itself is a rect pass at fire time, so no ratio map can go stale.
+    _scrollIO = new IntersectionObserver(() => schedulePick(), { threshold: 0 });
 
     observeAllAiMessages();
 
-    _scrollHandler = scheduleScrollFallback;
+    _scrollHandler = schedulePick;
     chatEl.addEventListener('scroll', _scrollHandler, { passive: true });
     chatEl.addEventListener('touchend', _scrollHandler, { passive: true });
 
@@ -517,37 +577,16 @@ function observeAiNode(el) {
 }
 
 function schedulePick() {
-    if (_panelPickRaf) return;
-    _panelPickRaf = requestAnimationFrame(() => {
-        _panelPickRaf = 0;
-        pickMostVisible(_visibleRatios);
-    });
+    if (_pickTimer) clearTimeout(_pickTimer);
+    _pickTimer = setTimeout(() => {
+        _pickTimer = null;
+        pickMostVisible();
+    }, SCROLL_PICK_DEBOUNCE_MS);
 }
 
-function pickMostVisible(ioMap) {
-    if (!S().floatingPanelEnabled || !ioMap.size) return;
-    let bestId = null, bestRatio = -1;
-    const chat = getCtx().chat;
-    const allowUser = S().glossUserMessages;
-    for (const [id, ratio] of ioMap) {
-        const msg = chat?.[parseInt(id)];
-        if (!msg || msg.is_system) continue;
-        if (msg.is_user && !allowUser) continue;
-        if (ratio > bestRatio) { bestRatio = ratio; bestId = id; }
-    }
-    if (bestId !== null) setVisiblePost(bestId);
-}
-
-function scheduleScrollFallback() {
-    if (_scrollRaf) return;
-    _scrollRaf = requestAnimationFrame(() => {
-        _scrollRaf = 0;
-        scrollFallback();
-    });
-}
-
-function scrollFallback() {
-    if (!S().floatingPanelEnabled) return;
+/** Nearest-to-viewport-center annotatable post wins; one pass per scroll stop. */
+function pickMostVisible() {
+    if (!S().floatingPanelEnabled || S().displayMode !== 'panel') return;
     const vh = window.innerHeight;
     const center = vh / 2;
     let bestId = null, bestDist = Infinity;
@@ -559,7 +598,7 @@ function scrollFallback() {
         if (msg.is_user && !allowUser) continue;
         const el = _observedEls.get(id);
         if (!el || !el.isConnected) {
-            _observedIds.delete(id); _observedEls.delete(id); _visibleRatios.delete(id);
+            _observedIds.delete(id); _observedEls.delete(id);
             continue;
         }
         const rect = el.getBoundingClientRect();
@@ -578,8 +617,6 @@ export function disconnectScrollObserver() {
         _scrollChatEl.removeEventListener('scroll', _scrollHandler);
         _scrollChatEl.removeEventListener('touchend', _scrollHandler);
     }
-    if (_scrollRaf) cancelAnimationFrame(_scrollRaf);
-    if (_panelPickRaf) cancelAnimationFrame(_panelPickRaf);
-    _scrollRaf = 0; _panelPickRaf = 0;
-    _observedIds.clear(); _observedEls.clear(); _visibleRatios.clear();
+    if (_pickTimer) { clearTimeout(_pickTimer); _pickTimer = null; }
+    _observedIds.clear(); _observedEls.clear();
 }
