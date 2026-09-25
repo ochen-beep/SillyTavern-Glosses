@@ -270,7 +270,7 @@ function buildPreviewTwin() {
     body.className = 'gls-popup-body';
     body.innerHTML = [
         `<div class="gls-popup-title"><sup class="gls-popup-title-idx">1</sup><span>${escHtml(t('Kraken'))}</span></div>`,
-        `<p class="gls-popup-text">${escHtml(t('A colossal sea beast; sailors say its arms can crush a whole fleet.'))}</p>`,
+        `<p class="gls-popup-text">${escHtml(t('A colossal sea beast — sailors say its arms can crush a whole fleet.'))}</p>`,
     ].join('');
     wrap.appendChild(body);
     return wrap;

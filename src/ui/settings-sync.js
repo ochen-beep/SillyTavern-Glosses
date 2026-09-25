@@ -11,7 +11,7 @@
 import {
     state, S, saveSettings, t, getApiKey, setApiKey, notifyUser, warn, getCtx,
 } from '../core.js';
-import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll } from '../renderer.js';
+import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll, closePopup } from '../renderer.js';
 import { getProfiles, getProfileDetails, confirmInsecureEndpoint } from '../connection.js';
 import { classifyEndpoint, isOriginAllowed } from '../infrastructure/endpoint-policy.js';
 import { updatePanel, invalidateAiMsgCache, panelInvalidate } from './window.js';
@@ -156,21 +156,6 @@ export function bindSettingsUI() {
         });
     });
 
-    // §6.2: Advanced-lenses namespaced sub-accordion (the second-tier analogue
-    // of gls-s-section-header above). Default collapsed — the lens toggles +
-    // custom-lens editor live behind an explicit "Advanced lenses" click so
-    // the median user isn't presented with power-user nesting under a flat UI.
-    document.querySelectorAll('#gls_settings .gls-s-sub-section-toggle').forEach(btn => {
-        on(btn, 'click', () => {
-            const body = btn.nextElementSibling;
-            const chevron = btn.querySelector('.gls-s-chevron');
-            const open = !body.hidden;
-            body.hidden = open;
-            btn.setAttribute('aria-expanded', String(!open));
-            if (chevron) chevron.style.transform = open ? '' : 'rotate(-180deg)';
-        });
-    });
-
     // Master toggle
     bindCb('gls_enabled', 'enabled', () => {
         if (!S().enabled) document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
@@ -243,7 +228,27 @@ export function bindSettingsUI() {
     // Custom API key (localforage-backed; never written to settings JSON)
     const akEl = $('gls_custom_apikey');
     if (akEl) {
-        on(akEl, 'change', () => { setApiKey(akEl.value).catch(() => {}); });
+        let keyStatusTimer = 0;
+        on(akEl, 'change', () => {
+            // Tracked so syncCustomApiKeyField (a panel update can fire while
+            // this write is still in flight) reads the store only after it
+            // settles — otherwise the re-fill races the save and resurrects
+            // the stale key.
+            _apiKeySave = setApiKey(akEl.value)
+                .then(() => {
+                    // Visible "saved" feedback: the password mask hides the
+                    // value, so a silent localforage write left no way to tell
+                    // a committed key from one that never landed (the field is
+                    // re-filled from the store by updateSrcPanels()).
+                    const status = $('gls_apikey_status');
+                    if (!status) return;
+                    status.hidden = false;
+                    status.textContent = t('Key saved');
+                    clearTimeout(keyStatusTimer);
+                    keyStatusTimer = setTimeout(() => { status.hidden = true; }, 4000);
+                })
+                .catch(() => {});
+        });
         syncCustomApiKeyField(akEl);
     }
 
@@ -355,12 +360,31 @@ export function bindSettingsUI() {
         dmEl.value = S().displayMode;
         on(dmEl, 'change', () => {
             S().displayMode = dmEl.value;
+            // 'panel' mode: the floating panel is the ONLY display surface, so
+            // it must exist and be visible — force the master flags on and
+            // sync the checkbox (it stays the user's off-switch afterwards).
+            if (S().displayMode === 'panel') {
+                S().floatingPanelEnabled = true;
+                S().floatingPanelHidden = false;
+                const fpCbEl = $('gls_floating_panel');
+                if (fpCbEl) fpCbEl.checked = true;
+            }
+            // An open popup is anchored to a marker that panel mode is about
+            // to strip from the DOM — close it first.
+            closePopup();
             syncDisplayPreviews();
             // The mode shapes what's already rendered (markers' sup index, the
             // under-post block), not only future posts — re-inject every
             // message with a verified payload so on-screen posts switch shape
-            // immediately instead of on their next render/swipe/edit.
+            // immediately instead of on their next render/swipe/edit. In panel
+            // mode injectHighlights early-returns after removeHighlights, so
+            // the same call also strips markers on the way INTO panel mode.
             reapplyHighlightsAll();
+            updatePanel();
+            // Self-gating: arms the scroll-follow observer only when
+            // displayMode==='panel' && floatingPanelEnabled; tears it down
+            // otherwise.
+            initScrollObserver();
             saveSettings();
         });
     }
@@ -379,6 +403,9 @@ export function bindSettingsUI() {
             markerPrev.classList.add(`gls-hl-${S().highlightStyle || 'background'}`);
             // displayMode 'inline' renders markers without the sup index.
             markerPrev.classList.toggle('gls-preview-inline', S().displayMode === 'inline');
+            // displayMode 'panel' renders no markers at all — dim the preview
+            // so the style controls below don't read as applicable.
+            markerPrev.classList.toggle('gls-preview-disabled', S().displayMode === 'panel');
         }
         const popupPrev = $('gls_popup_preview');
         if (popupPrev) {
@@ -388,6 +415,7 @@ export function bindSettingsUI() {
             const placeholder = popupPrev.querySelector('[data-gls-preview-header]');
             if (placeholder) placeholder.replaceWith(buildPopupHeader({ preview: true }).header);
             popupPrev.classList.toggle('gls-popup-preview--no-header', S().popupShowHeader === false);
+            popupPrev.classList.toggle('gls-preview-disabled', S().displayMode === 'panel');
         }
     }
     syncDisplayPreviews();
@@ -600,7 +628,9 @@ export function bindSettingsUI() {
             S().floatingPanelHidden = false;
             saveSettings();
             updatePanel();
-            if (S().floatingPanelEnabled) initScrollObserver();
+            // Self-gating both ways: arms the observer only when the panel is
+            // on AND displayMode==='panel'; disconnects it otherwise.
+            initScrollObserver();
             // Refresh the 📖 launcher active state so it matches the checkbox.
             ensureLauncher();
         });
@@ -625,7 +655,7 @@ export function bindSettingsUI() {
                 el.querySelectorAll('.gls-regen-btn').forEach(b => b.remove());
             });
         }
-        if (S().floatingPanelEnabled) initScrollObserver();
+        initScrollObserver();
         updatePanel();
     });
     on($('gls_stop_words'), 'input', function () { S().stopWords = this.value; saveSettings(); });
@@ -881,11 +911,25 @@ export function updateProfileModelInfo() {
     }).catch(() => { if (req === _modelInfoReq) info.hidden = true; });
 }
 
+/** In-flight localforage write for the custom API key (see binding below). */
+let _apiKeySave = null;
+
 /** Load the localforage-backed API key into the password field. */
 function syncCustomApiKeyField(el) {
     const input = el || document.getElementById('gls_custom_apikey');
     if (!input) return;
-    getApiKey().then(key => { input.value = key || ''; }).catch(() => {});
+    // Never clobber the field while the user is editing it (or while a save
+    // from that editing is still in flight) — a panel update that lands
+    // mid-typing otherwise overwrites the input with the stale stored key and
+    // the value looks committed when it is not.
+    const fill = async () => {
+        if (_apiKeySave) await _apiKeySave;
+        if (document.activeElement === input) return;
+        const key = await getApiKey();
+        if (document.activeElement === input) return;
+        input.value = key || '';
+    };
+    fill();
 }
 
 export async function populateProfiles() {

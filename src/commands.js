@@ -62,6 +62,11 @@ export function registerSlashCommands() {
             callback: () => {
                 S().enabled = !S().enabled;
                 saveSettings();
+                // The settings-panel master checkbox binds its value once at
+                // init — sync it here so a slash-toggle never shows the stale
+                // state to a user who opens the settings afterwards.
+                const masterEl = document.getElementById('gls_enabled');
+                if (masterEl) masterEl.checked = S().enabled;
                 // UI sync only when the runtime is actually up: the
                 // registration outlives a disable (ST keeps slash commands for
                 // the page lifetime), and toggling a torn-down extension used

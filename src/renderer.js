@@ -157,6 +157,10 @@ function renderInlineBlock(mesEl, footnotes) {
 export function injectHighlights(mesEl, footnotes) {
     if (!mesEl) return;
     removeHighlights(mesEl);
+    // displayMode 'panel': no markers / inline block at all — footnotes live
+    // only in the floating panel. removeHighlights above still runs so a mode
+    // switch strips already-rendered markers via reapplyHighlightsAll.
+    if (S().displayMode === 'panel') return;
     const mesText = mesEl.querySelector('.mes_text');
     if (!mesText || !footnotes?.length) return;
 
@@ -250,7 +254,7 @@ function wrapAnchors(mesText, sortedFns) {
         // quotes in <q>, splitting the anchor's text nodes mid-phrase, and a
         // sup on the first piece would land before the quoted term.
         const primaryIdx = segments.length - 1;
-        segments.forEach((seg, i) => wrapSegment(seg, candidate.fn, i === primaryIdx));
+        segments.forEach((seg, i) => wrapSegment(seg, candidate.fn, i === primaryIdx, i, segments.length));
     }
 
     report.placed = placed.size;
@@ -262,20 +266,40 @@ function wrapAnchors(mesText, sortedFns) {
 }
 
 /**
+ * Which edges of a multi-piece marker sit at a seam (an element boundary
+ * ST's markdown inserted — most often <q> around quoted text). The CSS zeroes
+ * the inner-side padding and corner radii on those edges so N adjacent pieces
+ * render as ONE continuous highlight band; a single-piece marker keeps its
+ * full pill look. Exported for unit tests.
+ *
+ * @param {number} i - zero-based piece index
+ * @param {number} total - total piece count for the anchor
+ * @returns {string[]} seam classes to add to the piece
+ */
+export function markerSeamClasses(i, total) {
+    if (!(total > 1)) return [];
+    const classes = [];
+    if (i < total - 1) classes.push('gls-marker-seam-r');
+    if (i > 0) classes.push('gls-marker-seam-l');
+    return classes;
+}
+
+/**
  * Wrap one segment (a run inside a single text node) of a footnote's span.
  * Splitting isolates the exact run; the run is then replaced by the marker
  * piece. The primary piece (the LAST one — see wrapAnchors) carries the
  * superscript; every earlier piece gets a continuation class (same styling,
  * no superscript) so a phrase crossing element boundaries still reads as one
- * anchor.
+ * anchor. Seam-side classes flatten the joint edges between pieces (see
+ * markerSeamClasses).
  */
-function wrapSegment(seg, fn, primary) {
+function wrapSegment(seg, fn, primary, pieceIndex = 0, pieceTotal = 1) {
     const node = seg.node;
     let target = node;
     if (seg.start > 0) target = node.splitText(seg.start);
     if (seg.end - seg.start < (target.nodeValue ?? '').length) target.splitText(seg.end - seg.start);
     const run = target.nodeValue ?? '';
-    const piece = createMarker(fn, run, primary);
+    const piece = createMarker(fn, run, primary, markerSeamClasses(pieceIndex, pieceTotal));
     target.parentNode.replaceChild(piece, target);
 }
 
@@ -287,11 +311,12 @@ function wrapSegment(seg, fn, primary) {
  * (installMarkerDelegation), so a long chat with hundreds of markers costs O(1)
  * listeners instead of O(N).
  */
-function createMarker(fn, sourceText, primary = true) {
+function createMarker(fn, sourceText, primary = true, seamClasses = []) {
     const isTargeted = fn.kind === 't';
     const span = document.createElement('span');
     span.className = 'gls-marker';
     if (!primary) span.classList.add('gls-marker-cont');
+    for (const cls of seamClasses) span.classList.add(cls);
     span.dataset.glsIndex = fn.index;
     // Absent glsKind means a regular footnote — markers written before the
     // targeted feature (and any hand-built fn object) keep resolving.
@@ -494,6 +519,9 @@ export function restoreMessage(mesEl) {
     const swipeIdx = msg.swipe_id ?? 0;
     // Always (re)add the regen button — cheap, and independent of visibility.
     addRegenButton(messageId);
+    // displayMode 'panel' renders no markers: skip the cache read + lazy
+    // observation entirely (footnotes are shown in the floating panel only).
+    if (S().displayMode === 'panel') return;
     // Mark as pending; the observer injects on entry. Visible-on-bootstrap
     // messages get an immediate inject so first paint isn't blank.
     if (!getVariantFootnotes(messageId, swipeIdx)) return;

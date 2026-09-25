@@ -925,6 +925,33 @@ export function buildPanel() {
     const controls = document.createElement('div');
     controls.className = 'gls-panel-controls';
 
+    // Explicit "jump to the focused post" — the only chat-scrolling control,
+    // now that the nav arrows leave the chat alone. Flash the post so the eye
+    // catches where the panel's content lives.
+    const jumpBtn = document.createElement('div');
+    jumpBtn.className = 'gls-panel-btn gls-panel-btn--jump';
+    jumpBtn.title = t('Jump to the post');
+    jumpBtn.setAttribute('role', 'button');
+    jumpBtn.setAttribute('aria-label', t('Jump to the post'));
+    jumpBtn.innerHTML = iconHtml('crosshair');
+    jumpBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const focusId = state.panelFocusMsgId;
+        if (focusId === null || focusId === undefined) return;
+        const mesEl = document.querySelector(`.mes[mesid="${focusId}"]`);
+        // Chat truncation: the post can exist in ctx.chat but not in the DOM
+        // (older than the loaded window) — say so instead of failing silently.
+        if (!mesEl) {
+            globalThis.toastr?.info?.(t('Post is not loaded in chat'));
+            return;
+        }
+        mesEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        mesEl.classList.remove('gls-mes-flash');
+        void mesEl.offsetWidth; // reflow restarts the animation on repeated clicks
+        mesEl.classList.add('gls-mes-flash');
+        mesEl.addEventListener('animationend', () => mesEl.classList.remove('gls-mes-flash'), { once: true });
+    });
+
     const clearMsgBtn = document.createElement('div');
     clearMsgBtn.className = 'gls-panel-btn gls-panel-btn--clear';
     clearMsgBtn.title = t('Clear message footnotes');
@@ -970,6 +997,7 @@ export function buildPanel() {
     // message the panel can focus, shows the same busy spin (setSpinner), and
     // lives right next to the text being regenerated. Removed in v3.2.
 
+    controls.appendChild(jumpBtn);
     controls.appendChild(clearMsgBtn);
     controls.appendChild(closeBtn);
     header.appendChild(nav);
@@ -1388,13 +1416,17 @@ function navigatePanel(dir) {
     if (nextIdx < 0 || nextIdx >= ids.length) return;
     state.panelFocusMsgId = ids[nextIdx];
     renderPanel(state.panelFocusMsgId);
-    const mesEl = document.querySelector(`.mes[mesid="${state.panelFocusMsgId}"]`);
-    mesEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Deliberately NO scrollIntoView on the chat: the arrows browse footnotes
+    // inside the panel only. Jumping to the post is the header crosshair
+    // button's job (explicit, on demand).
 }
 
 /** Scroll-observer hook: switch the focused message when the user scrolls. */
 export function setVisiblePost(msgId) {
-    if (!S().floatingPanelEnabled || state.panelFocusMsgId === String(msgId)) return;
+    // Scroll-follow exists only in panel display mode (elsewhere footnotes are
+    // read where they sit, so the panel has no reason to chase the viewport).
+    if (!S().floatingPanelEnabled || S().displayMode !== 'panel') return;
+    if (state.panelFocusMsgId === String(msgId)) return;
     const ctx = getCtx();
     const msg = ctx.chat?.[parseInt(msgId)];
     if (!msg || msg.is_system) return;
@@ -1402,5 +1434,12 @@ export function setVisiblePost(msgId) {
     // glossUserMessages is on (mirrors getAllAnnotatableMsgIds).
     if (msg.is_user && !S().glossUserMessages) return;
     state.panelFocusMsgId = String(msgId);
-    renderPanel(msgId, msg.swipe_id ?? 0);
+    // Skip the render when the panel is hidden (pure churn) or a management
+    // tab is active — rebuilding the Targeted textarea mid-edit drops its
+    // focus/caret. The Footnotes tab picks the new focus up when reselected.
+    if (!panelIsVisible()) return;
+    if (_tabController && _tabController.getActiveTab() !== 'footnotes') return;
+    // No swipeIdxHint on purpose: the render-key cache already keys on
+    // swipeIdx, and passing the hint bypasses the cache on every scroll pick.
+    renderPanel(msgId);
 }

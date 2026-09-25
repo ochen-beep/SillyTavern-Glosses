@@ -46,6 +46,8 @@ const ICONS = {
     ban: '<circle cx="12" cy="12" r="9"/><path d="m4.93 4.93 14.14 14.14"/>',
     // rotate-ccw — undo restore (return anchor to the pool)
     'rotate-ccw': '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+    // crosshair — jump to the focused post in the chat (panel header)
+    crosshair: '<circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/>',
 };
 
 let _spriteMounted = false;

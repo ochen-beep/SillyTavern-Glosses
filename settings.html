@@ -60,6 +60,7 @@
                         <span data-i18n="API key">API key</span>
                     </label>
                     <input type="password" id="gls_custom_apikey" class="text_pole" placeholder="sk-...">
+                    <small id="gls_apikey_status" class="gls-s-hint" aria-live="polite" hidden></small>
                     <!-- §6.9: honesty label — the custom-endpoint API key lives in
                          browser localforage (visible to any in-page script), not ST's
                          server-side secret storage. For server-side secrets, the user
@@ -188,21 +189,15 @@
             <!-- Hybrid style: lens constructor. target/CEFR selectors live in
                  gls_language_panel above and are co-shown when the Language
                  lens is on (see updatePromptPanels in settings-sync.js). -->
-            <div id="gls_hybrid_panel" class="gls-s-sub-panel" hidden>
-                <!-- §6.2: collapse the lens toggles + custom-lens editor behind an
-                     Advanced sub-accordion so the median user isn't presented with
-                     6 toggles + an authoring area at the same level as everyday
-                     style/lang selectors. Default collapsed; open-state is not
-                     persisted for v3.1 (click expands, reload resets). The
-                     outer `id="gls_hybrid_panel"` still drives the promptStyle
-                     === 'hybrid' show/hide in updatePromptPanels (unchanged). -->
-                <button class="gls-s-sub-section-toggle gls-s-advanced-toggle" aria-expanded="false" type="button">
-                    <span data-i18n="Advanced lenses">Advanced lenses</span>
-                    <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
-                </button>
-                <div class="gls-s-sub-section-body" hidden>
-                    <div class="gls-s-sub-title" data-i18n="Lenses (constructor)">Lenses (constructor)</div>
-                    <div class="gls-s-grid-2">
+            <!-- The lens toggles + custom-lens editor live in their own titled
+                 card: the header does the grouping the former "Advanced
+                 lenses" sub-accordion did, without the extra click. The panel
+                 is still shown only for promptStyle === 'hybrid'
+                 (updatePromptPanels), so the median user never meets it. -->
+            <div id="gls_hybrid_panel" class="gls-s-subcard" hidden>
+                <div class="gls-s-subcard-title" data-i18n="Advanced lenses">Advanced lenses</div>
+                <div class="gls-s-sub-title" data-i18n="Lenses (constructor)">Lenses (constructor)</div>
+                <div class="gls-s-grid-2">
                         <label class="gls-s-toggle-row">
                             <input type="checkbox" id="gls_hybrid_lens_language" class="checkbox">
                             <span data-i18n="Language">Language</span>
@@ -240,7 +235,6 @@
                         <span data-i18n="Add lens">Add lens</span>
                     </button>
                     <small class="gls-s-hint" data-i18n="Compact role: voice + when to footnote + label + format quirk. Supports {{OUTPUT_LANGUAGE}}.">Compact role: voice + when to footnote + label + format quirk. Supports {{OUTPUT_LANGUAGE}}.</small>
-                </div>
             </div>
         </div>
     </div>
@@ -263,7 +257,8 @@
                     <select id="gls_display_mode" class="gls-s-select">
                         <option value="inline" data-i18n="Inline only">Inline only</option>
                         <option value="popup" data-i18n="Popup only">Popup only</option>
-                        <option value="both" data-i18n="Both">Both</option>
+                        <option value="both" data-i18n="Popup + block">Popup + block</option>
+                        <option value="panel" data-i18n="Panel only">Panel only</option>
                     </select>
                 </div>
                 <div class="gls-s-field-group">
@@ -374,116 +369,135 @@
                  one screen. Applied as a class on #gls-panel-body, so the
                  open panel restyles immediately on toggle. -->
             <div class="gls-s-field-group">
-                <label class="gls-s-toggle-row">
+                <label class="gls-s-toggle-row gls-s-toggle-row--switch">
                     <input type="checkbox" id="gls_panel_compact" class="checkbox">
                     <span>
                         <span class="gls-s-label-bold" data-i18n="Compact panel rows">Compact panel rows</span>
-                        <small class="gls-s-hint" data-i18n="Two lines per footnote; click a row to expand it.">Two lines per footnote; click a row to expand it.</small>
+                        <small class="gls-s-hint" data-i18n="Two lines per footnote — click a row to expand it.">Two lines per footnote — click a row to expand it.</small>
                     </span>
                 </label>
             </div>
-            <div class="gls-s-grid-2">
-                <div class="gls-s-field-group">
-                    <label class="gls-s-field-label" for="gls_marker_size">
-                        <span data-i18n="Marker (sup) font size">Marker (sup) font size</span>
-                    </label>
-                    <select id="gls_marker_size" class="gls-s-select">
-                        <option value="0.60em">0.60em</option>
-                        <option value="0.65em">0.65em</option>
-                        <option value="0.70em">0.70em</option>
-                        <option value="0.75em" selected>0.75em</option>
-                        <option value="0.80em">0.80em</option>
-                        <option value="0.85em">0.85em</option>
-                        <option value="0.90em">0.90em</option>
-                        <option value="1.00em">1.00em</option>
-                    </select>
-                </div>
-                <div class="gls-s-field-group">
-                    <label class="gls-s-field-label" for="gls_popup_position">
-                        <span data-i18n="Popup position">Popup position</span>
-                    </label>
-                    <select id="gls_popup_position" class="gls-s-select" data-i18n="[title]Where the card opens relative to the marker" title="Where the card opens relative to the marker">
-                        <option value="auto" data-i18n="Auto (side with more space)">Auto (side with more space)</option>
-                        <option value="below" data-i18n="Below the marker">Below the marker</option>
-                        <option value="above" data-i18n="Above the marker">Above the marker</option>
-                    </select>
-                </div>
-            </div>
             <div class="gls-s-field-group">
-                <label class="gls-s-field-label" for="gls_popup_width">
-                    <span data-i18n="Popup max width">Popup max width</span>
+                <label class="gls-s-field-label" for="gls_marker_size">
+                    <span data-i18n="Marker (sup) font size">Marker (sup) font size</span>
                 </label>
-                <div class="gls-s-field-row">
-                    <input id="gls_popup_width" type="range" min="280" max="640" step="20" class="gls-s-range gls-s-grow" aria-label="Popup max width">
-                    <span id="gls_popup_width_val" class="gls-s-val">420px</span>
-                </div>
-            </div>
-            <!-- Popup appearance: skin select (fixed color bundles, applied via
-                 :root .gls-popup-skin-* classes) + three orthogonal knobs.
-                 Radius is a px var; density and shadow are :root classes. The
-                 snapshot below mirrors every one of them live — skins also
-                 restyle the snapshot itself, so what you see is the popup. -->
-            <div class="gls-s-field-group">
-                <label class="gls-s-field-label" for="gls_popup_theme">
-                    <span data-i18n="Popup style">Popup style</span>
-                </label>
-                <select id="gls_popup_theme" class="gls-s-select">
-                    <option value="adaptive" data-i18n="Adaptive (match theme)">Adaptive (match theme)</option>
-                    <option value="paper" data-i18n="Paper note">Paper note</option>
-                    <option value="terminal" data-i18n="Terminal">Terminal</option>
-                    <option value="telegram" data-i18n="Telegram blank">Telegram blank</option>
-                    <option value="bubble" data-i18n="Messenger bubble">Messenger bubble</option>
-                    <option value="glass" data-i18n="Frosted glass">Frosted glass</option>
-                    <option value="codex" data-i18n="Ancient codex">Ancient codex</option>
-                    <option value="neon" data-i18n="Neon">Neon</option>
-                    <option value="vellum" data-i18n="Vellum">Vellum</option>
-                    <option value="inkwell" data-i18n="Inkwell">Inkwell</option>
-                    <option value="washi" data-i18n="Washi">Washi</option>
-                    <option value="tideglass" data-i18n="Tideglass">Tideglass</option>
-                    <option value="herbarium" data-i18n="Herbarium">Herbarium</option>
-                    <option value="marquee" data-i18n="Marquee">Marquee</option>
-                    <option value="rime" data-i18n="Rime">Rime</option>
-                    <option value="adobe" data-i18n="Adobe">Adobe</option>
-                    <option value="velvet" data-i18n="Velvet">Velvet</option>
-                    <option value="phosphor" data-i18n="Phosphor">Phosphor</option>
-                    <option value="rosewindow" data-i18n="Rosewindow">Rosewindow</option>
-                    <option value="mahou" data-i18n="Mahou">Mahou</option>
-                    <option value="moonjar" data-i18n="Moonjar">Moonjar</option>
-                    <option value="cinnabar" data-i18n="Cinnabar">Cinnabar</option>
-                    <option value="koyo" data-i18n="Koyo">Koyo</option>
-                    <option value="gloam" data-i18n="Gloam">Gloam</option>
-                    <option value="afterglow" data-i18n="Afterglow">Afterglow</option>
-                    <option value="starseed" data-i18n="Starseed">Starseed</option>
+                <select id="gls_marker_size" class="gls-s-select">
+                    <option value="0.60em">0.60em</option>
+                    <option value="0.65em">0.65em</option>
+                    <option value="0.70em">0.70em</option>
+                    <option value="0.75em" selected>0.75em</option>
+                    <option value="0.80em">0.80em</option>
+                    <option value="0.85em">0.85em</option>
+                    <option value="0.90em">0.90em</option>
+                    <option value="1.00em">1.00em</option>
                 </select>
             </div>
-            <div class="gls-s-grid-2">
+            <!-- Popup appearance card: the skin select, the gallery chips, the
+                 knobs and the live snapshot share one card, so every change is
+                 visible the moment it lands — the select used to sit
+                 mid-section with the preview six groups lower. The snapshot
+                 mirrors every knob live; header visibility is class-swapped by
+                 syncDisplayPreviews(). Decorative: pointer-events:none +
+                 aria-hidden. -->
+            <div class="gls-s-subcard">
+                <div class="gls-s-subcard-title" data-i18n="Popup">Popup</div>
+                <div class="gls-s-grid-2">
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_popup_position">
+                            <span data-i18n="Popup position">Popup position</span>
+                        </label>
+                        <select id="gls_popup_position" class="gls-s-select" data-i18n="[title]Where the card opens relative to the marker" title="Where the card opens relative to the marker">
+                            <option value="auto" data-i18n="Auto (side with more space)">Auto (side with more space)</option>
+                            <option value="below" data-i18n="Below the marker">Below the marker</option>
+                            <option value="above" data-i18n="Above the marker">Above the marker</option>
+                        </select>
+                    </div>
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_popup_width">
+                            <span data-i18n="Popup max width">Popup max width</span>
+                        </label>
+                        <div class="gls-s-field-row">
+                            <input id="gls_popup_width" type="range" min="280" max="640" step="20" class="gls-s-range gls-s-grow" aria-label="Popup max width">
+                            <span id="gls_popup_width_val" class="gls-s-val">420px</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="gls-s-grid-2">
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_popup_density">
+                            <span data-i18n="Popup density">Popup density</span>
+                        </label>
+                        <select id="gls_popup_density" class="gls-s-select" data-i18n="[title]Comfortable = airy spacing, Compact = tighter line height" title="Comfortable = airy spacing, Compact = tighter line height">
+                            <option value="comfortable" data-i18n="Comfortable">Comfortable</option>
+                            <option value="compact" data-i18n="Compact">Compact</option>
+                        </select>
+                    </div>
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_popup_shadow">
+                            <span data-i18n="Popup shadow">Popup shadow</span>
+                        </label>
+                        <select id="gls_popup_shadow" class="gls-s-select" data-i18n="[title]Depth of the card's drop shadow" title="Depth of the card's drop shadow">
+                            <option value="strong" data-i18n="Expressive">Expressive</option>
+                            <option value="soft" data-i18n="Soft">Soft</option>
+                            <option value="none" data-i18n="None">None</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="gls-s-field-group">
-                    <label class="gls-s-field-label" for="gls_popup_density">
-                        <span data-i18n="Popup density">Popup density</span>
+                    <label class="gls-s-field-label" for="gls_popup_corner">
+                        <span data-i18n="Popup corner radius">Popup corner radius</span>
                     </label>
-                    <select id="gls_popup_density" class="gls-s-select" data-i18n="[title]Comfortable = airy spacing, Compact = tighter line height" title="Comfortable = airy spacing, Compact = tighter line height">
-                        <option value="comfortable" data-i18n="Comfortable">Comfortable</option>
-                        <option value="compact" data-i18n="Compact">Compact</option>
+                    <div class="gls-s-field-row">
+                        <input id="gls_popup_corner" type="range" min="0" max="20" step="1" class="gls-s-range gls-s-grow" aria-label="Popup corner radius">
+                        <span id="gls_popup_corner_val" class="gls-s-val">12px</span>
+                    </div>
+                </div>
+                <!-- Skin select: fixed color bundles applied via :root
+                     .gls-popup-skin-* classes. Radius is a px var; density and
+                     shadow are :root classes — the snapshot below mirrors all
+                     of them live, so what you see is the popup. The gallery
+                     chip strip mounts right after this group. -->
+                <div class="gls-s-field-group">
+                    <label class="gls-s-field-label" for="gls_popup_theme">
+                        <span data-i18n="Popup style">Popup style</span>
+                    </label>
+                    <select id="gls_popup_theme" class="gls-s-select">
+                        <option value="adaptive" data-i18n="Adaptive (match theme)">Adaptive (match theme)</option>
+                        <option value="paper" data-i18n="Paper note">Paper note</option>
+                        <option value="terminal" data-i18n="Terminal">Terminal</option>
+                        <option value="telegram" data-i18n="Telegram blank">Telegram blank</option>
+                        <option value="bubble" data-i18n="Messenger bubble">Messenger bubble</option>
+                        <option value="glass" data-i18n="Frosted glass">Frosted glass</option>
+                        <option value="codex" data-i18n="Ancient codex">Ancient codex</option>
+                        <option value="neon" data-i18n="Neon">Neon</option>
+                        <option value="vellum" data-i18n="Vellum">Vellum</option>
+                        <option value="inkwell" data-i18n="Inkwell">Inkwell</option>
+                        <option value="washi" data-i18n="Washi">Washi</option>
+                        <option value="tideglass" data-i18n="Tideglass">Tideglass</option>
+                        <option value="herbarium" data-i18n="Herbarium">Herbarium</option>
+                        <option value="marquee" data-i18n="Marquee">Marquee</option>
+                        <option value="rime" data-i18n="Rime">Rime</option>
+                        <option value="adobe" data-i18n="Adobe">Adobe</option>
+                        <option value="velvet" data-i18n="Velvet">Velvet</option>
+                        <option value="phosphor" data-i18n="Phosphor">Phosphor</option>
+                        <option value="rosewindow" data-i18n="Rosewindow">Rosewindow</option>
+                        <option value="mahou" data-i18n="Mahou">Mahou</option>
+                        <option value="moonjar" data-i18n="Moonjar">Moonjar</option>
+                        <option value="cinnabar" data-i18n="Cinnabar">Cinnabar</option>
+                        <option value="koyo" data-i18n="Koyo">Koyo</option>
+                        <option value="gloam" data-i18n="Gloam">Gloam</option>
+                        <option value="afterglow" data-i18n="Afterglow">Afterglow</option>
+                        <option value="starseed" data-i18n="Starseed">Starseed</option>
                     </select>
                 </div>
                 <div class="gls-s-field-group">
-                    <label class="gls-s-field-label" for="gls_popup_shadow">
-                        <span data-i18n="Popup shadow">Popup shadow</span>
-                    </label>
-                    <select id="gls_popup_shadow" class="gls-s-select" data-i18n="[title]Depth of the card's drop shadow" title="Depth of the card's drop shadow">
-                        <option value="strong" data-i18n="Expressive">Expressive</option>
-                        <option value="soft" data-i18n="Soft">Soft</option>
-                        <option value="none" data-i18n="None">None</option>
-                    </select>
-                </div>
-            </div>
-            <div class="gls-s-field-group">
-                <label class="gls-s-field-label" for="gls_popup_corner">
-                    <span data-i18n="Popup corner radius">Popup corner radius</span>
-                </label>
-                <div class="gls-s-field-row">
-                    <input id="gls_popup_corner" type="range" min="0" max="20" step="1" class="gls-s-range gls-s-grow" aria-label="Popup corner radius">
-                    <span id="gls_popup_corner_val" class="gls-s-val">12px</span>
+                    <div id="gls_popup_preview" class="gls-popup-preview" aria-hidden="true">
+                        <div class="gls-popup-header" data-gls-preview-header></div>
+                        <div class="gls-popup-body">
+                            <div class="gls-popup-title"><sup class="gls-popup-title-idx">1</sup><span data-i18n="Kraken">Kraken</span></div>
+                            <p class="gls-popup-text"><span data-i18n="A colossal sea beast — sailors say its arms can crush a whole fleet.">A colossal sea beast — sailors say its arms can crush a whole fleet.</span></p>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- Custom CSS layer (Level 3): raw user stylesheet injected as
@@ -496,7 +510,7 @@
                     <span class="gls-s-field-label" data-i18n="Custom CSS">Custom CSS</span>
                     <button id="gls_custom_css_edit" class="menu_button" type="button" data-i18n="Edit CSS">Edit CSS</button>
                 </div>
-                <label class="gls-s-toggle-row">
+                <label class="gls-s-toggle-row gls-s-toggle-row--switch">
                     <input type="checkbox" id="gls_custom_css_enabled" class="checkbox">
                     <span data-i18n="Enable custom CSS layer">Enable custom CSS layer</span>
                 </label>
@@ -509,42 +523,24 @@
                 <select id="gls_launcher_mode" class="gls-s-select">
                     <option value="bar" data-i18n="Quick-reply bar">Quick-reply bar</option>
                     <option value="floating" data-i18n="Floating button">Floating button</option>
-                    <option value="both" data-i18n="Both">Both</option>
+                    <option value="both" data-i18n="Both buttons">Both buttons</option>
                 </select>
             </div>
             <div class="gls-s-toggles">
-                <label class="gls-s-toggle-row">
+                <label class="gls-s-toggle-row gls-s-toggle-row--switch">
                     <input type="checkbox" id="gls_floating_panel" class="checkbox">
                     <span data-i18n="Show floating panel">Show floating panel</span>
                 </label>
-                <label class="gls-s-toggle-row">
+                <label class="gls-s-toggle-row gls-s-toggle-row--switch">
                     <input type="checkbox" id="gls_popup_header" class="checkbox">
                     <span>
                         <span class="gls-s-label-bold" data-i18n="Show popup header (Copy/Edit/Delete/Close)">Show popup header (Copy/Edit/Delete/Close)</span>
-                        <small class="gls-s-hint" data-i18n="Off = text-only popup. Close with Esc or a click outside; edit and delete stay in the floating panel.">Off = text-only popup. Close with Esc or a click outside; edit and delete stay in the floating panel.</small>
+                        <small class="gls-s-hint" data-i18n="Off = text-only popup. Close with Esc or a click outside — edit and delete stay in the floating panel.">Off = text-only popup. Close with Esc or a click outside — edit and delete stay in the floating panel.</small>
                     </span>
                 </label>
             </div>
-            <!-- Popup snapshot: twin of .gls-popup reading the same
-                 tokens (surface/edge, --gls-shadow-float, font vars,
-                 --gls-popup-maxw, --gls-popup-radius, skin/density/shadow
-                 :root classes). The header is NOT hand-written here —
-                 settings-sync rebuilds it from the shared popup-header
-                 builder at bind time (single source with the real popup
-                 and the CSS-dialog twin). Header visibility is class-
-                 swapped by syncDisplayPreviews(); everything else is pure
-                 CSS live. Decorative: the container is pointer-events:none
-                 + aria-hidden. -->
-            <div class="gls-s-field-group">
-                <div class="gls-s-preview-label" data-i18n="Popup">Popup</div>
-                <div id="gls_popup_preview" class="gls-popup-preview" aria-hidden="true">
-                    <div class="gls-popup-header" data-gls-preview-header></div>
-                    <div class="gls-popup-body">
-                        <div class="gls-popup-title"><sup class="gls-popup-title-idx">1</sup><span data-i18n="Kraken">Kraken</span></div>
-                        <p class="gls-popup-text"><span data-i18n="A colossal sea beast; sailors say its arms can crush a whole fleet.">A colossal sea beast; sailors say its arms can crush a whole fleet.</span></p>
-                    </div>
-                </div>
-            </div>
+            <!-- Popup snapshot lives inside the Popup card above, right under
+                 the skin select + gallery chips. -->
         </div>
     </div>
 
@@ -558,14 +554,14 @@
             <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
         </button>
         <div class="gls-s-section-body" hidden>
-            <label class="gls-s-toggle-row">
+            <!-- Behavioral toggles use the switch row (caption left, checkbox
+                 parked at the right edge); selection lists keep the checkbox
+                 on the left. -->
+            <label class="gls-s-toggle-row gls-s-toggle-row--switch">
                 <input type="checkbox" id="gls_auto_generate" class="checkbox">
-                <span>
-                    <span class="gls-s-label-bold" data-i18n="Auto-generate on new messages">Auto-generate on new messages</span>
-                    <small class="gls-s-hint" data-i18n="Generate footnotes after each AI reply">Generate footnotes after each AI reply</small>
-                </span>
+                <span class="gls-s-label-bold" data-i18n="Auto-generate on new messages">Auto-generate on new messages</span>
             </label>
-            <label class="gls-s-toggle-row">
+            <label class="gls-s-toggle-row gls-s-toggle-row--switch">
                 <input type="checkbox" id="gls_gloss_user" class="checkbox">
                 <span>
                     <span class="gls-s-label-bold" data-i18n="Gloss user messages">Gloss user messages</span>
@@ -594,7 +590,7 @@
             <!-- Enable + volume share the primary row; file selection and
                  sound actions remain visible below it. -->
             <div class="gls-s-sound-row">
-                <label class="gls-s-toggle-row">
+                <label class="gls-s-toggle-row gls-s-toggle-row--switch">
                     <input type="checkbox" id="gls_sound_enabled" class="checkbox">
                     <span data-i18n="Enable sound notification">Enable sound notification</span>
                 </label>
@@ -672,8 +668,8 @@
                 <div class="gls-s-context-title">
                     <span data-i18n="Lorebook context (this chat)">Lorebook context (this chat)</span>
                 </div>
-                <label class="gls-s-toggle-row gls-s-toggle-row--indent">
-                    <input type="checkbox" id="gls_lore_enabled" class="checkbox">
+                    <label class="gls-s-toggle-row gls-s-toggle-row--indent gls-s-toggle-row--switch">
+                        <input type="checkbox" id="gls_lore_enabled" class="checkbox">
                     <span data-i18n="Use entries activated by the main generation">Use entries activated by the main generation</span>
                 </label>
                 <div class="gls-s-field-row" id="gls_lore_mode_row">

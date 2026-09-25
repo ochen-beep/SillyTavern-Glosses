@@ -277,36 +277,6 @@
     margin-bottom: 2px;
 }
 
-/* §6.2: Advanced-lenses sub-accordion. Namespaced second-tier analogue of
-   .gls-s-section-header — default collapsed, same click wiring (in
-   settings-sync.js bindSettingsUI). */
-.gls-s-sub-section-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 8px 10px;
-    background: color-mix(in srgb, var(--gls-accent) 8%, transparent);
-    border: 1px solid var(--gls-border);
-    border-radius: var(--gls-radius-sm);
-    cursor: pointer;
-    color: var(--gls-text-2);
-    font-size: 0.85em;
-    font-weight: 600;
-    text-align: left;
-    margin-top: var(--gls-sp-2);
-}
-.gls-s-sub-section-body[hidden] { display: none; }
-.gls-s-sub-section-body:not([hidden]) {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    border: 1px solid var(--gls-border);
-    border-top: none;
-    border-radius: 0 0 var(--gls-radius) var(--gls-radius);
-}
-
 .gls-s-field-row {
     display: flex;
     gap: 6px;
@@ -327,6 +297,15 @@
 }
 
 .gls-s-toggle-row--indent { padding-left: var(--gls-sp-3); }
+
+/* Behavioral toggles (iOS row pattern, mock-up spec): the caption stays on
+   the left, the checkbox parks at the row's right edge. Selection lists
+   (lenses, context includes, custom-lens rows) keep the default
+   checkbox-left layout — the side encodes the row's kind. The DOM order is
+   input-first, so the span is visually reordered ahead of the box and the
+   auto margin eats the space BETWEEN them. */
+.gls-s-toggle-row--switch > span { order: -1; }
+.gls-s-toggle-row--switch > .checkbox { margin-left: auto; }
 
 .gls-s-toggles {
     display: flex;
@@ -553,6 +532,12 @@
 /* displayMode 'inline' renders markers without the superscript index —
    mirror that in the snapshot. */
 .gls-chat-preview.gls-preview-inline .gls-sup { display: none; }
+/* displayMode 'panel' renders neither markers nor popup — dim both snapshots
+   so the style controls around them don't read as applicable. */
+.gls-preview-disabled {
+    opacity: 0.35;
+    filter: grayscale(0.6);
+}
 
 /* Popup snapshot: static twin of .gls-popup (position/z-index/animation
    dropped), sized by the same --gls-popup-maxw the slider publishes. */
@@ -648,7 +633,12 @@
     -webkit-tap-highlight-color: transparent;
 }
 
-.gls-s-context-group {
+/* Titled sub-card: grouped content inside a section (context blocks, the
+   Popup appearance card, the Advanced lenses card). One visual grammar for
+   all of them. [hidden] must beat display:flex — the hybrid lens card is
+   shown/hidden by updatePromptPanels via the hidden attribute. */
+.gls-s-context-group,
+.gls-s-subcard {
     border: 1px solid var(--gls-border);
     border-radius: var(--gls-radius-sm);
     background: color-mix(in srgb, var(--gls-text) 4%, transparent);
@@ -657,8 +647,10 @@
     flex-direction: column;
     gap: var(--gls-sp-2);
 }
+.gls-s-subcard[hidden] { display: none; }
 
-.gls-s-context-title {
+.gls-s-context-title,
+.gls-s-subcard-title {
     font-size: 0.85em;
     font-weight: 600;
     color: var(--gls-text-2);
@@ -707,6 +699,34 @@
 
 .gls-hl-dotted .gls-marker { border-bottom: 2px dotted var(--gls-hl-color); }
 
+/* A multi-piece anchor (a phrase crossing ST's <q> quote wrap or another
+   inline element) materializes as several adjacent .gls-marker boxes. Each
+   box carries its own padding and rounded corners, so without this the joint
+   reads as two separate chips instead of one highlight. The renderer tags the
+   pieces with seam classes (markerSeamClasses in renderer.js): the shared
+   edge of every piece flattens, leaving rounded corners on the band's outer
+   ends only. Single-piece markers get no seam classes and keep the pill look. */
+.gls-marker.gls-marker-seam-r {
+    padding-right: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.gls-marker.gls-marker-seam-l {
+    padding-left: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+/* ST paints <q> text with --SmartThemeQuoteColor (.mes_text q). A marker piece
+   covering the quoted half of an anchor would then render in quote color
+   while its continuation pieces outside <q> render in the body color — one
+   anchor visually split in two. Pin highlighted text to the message body
+   color so every marker reads as a single unit wherever it lands; the
+   superscript keeps its accent color (its own rule wins for .gls-sup). */
+#chat .mes_text q .gls-marker {
+    color: var(--SmartThemeBodyColor, inherit);
+}
+
 .gls-sup {
     font-size: var(--gls-marker-size);
     vertical-align: super;
@@ -743,6 +763,11 @@
     max-width: 100%;
     box-sizing: border-box;
     overflow-wrap: break-word;
+    /* Grid chat themes (".mes_block{display:contents}") promote this block to
+       a grid item of .mes — span all columns so it lands full-width BELOW the
+       text instead of an auto-placed cell beside the avatar. Ignored in
+       flex/block layouts. */
+    grid-column: 1 / -1;
 }
 .gls-inline-fn {
     margin: 2px 0;
@@ -771,6 +796,18 @@
         background-color: color-mix(in srgb, var(--gls-hl-color) calc(var(--gls-hl-opacity) * 100%), transparent);
     }
     to { background-color: transparent; }
+}
+
+/* Panel header crosshair ("Jump to the post") flashes the whole post so the
+   eye catches where the panel's content lives. Outline pulse (not background)
+   so the cue reads over any message theme; window.js restarts the animation
+   via the reflow trick on repeated clicks. */
+.mes.gls-mes-flash {
+    animation: gls-mes-flash 1.6s ease-out 1;
+}
+@keyframes gls-mes-flash {
+    0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--gls-hl-color) 90%, transparent); }
+    100% { box-shadow: 0 0 0 3px transparent; }
 }
 
 /* Regenerate button */
@@ -1001,6 +1038,49 @@
 }
 .gls-popup-skin-glass:not(.gls-font-forced) .gls-popup,
 .gls-popup-skin-glass:not(.gls-font-forced) .gls-popup-preview { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+
+/* Standard-skin index coins — the same grammar the gallery ports share
+   (inline-flex box, tabular nums), dressed per identity: telegram's index
+   reads as a postmark stamp and its title rule goes dashed like the border,
+   bubble's is an accent pill, glass's a polished disk. Palette vars and
+   title styling only — the forbidden properties (position/overflow/max-width,
+   radius/shadow on .gls-popup, header/body padding) stay nob territory. */
+.gls-popup-skin-telegram .gls-popup-title { border-bottom-style: dashed; }
+.gls-popup-skin-telegram .gls-popup-title-idx,
+.gls-popup-skin-bubble .gls-popup-title-idx,
+.gls-popup-skin-glass .gls-popup-title-idx {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.35em;
+    font-style: normal;
+    font-variant-numeric: lining-nums tabular-nums;
+    vertical-align: baseline;
+    line-height: 1;
+    font-size: 0.62em;
+    font-weight: 700;
+    width: 1.7em;
+    height: 1.7em;
+    transform: translateY(0.08em);
+}
+.gls-popup-skin-telegram .gls-popup-title-idx {
+    border: 1px dashed var(--gls-edge);
+    border-radius: 2px;
+    color: var(--gls-text);
+}
+.gls-popup-skin-bubble .gls-popup-title-idx {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--gls-accent) 26%, transparent);
+    color: var(--gls-text);
+}
+.gls-popup-skin-glass .gls-popup-title-idx {
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--gls-text) 24%, transparent);
+    background: linear-gradient(160deg,
+        color-mix(in srgb, white 38%, transparent),
+        color-mix(in srgb, var(--gls-text) 10%, transparent));
+}
 
 /* ── Skin: codex — an illuminated manuscript slip (v2) ── */
 .gls-popup-skin-codex .gls-popup,
@@ -3919,8 +3999,13 @@
 }
 
 .gls-s-seg-btn.gls-s-seg-active {
-    background: var(--gls-accent);
-    color: #111;
+    /* One calm signal (mock-up spec): accent ring + light tint, no fill.
+       The old solid accent fill + hardcoded #111 text broke on themes whose
+       --SmartThemeQuoteColor is dark — the ring/tint pair reads on any
+       accent, and the text keeps the theme's own color. */
+    background: color-mix(in srgb, var(--gls-accent) 12%, transparent);
+    box-shadow: inset 0 0 0 1px var(--gls-accent);
+    color: var(--gls-text);
     opacity: 1;
     font-weight: 600;
 }
@@ -3993,7 +4078,6 @@
     /* Closed accordion headers hover neutral (they carry no accent until
        opened — see the [aria-expanded="true"] rule above). */
     .gls-s-section-header:hover { background: color-mix(in srgb, var(--gls-text) 8%, transparent); }
-    .gls-s-sub-section-toggle:hover { background: color-mix(in srgb, var(--gls-accent) 18%, transparent); }
     .gls-fs-btn:hover {
         opacity: 1;
         border-color: var(--gls-accent);
