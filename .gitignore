@@ -2,6 +2,23 @@
 node_modules/
 Thumbs.db
 desktop.ini
+.DS_Store
+# Editor swap/backup files
+.vscode/
+.idea/
+*.bak
+*.tmp
+*.orig
+*.swp
+*~
 *.log
 # Internal working notes (AI code reviews etc.) — kept locally, not published.
 docs/
+# Design & Figma working artifacts — kept locally, not published.
+design/
+figma/
+PROJECT_MAP.md
+# Local secrets and test-coverage output — never publish.
+.env
+.env.*
+coverage/
