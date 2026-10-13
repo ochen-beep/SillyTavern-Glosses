@@ -150,7 +150,7 @@ export function saveChatLoreConfig(config, ctx = getCtx()) {
     }
     ctx.chatMetadata[LORE_META_KEY] = normalized;
     // Debounced host save: lore config is not latency-critical, and Glosses'
-    // metadata writer flush (flushMetadata) covers close-mid-write.
+    // writer flush (flushWriters) covers close-mid-write.
     ctx.saveMetadataDebounced?.();
     return normalized;
 }

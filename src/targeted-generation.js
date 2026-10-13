@@ -104,9 +104,7 @@ Targets are authoritative user choices: they need not occur in the chat post; ne
 Never continue the scene. Never write narrative prose. Return only the requested JSON.`;
 
 let activeRun = null;
-let requestOverride = null;
 
-export function setTargetedRequest(fn) { requestOverride = typeof fn === 'function' ? fn : null; }
 export function clearTargetedState() {
     if (activeRun) activeRun.controller.abort();
     activeRun = null;
@@ -129,7 +127,7 @@ export async function generateTargetedFootnotes(options = {}) {
         else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
     }
     try {
-        const request = options.request || requestOverride || (async (system, user, signal) => {
+        const request = options.request || (async (system, user, signal) => {
             const s = S();
             if (s.source === 'profile') {
                 const { generateWithProfile } = await import('./connection.js');

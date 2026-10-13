@@ -309,8 +309,12 @@ function withTimeoutSignal(signal, ms) {
 
 /**
  * Confirm (or reject) a custom endpoint's origin for an insecure-http URL.
- * Returns { ok: true } once the origin is on the allow-list; a persistence
- * failure rolls back the confirmation and rejects the request (plan stage 8).
+ * Returns { ok: true } once the origin is on the allow-list (plan stage 8).
+ *
+ * Persistence is best-effort: saveSettings() is the host's fire-and-forget
+ * debounced write — it never throws, so no rollback path exists to catch a
+ * persistence failure. The in-memory settings object is the session's source
+ * of truth; the disk write lands with the host's next settings flush.
  *
  * @param {string} normalizedUrl - canonicalized endpoint URL
  * @param {string[]} allowList - current S().customEndpointAllowlist
@@ -318,22 +322,9 @@ function withTimeoutSignal(signal, ms) {
  */
 export async function confirmInsecureEndpoint(normalizedUrl, allowList) {
     const next = [...(Array.isArray(allowList) ? allowList : [])];
-    if (!next.some(item => {
-        try {
-            return new URL(item).hostname === new URL(normalizedUrl).hostname
-                && new URL(item).protocol === new URL(normalizedUrl).protocol;
-        } catch { return false; }
-    })) {
-        next.push(normalizedUrl);
-    }
-    try {
-        S().customEndpointAllowlist = next;
-        saveSettings();
-    } catch {
-        // Persistence failure: roll back and refuse the request.
-        S().customEndpointAllowlist = allowList;
-        return { ok: false, reason: 'Could not save the endpoint confirmation. Try again.' };
-    }
+    if (!isOriginAllowed(normalizedUrl, next)) next.push(normalizedUrl);
+    S().customEndpointAllowlist = next;
+    saveSettings();
     return { ok: true };
 }
 

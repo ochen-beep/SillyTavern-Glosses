@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './helpers/stub-runtime.mjs';
-import { getForcedIgnore, saveForcedIgnore, getPoolExcluded, togglePoolExcluded, flushMetadata } from '../src/cache.js';
+import { getForcedIgnore, saveForcedIgnore, getPoolExcluded, togglePoolExcluded, flushWriters } from '../src/cache.js';
 import { resetCtx } from './helpers/stub-runtime.mjs';
 
 test('getForcedIgnore returns [] for legacy stores', () => {
@@ -16,7 +16,7 @@ test('saveForcedIgnore trims, normalizes duplicates, preserves first display for
     const result = saveForcedIgnore(['  КОТ  ', 'кот', '', 'мир — здесь', 'мир - здесь']);
     assert.deepEqual(result, ['КОТ', 'мир — здесь']);
     assert.deepEqual(getForcedIgnore(), ['КОТ', 'мир — здесь']);
-    await flushMetadata();
+    await flushWriters();
 });
 
 test('getPoolExcluded returns [] for legacy stores without the field', () => {

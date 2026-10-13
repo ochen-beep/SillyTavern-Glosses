@@ -105,6 +105,8 @@ export function showCopied(btn, { iconSize = 12, doneClass = 'gls-panel-copy--do
  *   validateContext?: () => boolean,
  *   onRefreshHighlights?: (footnotes: any[] | null, msgId: string) => void,
  *   onAfterEdit?: (footnotes: any[], message: any) => void,
+ *   onEditCancelled?: () => void,
+ *   onEditStarted?: () => void,
  *   onAfterDelete?: () => void,
  *   onAfterCopy?: () => void,
  * }} opts
@@ -143,7 +145,7 @@ export function buildFootnoteActions(opts) {
             showCopied(copy, { doneClass: copyDoneCls, iconSize, labelled: !iconOnly });
             opts.onAfterCopy?.();
         } else {
-            toastr?.error?.(t('Copy failed'));
+            globalThis.toastr?.error?.(t('Copy failed'));
         }
     }, { iconSize, iconOnly });
     const edit = makeActionButton(editCls, 'pen', t('Edit'), () => {
@@ -160,8 +162,14 @@ export function buildFootnoteActions(opts) {
             kind,
             validateContext: opts.validateContext,
             onSaved: opts.onAfterEdit,
-            onCancelled: opts.onAfterEdit,
+            // Saved and cancelled are different outcomes. The panel re-renders
+            // the row either way (its onAfterEdit is a re-render), but the
+            // POPUP used to close on a bare cancel — onAfterEdit there is
+            // closePopup, because after a SAVE the payload changed. Surfaces
+            // that want cancel-to-stay-open pass onEditCancelled (renderer.js).
+            onCancelled: opts.onEditCancelled || opts.onAfterEdit,
         });
+        opts.onEditStarted?.();
     }, { iconSize, iconOnly });
     // Delete: trash glyph — a bare ✕ read as "close this footnote" next to the
     // header's actual close button.
@@ -177,7 +185,7 @@ export function buildFootnoteActions(opts) {
         });
         if (!result.ok) {
             if (result.reason === 'stale') {
-                toastr?.warning?.(t('The message changed; delete was cancelled'));
+                globalThis.toastr?.warning?.(t('The message changed; delete was cancelled'));
             }
             return;
         }

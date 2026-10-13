@@ -26,9 +26,10 @@
 import { S } from '../core.js';
 
 const SKIN_CLASS_PREFIX = 'gls-popup-skin-';
-// Mirrors the skin id list in applyHighlightStyles (renderer.js) — the same
-// fixed vocabulary the :root classes and the CSS rules key on.
-const SKINS = [
+// Single source of the skin id vocabulary — applyHighlightStyles (renderer.js)
+// imports this same list for its :root class reset; settings.html's
+// #gls_popup_theme options must stay in sync with it.
+export const SKINS = [
     'adaptive', 'paper', 'terminal', 'telegram', 'bubble', 'glass', 'codex',
     'neon', 'vellum', 'inkwell', 'washi', 'tideglass', 'herbarium', 'marquee',
     'rime', 'adobe', 'velvet', 'phosphor', 'rosewindow', 'mahou', 'moonjar',

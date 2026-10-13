@@ -14,6 +14,8 @@ desktop.ini
 *.log
 # Internal working notes (AI code reviews etc.) — kept locally, not published.
 docs/
+# GUI acceptance-run screenshots — local evidence, not published.
+gui-test-screenshots/
 # Design & Figma working artifacts — kept locally, not published.
 design/
 figma/

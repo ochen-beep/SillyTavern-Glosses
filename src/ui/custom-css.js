@@ -32,7 +32,7 @@
  * literal (e.g. content: ".gls-popup") is mirrored too. Harmless in practice.
  */
 
-import { S, t, saveSettings } from '../core.js';
+import { S, t, saveSettings, escapeHtml, debounce } from '../core.js';
 import { buildPopupHeader } from './popup-header.js';
 
 export const STYLE_ID = 'gls-custom-css';
@@ -246,18 +246,6 @@ export function closeCssEditor() {
 // input (300 ms debounce); close always commits pending text first, so
 // Escape / outside click / Done can never lose work.
 
-const escHtml = (s) => String(s).replace(/[&<>"']/g, c => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-));
-
-function debounce(fn, ms) {
-    let id = 0;
-    return (...args) => {
-        clearTimeout(id);
-        id = setTimeout(() => fn(...args), ms);
-    };
-}
-
 /** Live popup preview twin for the dialog's right column. */
 function buildPreviewTwin() {
     const wrap = document.createElement('div');
@@ -269,8 +257,8 @@ function buildPreviewTwin() {
     const body = document.createElement('div');
     body.className = 'gls-popup-body';
     body.innerHTML = [
-        `<div class="gls-popup-title"><sup class="gls-popup-title-idx">1</sup><span>${escHtml(t('Kraken'))}</span></div>`,
-        `<p class="gls-popup-text">${escHtml(t('A colossal sea beast — sailors say its arms can crush a whole fleet.'))}</p>`,
+        `<div class="gls-popup-title"><sup class="gls-popup-title-idx">1</sup><span>${escapeHtml(t('Kraken'))}</span></div>`,
+        `<p class="gls-popup-text">${escapeHtml(t('A colossal sea beast — sailors say its arms can crush a whole fleet.'))}</p>`,
     ].join('');
     wrap.appendChild(body);
     return wrap;

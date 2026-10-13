@@ -9,7 +9,7 @@
  */
 
 import {
-    state, S, getCtx, t, MIN_POST_LENGTH,
+    state, S, getCtx, t, warn, MIN_POST_LENGTH,
 } from './core.js';
 import { generationCoordinator } from './application/generation-coordinator.js';
 import {
@@ -36,6 +36,13 @@ import { checkSourceConfigured } from './connection.js';
 
 const _eventHandlers = {};
 let _eventsBound = false;
+
+// Fire-and-forget with a log line. ST AWAITS every event subscriber
+// (eventemitter.js) — CHARACTER_MESSAGE_RENDERED mid-Generate, MESSAGE_SWIPED
+// before the next swipe — and these handlers can run a full LLM request (up
+// to the endpoint timeout). Returning that promise would stall the host's
+// pipeline; race safety lives in the generation coordinator's guards.
+const bg = (p, msg) => p.catch(e => warn(msg, e));
 // Feature-detect MESSAGE_UPDATED (emitted AFTER ST re-renders an edited
 // message — script.js messageEditDone). Min client has it; the fallback for
 // hosts without it rebinds on MESSAGE_EDITED with a deferred DOM injection.
@@ -111,6 +118,7 @@ export function unbindEvents() {
     }
     Object.keys(_eventHandlers).forEach(k => delete _eventHandlers[k]);
     _eventsBound = false;
+    if (_editedRaf) { cancelAnimationFrame(_editedRaf); _editedRaf = 0; }
 }
 
 function onAppReady() {
@@ -123,6 +131,8 @@ function onAppReady() {
 // the 0ms window lets the callback re-arm the scroll observer on a torn-down
 // extension (same class of bug index.js fixes for its own _scrollInitTimer).
 let _postChatSwitchTimer = null;
+// Owned handle for the no-MESSAGE_UPDATED fallback double-rAF (onMsgEdited).
+let _editedRaf = 0;
 
 function onChatChanged() {
     // Stage 6: invalidate ALL in-flight generations — chat change bumps the
@@ -211,7 +221,7 @@ async function presentVariant(messageId, swipeIdx, mesEl) {
     await autoGenerateIfConfigured(messageId, swipeIdx, mesEl);
 }
 
-async function onCharMsgRendered(messageId) {
+function onCharMsgRendered(messageId) {
     const ctx = getCtx();
     const msg0 = ctx.chat?.[parseInt(messageId)];
     // Claim the pending WORLD_INFO_ACTIVATED payload BEFORE any skip-guard
@@ -253,7 +263,7 @@ async function onCharMsgRendered(messageId) {
     invalidateAiMsgCache();
     state.panelFocusMsgId = String(messageId);
 
-    await presentVariant(messageId, swipeIdx, mesEl);
+    bg(presentVariant(messageId, swipeIdx, mesEl), 'presentVariant failed:');
 }
 
 // swipes.length per message id, captured at render and at every swipe event.
@@ -295,7 +305,7 @@ function relocateClonedPayload(messageId) {
     clearPayload(msg, newIdx);
 }
 
-async function onMsgSwiped(messageId) {
+function onMsgSwiped(messageId) {
     // A swipe changes the text identity for THIS message. Bump its per-message
     // revision (aborting its run) instead of the global epoch, so an unrelated
     // in-flight generation of another message keeps running.
@@ -304,7 +314,7 @@ async function onMsgSwiped(messageId) {
     const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
     removeHighlights(mesEl);
     relocateClonedPayload(messageId);
-    await presentCurrentSwipe(messageId, mesEl);
+    bg(presentCurrentSwipe(messageId, mesEl), 'presentCurrentSwipe failed:');
 }
 
 /**
@@ -353,7 +363,7 @@ async function presentCurrentSwipe(messageId, mesEl) {
  * re-presented (its cached payload restored, or fresh generation kicked off
  * if it never had one).
  */
-async function onMsgSwipeDeleted({ messageId } = {}) {
+function onMsgSwipeDeleted({ messageId } = {}) {
     if (messageId === undefined || messageId === null) return;
     generationCoordinator.bumpMessageRevision(messageId);
     // The splice shrank swipes — resync the length cache so the next appending
@@ -363,7 +373,7 @@ async function onMsgSwipeDeleted({ messageId } = {}) {
     const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
     removeHighlights(mesEl);
     panelInvalidate();
-    await presentCurrentSwipe(messageId, mesEl);
+    bg(presentCurrentSwipe(messageId, mesEl), 'presentCurrentSwipe failed:');
 }
 
 function onMsgEdited(messageId) {
@@ -380,8 +390,14 @@ function onMsgEdited(messageId) {
     updatePanel();
     // Hosts without MESSAGE_UPDATED: re-render happens synchronously inside
     // messageEditDone, so a double-rAF lands after the new .mes_text is up.
+    // The handle is module-owned so unbindEvents can cancel it — otherwise a
+    // disable inside the 2-frame window runs a rebind on a torn-down
+    // extension (same class of bug _postChatSwitchTimer fixes).
     if (!_hasUpdatedEvent) {
-        requestAnimationFrame(() => requestAnimationFrame(() => onMsgUpdated(messageId)));
+        if (_editedRaf) cancelAnimationFrame(_editedRaf);
+        _editedRaf = requestAnimationFrame(() => {
+            _editedRaf = requestAnimationFrame(() => { _editedRaf = 0; onMsgUpdated(messageId); });
+        });
     }
 }
 
@@ -399,7 +415,7 @@ function onMsgEdited(messageId) {
  * cancelled. Skip rebind entirely while a translation is on screen; when the
  * user un-translates, the digest re-matches and the cached payload restores.
  */
-async function onMsgUpdated(messageId) {
+function onMsgUpdated(messageId) {
     const ctx = getCtx();
     const msg = ctx.chat?.[parseInt(messageId)];
     if (!msg || msg.is_system || !S().enabled) return;
@@ -413,7 +429,7 @@ async function onMsgUpdated(messageId) {
         // otherwise an edit that trips the foreign rule would leave the post
         // silently without footnotes and without a lost-anchors banner.
         const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
-        await autoGenerateIfConfigured(messageId, swipeIdx, mesEl);
+        bg(autoGenerateIfConfigured(messageId, swipeIdx, mesEl), 'autoGenerate after update failed:');
         panelInvalidate();
         updatePanel();
         return;
@@ -434,13 +450,14 @@ async function onMsgUpdated(messageId) {
     updatePanel();
 }
 
-function onMsgDeleted(messageId, newLength) {
+function onMsgDeleted() {
     // Payloads live inside the message objects, so deletion disposes of them
     // with the message and index shifts move surviving data with its message —
-    // no reindex remap is needed (or possible to get wrong) anymore.
+    // no reindex remap is needed (or possible to get wrong) anymore. The host
+    // emits only the NEW chat length (script.js:1611) — not a message id — so
+    // we re-read ctx.chat instead of trusting a positional payload.
     const ctx = getCtx();
-    const chatLen = Array.isArray(ctx.chat) ? ctx.chat.length
-        : (typeof newLength === 'number' ? newLength : 0);
+    const chatLen = Array.isArray(ctx.chat) ? ctx.chat.length : 0;
     invalidateAiMsgCache();
 
     // Fix the panel focus pointer: an out-of-range focus is dropped so
@@ -481,6 +498,9 @@ function onMoreMessagesLoaded() {
 async function autoGenerateIfConfigured(messageId, swipeIdx, mesEl) {
     if (!S().autoGenerate || state.isGenerating[messageId]) return;
     const cfg = await checkSourceConfigured();
+    // Re-gate after the await: a sibling present call may already have started
+    // a run for this message while the config probe was in flight.
+    if (!S().autoGenerate || state.isGenerating[messageId]) return;
     // §6.4: re-record on every check so the floating panel sees the latest
     // result (not just the first unconfigured episode) and can show a
     // persistent "Source not configured" badge instead of silently idling.
@@ -488,7 +508,7 @@ async function autoGenerateIfConfigured(messageId, swipeIdx, mesEl) {
     if (!cfg.ok) {
         if (!state.configWarned) {
             state.configWarned = true;
-            toastr?.info?.(`[Glosses] ${t('Auto-generation paused: {0}', cfg.reason)}`);
+            globalThis.toastr?.info?.(`[Glosses] ${t('Auto-generation paused: {0}', cfg.reason)}`);
         }
         return;
     }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findAllAnchorSpans, findAnchorInText, normalizeAnchorKey, normalizeLineTargets } from '../src/anchor-utils.js';
+import { findAllAnchorSpans, findAnchorInText, normalizeAnchorKey } from '../src/anchor-utils.js';
 
 test('normalizeAnchorKey applies NFC, case, typography, dashes, and whitespace rules', () => {
     assert.equal(normalizeAnchorKey('  Cafe\u0301\t“Hello” – world  '), 'café "hello" - world');
@@ -24,9 +24,4 @@ test('findAllAnchorSpans returns all non-overlapping occurrences', () => {
         { text: 'cat', start: 5, end: 8 },
         { text: 'CAT', start: 19, end: 22 },
     ]);
-});
-
-test('normalizeLineTargets trims, deduplicates, and caps targets', () => {
-    const result = normalizeLineTargets(' One \n\n one\nTwo\nThree\nFour', 2);
-    assert.deepEqual(result, { targets: ['One', 'Two'], duplicateCount: 1, truncatedCount: 2 });
 });

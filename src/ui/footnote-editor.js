@@ -24,10 +24,9 @@
  *                 viewing, caller re-resolves context).
  *
  * Ownership / disposal:
- *   - mount(host, opts) replaces the host's contents and returns a disposer.
- *   - The disposer removes all listeners this component attached (textarea
- *     keydown, Save/Cancel clicks, document-level Escape fallback) so a
- *     teardown mid-edit leaks nothing.
+ *   - mount(host, opts) replaces the host's contents. The editor's listeners
+ *     live on the elements it creates, so they are GC'd with the row DOM when
+ *     the caller re-renders — no disposer is returned or needed.
  *   - Escape cancels the edit and the caller restores focus (plan §2.4).
  *
  * Deps: icons, core (t), parser (stripLeadingNumber), application commands.
@@ -51,7 +50,6 @@ import { editFootnote, beginEditEpoch } from '../application/footnote-commands.j
  *   onSaved?: (footnotes: any[], message: any) => void,
  *   onCancelled?: () => void,
  * }} opts
- * @returns {() => void} disposer — removes all listeners this component attached.
  */
 export function mountInlineEditor(hostEl, opts) {
     const { fn, msgId, swipeIdx, digest, kind, validateContext, onSaved, onCancelled } = opts;
@@ -123,7 +121,7 @@ export function mountInlineEditor(hostEl, opts) {
             phase = 'editing';
             save.disabled = false;
             cancel.disabled = false;
-            toastr?.warning?.(t('Footnote text is required'));
+            globalThis.toastr?.warning?.(t('Footnote text is required'));
             return;
         }
         if (result.reason === 'persistence-error') {
@@ -132,7 +130,7 @@ export function mountInlineEditor(hostEl, opts) {
             phase = 'editing';
             save.disabled = false;
             cancel.disabled = false;
-            toastr?.error?.(t('Could not save the edit; try again'));
+            globalThis.toastr?.error?.(t('Could not save the edit; try again'));
             return;
         }
         // 'stale' / 'not-found' — the message or the footnote moved under us;
@@ -140,7 +138,7 @@ export function mountInlineEditor(hostEl, opts) {
         phase = 'editing';
         save.disabled = false;
         cancel.disabled = false;
-        toastr?.warning?.(t('The message changed; edit was cancelled'));
+        globalThis.toastr?.warning?.(t('The message changed; edit was cancelled'));
         onCancelled?.();
     };
 
@@ -161,13 +159,4 @@ export function mountInlineEditor(hostEl, opts) {
     save.addEventListener('click', handleSave);
     cancel.addEventListener('click', handleCancel);
     input.addEventListener('keydown', handleKeydown);
-
-    // ── Disposer ──
-    return () => {
-        save.removeEventListener('click', handleSave);
-        cancel.removeEventListener('click', handleCancel);
-        input.removeEventListener('keydown', handleKeydown);
-        // Leave the DOM in place (the caller decides whether to clear hostEl);
-        // we only guarantee no listener survives.
-    };
 }

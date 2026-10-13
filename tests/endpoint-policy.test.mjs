@@ -11,11 +11,11 @@ import assert from 'node:assert/strict';
 //   - classifies https / loopback-http / insecure-http;
 //   - canonicalizes to a chat completions URL.
 //
-// isOriginAllowed / addToAllowList implement the confirmed-origin allow-list
-// that gates non-loopback HTTP requests.
+// isOriginAllowed implements the confirmed-origin allow-list that gates
+// non-loopback HTTP requests (origins are pinned INCLUDING the port).
 
 import {
-    classifyEndpoint, isOriginAllowed, addToAllowList,
+    classifyEndpoint, isOriginAllowed,
 } from '../src/infrastructure/endpoint-policy.js';
 
 // ── Classification ──
@@ -94,16 +94,10 @@ test('isOriginAllowed handles malformed entries gracefully', () => {
     assert.equal(isOriginAllowed('https://host/v1', null), false);
 });
 
-test('addToAllowList adds a new origin and dedupes existing ones', () => {
-    const list = addToAllowList('http://a.example.com/v1', []);
-    assert.equal(list.length, 1);
-    // Same host, different path → no duplicate.
-    const list2 = addToAllowList('http://a.example.com/v1/chat/completions', list);
-    assert.equal(list2.length, 1);
-    // Different host → appended.
-    const list3 = addToAllowList('http://b.example.com/v1', list2);
-    assert.equal(list3.length, 2);
-    // https vs http same host → distinct entries (different scheme).
-    const list4 = addToAllowList('https://a.example.com/v1', list3);
-    assert.equal(list4.length, 3);
+test('isOriginAllowed pins the port — a different port is NOT covered by the confirmation', () => {
+    const allow = ['http://api.example.com:1234/v1/chat/completions'];
+    assert.equal(isOriginAllowed('http://api.example.com:1234/v1/chat/completions', allow), true);
+    assert.equal(isOriginAllowed('http://api.example.com:9999/v1/chat/completions', allow), false, 'port mismatch must not inherit the confirmation');
+    // Default ports normalize away: http:80 / https:443 match port-less entries.
+    assert.equal(isOriginAllowed('http://api.example.com:80/v1/chat/completions', ['http://api.example.com/v1/chat/completions']), true);
 });

@@ -313,6 +313,24 @@ export function loadSettings() {
         state.settings.launcherMode = DEFAULT_SETTINGS.launcherMode;
         settingsChanged = true;
     }
+    // Numeric range guards — mirror the min/max contract the inputs declare in
+    // settings.html (max footnotes 1–20, context depth 0–50). Native number
+    // validation doesn't stop typed values, so a persisted 0/25 would otherwise
+    // survive reloads and show in the UI even though the prompt builder clamps.
+    const maxFn = parseInt(state.settings.maxFootnotes, 10);
+    if (!Number.isFinite(maxFn) || maxFn < 1 || maxFn > 20) {
+        state.settings.maxFootnotes = Number.isFinite(maxFn)
+            ? Math.min(20, Math.max(1, maxFn))
+            : DEFAULT_SETTINGS.maxFootnotes;
+        settingsChanged = true;
+    }
+    const ctxDepth = parseInt(state.settings.contextDepth, 10);
+    if (!Number.isFinite(ctxDepth) || ctxDepth < 0 || ctxDepth > 50) {
+        state.settings.contextDepth = Number.isFinite(ctxDepth)
+            ? Math.min(50, Math.max(0, ctxDepth))
+            : DEFAULT_SETTINGS.contextDepth;
+        settingsChanged = true;
+    }
     // Hybrid ALL became a manual configuration; retain every setting it applied.
     if (state.settings.selectedPreset === 'hybrid-all-ru') {
         state.settings.selectedPreset = '';
@@ -471,20 +489,6 @@ export async function showConfirmModal(message) {
     return window.confirm(message);
 }
 
-// Returns the entered string, or null if the user cancelled/blanked out.
-export async function showInputModal(message, defaultValue = '') {
-    try {
-        const ctx = getCtx();
-        if (ctx?.Popup?.show?.input) {
-            const result = await ctx.Popup.show.input(t('Input'), message, defaultValue);
-            if (typeof result === 'string' && result.trim()) return result.trim();
-            return null;
-        }
-    } catch { /* fall through to native prompt */ }
-    const raw = window.prompt(message, defaultValue);
-    return raw && raw.trim() ? raw.trim() : null;
-}
-
 // ── i18n ──
 // ST auto-loads the i18n JSON declared in manifest.json at activation
 // (addExtensionLocale in extensions.js + addLocaleData in i18n.js), so we
@@ -499,17 +503,22 @@ export async function showInputModal(message, defaultValue = '') {
 //
 // We resolve official translate WITHOUT a top-level await so core.js can keep
 // loading synchronously (top-level await would block every module that
-// imports core.js until i18n.js resolves — bad for UI init). Instead we
-// kick off the resolution eagerly and let t() use the identity fallback
-// until the Promise resolves (microseconds to milliseconds).
+// imports core.js until i18n.js resolves — bad for UI init). Instead the
+// resolution is kicked off AT MODULE EVAL (bottom of this section) — not
+// lazily on the first t() call. The lazy start was a real bug: onActivate →
+// init() runs buildPanel in the SAME synchronous block as the first t() call,
+// and a dynamic import never settles mid-block, so every build-time string
+// (floating-panel tab labels, button titles) fell back to the raw English key
+// on a clean page load while later renders came out localized. Starting the
+// import at module eval lets it settle (cached module → microtask) long
+// before the activate hook runs.
 
 let _translateFn = null;
 let _translateReady = false;
 
-/** Lazy resolver — starts the ESM import + global-fallback chain. Memoises
- *  the first successful surface (official ESM `translate`, then the
- *  `SillyTavern.translate` global, then identity). Resolves null if both
- *  miss. Idempotent — safe to call multiple times. */
+/** Resolver — starts the ESM import + global-fallback chain. Memoises the
+ *  first successful surface (official ESM `translate`, then the ST context's
+ *  `translate`, then identity). Idempotent — safe to call multiple times. */
 function _resolveTranslate() {
     if (_translateReady) return;
     _translateReady = true;
@@ -518,33 +527,46 @@ function _resolveTranslate() {
             if (typeof mod?.translate === 'function') _translateFn = mod.translate;
         })
         .catch(() => { /* fall through to global */ });
-    // Also pre-cache the global fallback — checked inside t() until the
-    // import settles (and again if the import rejected).
+}
+
+/** Sync global fallback for the window before the ESM import settles (and
+ *  permanently if it rejects — e.g. an exotic mount where the relative path
+ *  misses). NOTE: the ST API object carries only { libs, getContext } — there
+ *  is NO `SillyTavern.translate` global; the official translate() is exposed
+ *  on the CONTEXT (st-context.js), so that is where the fallback looks. */
+function _globalTranslate() {
+    const api = globalThis.SillyTavern;
+    if (typeof api?.translate === 'function') return api.translate;
+    try {
+        const fn = api?.getContext?.()?.translate;
+        return typeof fn === 'function' ? fn : null;
+    } catch { return null; }
 }
 
 /** Translate a key, falling back to the key itself. Positional {0}, {1}, …
- *  placeholders are replaced with the extra args via split/join (so args
- *  containing '$' or '&' are not misread as replacement patterns). Wraps
- *  ST's official `translate(text, key=null)` from scripts/i18n.js; until
- *  the resolver settles (or if both ESM + global surfaces are absent) the
- *  identity fallback keeps Glosses working with English labels — degraded
- *  but never crashing (spec §5.1). */
+ *  placeholders are replaced with the extra args. The replacer is a FUNCTION
+ *  so args containing '$' or '&' are inserted verbatim, not misread as
+ *  replacement patterns. Wraps ST's official `translate(text, key=null)` from
+ *  scripts/i18n.js; until the resolver settles (or if both ESM + global
+ *  surfaces are absent) the identity fallback keeps Glosses working with
+ *  English labels — degraded but never crashing (spec §5.1). */
 export function t(key, ...args) {
     if (!_translateReady) _resolveTranslate();
     let fn = _translateFn;
-    if (!fn && typeof SillyTavern?.translate === 'function') {
-        fn = SillyTavern.translate;
+    if (!fn) {
+        fn = _globalTranslate();
         // Latch so we don't pay the global lookup on every call.
-        _translateFn = fn;
+        if (fn) _translateFn = fn;
     }
     let s = fn ? (fn(key, key) ?? key) : key;
-    if (args.length) {
-        for (let i = 0; i < args.length; i++) {
-            s = s.split(`{${i}}`).join(args[i]);
-        }
+    for (let i = 0; i < args.length; i++) {
+        s = s.replaceAll(`{${i}}`, () => String(args[i]));
     }
     return s;
 }
+
+// Eager start — see the block comment above (build-time strings race).
+_resolveTranslate();
 
 // ── Shared mutable DOM helper ──
 // Reusable offscreen div for HTML → plain text extraction. Avoids creating a
@@ -552,16 +574,21 @@ export function t(key, ...args) {
 const _plainTextDiv = document.createElement('div');
 
 export function extractPlainText(htmlString) {
-    // Strip ST custom noise tags that innerHTML→innerText would otherwise
-    // leave visible as literal text in both the annotation target and the
-    // background block. TPBR banners are intentionally KEPT — they describe
-    // the scene and the words inside them are valid post-text substrings.
+    // Strip ST custom noise tags that would otherwise stay visible as literal
+    // text in both the annotation target and the background block. TPBR
+    // banners are intentionally KEPT — they describe the scene and the words
+    // inside them are valid post-text substrings.
     // See spec 2026-07-02-glosses-context-separation-design.md §6.
+    // The div is never ATTACHED, so innerText degrades to textContent (no
+    // layout → no <br>/<p> newlines): serialize block boundaries explicitly or
+    // a multi-paragraph post reaches the prompt as one glued string.
     const raw = String(htmlString || '')
         .replace(/\[think][\s\S]*?\[\/think]/gi, '')
-        .replace(/\[ILST:[^\]]*]/gi, '');
+        .replace(/\[ILST:[^\]]*]/gi, '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, '\n');
     _plainTextDiv.innerHTML = raw;
-    const text = (_plainTextDiv.innerText || _plainTextDiv.textContent || '').trim();
+    const text = (_plainTextDiv.textContent || '').trim();
     _plainTextDiv.textContent = '';
     return text;
 }
@@ -569,6 +596,14 @@ export function extractPlainText(htmlString) {
 // ── Misc utilities ──
 export function escapeRegex(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Trailing debounce with a cancel handle for teardown paths. */
+export function debounce(fn, ms) {
+    let id = 0;
+    const d = (...args) => { clearTimeout(id); id = setTimeout(() => fn(...args), ms); };
+    d.cancel = () => { clearTimeout(id); id = 0; };
+    return d;
 }
 
 const _escMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };

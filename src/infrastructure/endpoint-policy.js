@@ -100,33 +100,14 @@ export function isOriginAllowed(normalizedUrl, allowList) {
         const u = new URL(normalizedUrl);
         return allowList.some(item => {
             try {
-                const allowed = new URL(item);
-                // Match on scheme + host (origin), ignoring path/port variance
-                // beyond what the allow-list entry pins.
-                return allowed.protocol === u.protocol && allowed.hostname === u.hostname;
+                // Origin compare = scheme + host + PORT: confirming
+                // http://host:1234 must not also authorize http://host:9999 —
+                // the user confirmed one concrete endpoint, not the whole host.
+                // (The path stays unpinned: allow-list entries are canonical
+                // …/v1/chat/completions URLs, the request URL is canonicalized
+                // the same way before this check.)
+                return new URL(item).origin === u.origin;
             } catch { return false; }
         });
     } catch { return false; }
-}
-
-/**
- * Add a normalized URL to the allow-list, preserving existing entries and
- * returning the new list. Persisting the result is the caller's job (a
- * persistence failure rolls back the confirmation and aborts the request).
- *
- * @param {string} normalizedUrl
- * @param {string[]} allowList
- * @returns {string[]}
- */
-export function addToAllowList(normalizedUrl, allowList) {
-    if (!normalizedUrl) return [...(allowList || [])];
-    const list = Array.isArray(allowList) ? [...allowList] : [];
-    if (!list.some(item => {
-        try { return new URL(item).hostname === new URL(normalizedUrl).hostname
-            && new URL(item).protocol === new URL(normalizedUrl).protocol; }
-        catch { return false; }
-    })) {
-        list.push(normalizedUrl);
-    }
-    return list;
 }

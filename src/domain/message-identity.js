@@ -17,7 +17,7 @@
  * becomes valid again — the desired behaviour (the footnotes still apply).
  */
 
-import { getCtx, MIN_POST_LENGTH } from '../core.js';
+import { MIN_POST_LENGTH } from '../core.js';
 
 /**
  * Compute a stable, non-cryptographic digest of the full NFC-normalized text.
@@ -40,27 +40,6 @@ export function contentDigest(text) {
         hash = ((hash * 33) ^ s.charCodeAt(i)) >>> 0;
     }
     return hash.toString(16).padStart(8, '0');
-}
-
-/**
- * Read the plain text of a message at a given swipe, mirroring ST's variant
- * selection rule (swipes[idx] when present, else mes). Returns '' when absent.
- *
- *   - variant text is never truncated, so prefix-sharing messages remain distinct.
- *
- * @param {number|string} msgId
- * @param {number} [swipeIdx]
- * @returns {string}
- */
-export function messageText(msgId, swipeIdx = 0) {
-    const ctx = getCtx();
-    const msg = ctx.chat?.[parseInt(msgId)];
-    if (!msg) return '';
-    const swipes = Array.isArray(msg.swipes) ? msg.swipes : null;
-    const candidate = swipes && swipes[parseInt(swipeIdx)] !== undefined
-        ? swipes[parseInt(swipeIdx)]
-        : msg.mes;
-    return String(candidate ?? '');
 }
 
 /**
@@ -92,26 +71,5 @@ export function isViableMessageText(text) {
  */
 export function isTranslatedView(msg) {
     return Boolean(msg?.extra?.display_text || msg?.extra?.reasoning_display_text);
-}
-
-/**
- * Build a full message identity object for a (msgId, swipeIdx).
- *
- * Returns null when the message is absent or its body is not viable (placeholder
- * / too short) — callers should treat null as "no identity, skip".
- *
- * @param {number|string} msgId
- * @param {number} [swipeIdx]
- * @returns {{ msgId: string, swipeIdx: number, contentDigest: string, text: string } | null}
- */
-export function buildIdentity(msgId, swipeIdx = 0) {
-    const text = messageText(msgId, swipeIdx);
-    if (!isViableMessageText(text)) return null;
-    return {
-        msgId: String(msgId),
-        swipeIdx: Number(swipeIdx),
-        contentDigest: contentDigest(text),
-        text,
-    };
 }
 

@@ -154,3 +154,40 @@ test('positionPopup: horizontal nudge keeps the popup inside the viewport', () =
     assert.equal(pos.left, 1024 - 10 - 320);
     assert.ok(pos.left >= 10, 'never off-screen left');
 });
+
+// ── clampPopupPosition (keyboard-band clamp, mobile fix) ──
+// While the popup editor is mounted, follow is frozen (the anchor may sit
+// behind the mobile keyboard) — but the popup itself must stay inside the
+// VISIBLE band. The band equals the whole viewport when the keyboard shrinks
+// the layout viewport (Android), and visualViewport.offsetTop/.height when it
+// only shrinks the visual viewport inside it (iOS).
+
+import { clampPopupPosition } from '../src/renderer.js';
+
+test('clampPopupPosition: pulls a popup parked under the keyboard back into the band', () => {
+    // 390x420 visible band; the popup sat at top=500 before the keyboard opened.
+    const out = clampPopupPosition({ left: 8, top: 500 }, 375, 300, 390, 0, 420);
+    assert.equal(out.top, 420 - 10 - 300, 'bottom edge clamps to band bottom minus margin');
+});
+
+test('clampPopupPosition: popup taller than the band pins to the band top', () => {
+    const out = clampPopupPosition({ left: 8, top: 120 }, 375, 700, 390, 0, 420);
+    assert.equal(out.top, 10, 'pins to band top + margin, scrolls internally');
+});
+
+test('clampPopupPosition: iOS band offset (visual viewport inside the layout one)', () => {
+    // The browser panned the visual viewport down to top=250; a popup parked at
+    // layout top=30 is behind the keyboard — pull it into the visible band.
+    const out = clampPopupPosition({ left: 8, top: 30 }, 375, 100, 390, 250, 300);
+    assert.equal(out.top, 260, 'clamps to bandTop + margin');
+});
+
+test('clampPopupPosition: fully visible popup is left alone', () => {
+    const out = clampPopupPosition({ left: 12, top: 60 }, 300, 200, 390, 0, 420);
+    assert.deepEqual(out, { left: 12, top: 60 }, "no clamp when the popup already fits");
+});
+
+test('clampPopupPosition: horizontal clamp stays viewport-bounded', () => {
+    const out = clampPopupPosition({ left: -40, top: 60 }, 375, 200, 390, 0, 844);
+    assert.equal(out.left, 10, 'left edge clamps to the margin');
+});

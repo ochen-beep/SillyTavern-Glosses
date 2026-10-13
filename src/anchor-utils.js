@@ -94,21 +94,3 @@ export function findAllAnchorSpans(text, anchor) {
         from = hit.end > hit.start ? hit.end : hit.start + 1;
     }
 }
-
-/** Parse one non-empty target per line, preserving first spelling and order. */
-export function normalizeLineTargets(value, limit = 20) {
-    const targets = [];
-    const seen = new Set();
-    let duplicateCount = 0;
-    let truncatedCount = 0;
-    for (const line of String(value ?? '').split(/\r?\n/u)) {
-        const target = line.trim();
-        if (!target) continue;
-        const key = normalizeAnchorKey(target);
-        if (seen.has(key)) { duplicateCount++; continue; }
-        seen.add(key);
-        if (targets.length >= limit) { truncatedCount++; continue; }
-        targets.push(target);
-    }
-    return { targets, duplicateCount, truncatedCount };
-}

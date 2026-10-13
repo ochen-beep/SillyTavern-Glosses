@@ -4,6 +4,6 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs && node scripts/audit-unused-imports.mjs"
   }
 }

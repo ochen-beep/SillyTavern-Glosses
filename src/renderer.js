@@ -5,14 +5,10 @@
  *
  * Ported 1:1 from SillyTavern-Footnotes. The anchor-walking TreeWalker, the
  * pointerup/click touch-toggle trick, and the popup positioning all stay as-is.
- *
- * The big bug fix carried over from the review: buildAnchorRegex now uses SINGLE
- * backslashes in its String.raw lookbehind/lookahead so \p{L} actually matches
- * Unicode letters (the original double-escaped \p silently broke the regex and
- * always fell through to the ASCII-only \b branch — bad for Cyrillic/CJK text).
  */
 
-import { S, getCtx, t, escapeRegex, sanitize, warn } from './core.js';
+import { state, S, getCtx, t, sanitize, warn } from './core.js';
+import { generationCoordinator } from './application/generation-coordinator.js';
 import { getVariantFootnotes, getVariantPayload, digestFor } from './cache.js';
 import { targetedOf } from './domain/footnote-payload.js';
 import { isTranslatedView } from './domain/message-identity.js';
@@ -23,6 +19,7 @@ import { rankOccurrencesByContext } from './domain/rebind.js';
 import { buildPopupHeader } from './ui/popup-header.js';
 import { buildFootnoteActions } from './ui/footnote-actions.js';
 import { applyCustomCss } from './ui/custom-css.js';
+import { SKINS } from './ui/skin-gallery.js';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // FOOTNOTE TEXT FORMATTING (mini-markdown + sanitize)
@@ -624,33 +621,6 @@ export function resetLazyInjector() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ANCHOR REGEX
-// ══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Build one combined regex matching any of the anchors at word boundaries.
- * Prefers Unicode-aware lookbehind/lookahead (\p{L}\p{N}) so Cyrillic/CJK and
- * other non-ASCII scripts get correct boundaries. Falls back to ASCII \b for
- * engines lacking lookbehind support.
- *
- * NOTE (review fix): the lookbehind/lookahead MUST use single backslashes —
- * `[\p{L}\p{N}_]`. The original `\p{L}` double-escape (in String.raw) became a
- * literal backslash-p, which either threw under the 'u' flag or matched the
- * letter "p", defeating the whole point and forcing the \b fallback.
- */
-export function buildAnchorRegex(anchors) {
-    if (!anchors.length) return null;
-    const escaped = anchors.map(a => escapeRegex(a));
-    try {
-        const parts = escaped.map(e => String.raw`(?<![\p{L}\p{N}_])(${e})(?![\p{L}\p{N}_])`);
-        return new RegExp(parts.join('|'), 'uig');
-    } catch {
-        const parts = escaped.map(e => `(\\b${e}\\b)`);
-        return new RegExp(parts.join('|'), 'ig');
-    }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
 // HIGHLIGHT STYLES (CSS custom properties)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -691,8 +661,8 @@ export function applyHighlightStyles() {
     // ride classes on :root — each level maps to a fixed CSS rule, so a bad
     // stored value can only fall back to the unclassed default. Radius is a
     // continuous slider, so it publishes a px var instead.
-    const skin = ['adaptive', 'paper', 'terminal', 'telegram', 'bubble', 'glass', 'codex', 'neon', 'vellum', 'inkwell', 'washi', 'tideglass', 'herbarium', 'marquee', 'rime', 'adobe', 'velvet', 'phosphor', 'rosewindow', 'mahou', 'moonjar', 'cinnabar', 'koyo', 'gloam', 'afterglow', 'starseed'].includes(s.popupTheme) ? s.popupTheme : 'adaptive';
-    root.classList.remove('gls-popup-skin-adaptive', 'gls-popup-skin-paper', 'gls-popup-skin-terminal', 'gls-popup-skin-telegram', 'gls-popup-skin-bubble', 'gls-popup-skin-glass', 'gls-popup-skin-codex', 'gls-popup-skin-neon', 'gls-popup-skin-vellum', 'gls-popup-skin-inkwell', 'gls-popup-skin-washi', 'gls-popup-skin-tideglass', 'gls-popup-skin-herbarium', 'gls-popup-skin-marquee', 'gls-popup-skin-rime', 'gls-popup-skin-adobe', 'gls-popup-skin-velvet', 'gls-popup-skin-phosphor', 'gls-popup-skin-rosewindow', 'gls-popup-skin-mahou', 'gls-popup-skin-moonjar', 'gls-popup-skin-cinnabar', 'gls-popup-skin-koyo', 'gls-popup-skin-gloam', 'gls-popup-skin-afterglow', 'gls-popup-skin-starseed');
+    const skin = SKINS.includes(s.popupTheme) ? s.popupTheme : 'adaptive';
+    for (const k of SKINS) root.classList.remove(`gls-popup-skin-${k}`);
     root.classList.add(`gls-popup-skin-${skin}`);
     root.classList.toggle('gls-popup-compact', s.popupDensity === 'compact');
     root.classList.toggle('gls-popup-shadow-soft', s.popupShadow === 'soft');
@@ -738,14 +708,21 @@ export function addRegenButton(messageId) {
     btn.innerHTML = '<i class="fa-solid fa-superscript"></i>';
     btn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        // Lazy import to avoid a renderer↔generator cycle.
-        const { state } = await import('./core.js');
+        // `state` comes from the static import above: the old
+        // `await import('./core.js')` here deferred the isGenerating check by a
+        // microtask, so two clicks in one tick both saw "not generating" and
+        // both started runs (the second superseded — a wasted API request).
         if (state.isGenerating[messageId]) {
-            state.abortControllers[messageId]?.abort();
+            // A bare abort() leaves the run "current": a transport that ignores
+            // AbortSignal would still pass isCurrent() and commit the
+            // "cancelled" generation. bumpMessageRevision aborts AND bumps the
+            // revision, so the commit guard fails even then.
+            generationCoordinator.bumpMessageRevision(messageId);
             return;
         }
         const swipeIdx = msg.swipe_id ?? 0;
         // Keep the previous highlights until the replacement validates and saves.
+        // Dynamic import: generator.js statically imports this module (cycle).
         const { generateFootnotes } = await import('./generator.js');
         await generateFootnotes(messageId, swipeIdx, mesEl);
     });
@@ -802,33 +779,25 @@ function refreshFloatingPanel() {
 }
 
 /**
- * Show the footnote popup anchored to a marker.
+ * (Re)render the footnote reading view into the popup body.
  *
- * @param {{ index: number, anchor: string, text: string }} fn - the footnote
- * @param {HTMLElement} anchorEl - the marker the popup is positioned against
- * @param {{ msgId?: string, swipeIdx?: number, fp?: string } | null} [ctx]
- *        Cache context for Edit/Delete. When null/absent (e.g. a manual call),
- *        only Copy is offered.
+ * Dictionary layout: the headword split from the raw text ("Term
+ * (source)") becomes the title row, prefixed with the footnote index;
+ * the body starts at the definition proper. When the text has no
+ * headword separator the anchored term stands in as the title (if any),
+ * and the full text stays the body either way.
+ * Strip the model-authored superscript first. `fn.index` is the canonical
+ * structural number (it survives renumbering and is rendered separately in
+ * the title); keeping both produced titles such as `7⁷ Крестовский остров`.
+ *
+ * Extracted from showPopup so the EDIT-CANCEL path can restore the reading
+ * view: the inline editor replaces the body's contents wholesale, and a bare
+ * cancel must return the popup to the footnote instead of closing it (the
+ * shared action bar used to map cancel and save onto the same close-down
+ * callback — UX fix).
  */
-export function showPopup(fn, anchorEl, ctx = null) {
-    const shouldToggle = _currentPopup && _popupAnchor === anchorEl;
-    closePopup();
-    if (shouldToggle) return;
-
-    const popup = document.createElement('div');
-    popup.className = 'gls-popup';
-    popup.setAttribute('role', 'dialog');
-
-    const body = document.createElement('div');
-    body.className = 'gls-popup-body';
-    // Dictionary layout: the headword split from the raw text ("Term
-    // (source)") becomes the title row, prefixed with the footnote index;
-    // the body starts at the definition proper. When the text has no
-    // headword separator the anchored term stands in as the title (if any),
-    // and the full text stays the body either way.
-    // Strip the model-authored superscript first. `fn.index` is the canonical
-    // structural number (it survives renumbering and is rendered separately in
-    // the title); keeping both produced titles such as `7⁷ Крестовский остров`.
+function renderPopupBodyView(body, fn) {
+    body.innerHTML = '';
     const displayText = stripLeadingNumber(fn.text).trim();
     const split = splitFootnoteHead(displayText);
     const title = split?.head || fn?.anchor || '';
@@ -851,6 +820,29 @@ export function showPopup(fn, anchorEl, ctx = null) {
     textEl.className = 'gls-popup-text';
     textEl.innerHTML = formatFootnoteText(split ? split.body : displayText);
     body.appendChild(textEl);
+}
+
+/**
+ * Show the footnote popup anchored to a marker.
+ *
+ * @param {{ index: number, anchor: string, text: string }} fn - the footnote
+ * @param {HTMLElement} anchorEl - the marker the popup is positioned against
+ * @param {{ msgId?: string, swipeIdx?: number, fp?: string } | null} [ctx]
+ *        Cache context for Edit/Delete. When null/absent (e.g. a manual call),
+ *        only Copy is offered.
+ */
+export function showPopup(fn, anchorEl, ctx = null) {
+    const shouldToggle = _currentPopup && _popupAnchor === anchorEl;
+    closePopup();
+    if (shouldToggle) return;
+
+    const popup = document.createElement('div');
+    popup.className = 'gls-popup';
+    popup.setAttribute('role', 'dialog');
+
+    const body = document.createElement('div');
+    body.className = 'gls-popup-body';
+    renderPopupBodyView(body, fn);
 
     // Header (Copy/Edit/Delete/Close) is optional: with popupShowHeader off the
     // popup is pure reading surface. Closing still works - Escape, outside
@@ -913,14 +905,20 @@ export function showPopup(fn, anchorEl, ctx = null) {
                     closePopup();
                     refreshFloatingPanel();
                 },
+                // Bare cancel (or Escape in the editor): discard the draft but
+                // STAY open — restore the reading view and re-anchor to wherever
+                // the viewport currently is (the keyboard may have been up).
+                // Closing here was the old behavior and read as data loss.
+                onEditCancelled: () => {
+                    _popupEditing = false;
+                    renderPopupBodyView(body, fn);
+                    if (_popupAnchor?.isConnected) positionPopup(popup, _popupAnchor);
+                },
+                // The editing flag drives Escape/freeze handling; set by the
+                // action bar when the editor mounts, cleared by the three exit
+                // callbacks (saved/cancelled/deleted) and by closePopup().
+                onEditStarted: () => { _popupEditing = true; },
             });
-            // Reflect editing state for Escape handling. The shared editor doesn't
-            // know about this popup-local flag, so we watch DOM mutations on body.
-            const mo = new MutationObserver(() => {
-                _popupEditing = body.querySelector('.gls-panel-edit-input') != null;
-            });
-            mo.observe(body, { childList: true, subtree: true });
-            popup._glsEditObserver = mo;
             actionsGroup.append(buttons.copy, buttons.edit, buttons.del);
         } else {
             // No cache context: offer Copy only, with inline "Copied ✓" feedback.
@@ -954,6 +952,11 @@ export function showPopup(fn, anchorEl, ctx = null) {
     // mobile, where the chat is scrolled constantly.
     document.addEventListener('scroll', onPopupViewportChange, { capture: true, passive: true });
     window.addEventListener('resize', onPopupViewportChange, { passive: true });
+    // Mobile keyboards change the VISIBLE band without a layout resize on iOS
+    // (visualViewport shrinks/pans inside the layout viewport) — follow it so
+    // the popup/edit can be clamped into what the user can actually see.
+    getVisualViewport()?.addEventListener('resize', onPopupViewportChange, { passive: true });
+    getVisualViewport()?.addEventListener('scroll', onPopupViewportChange, { passive: true });
 
     // Defer outside-listener registration so the opening click itself doesn't
     // immediately close the popup. The timer is owned on the popup instance so
@@ -1041,10 +1044,8 @@ export function closePopup() {
     if (_popupFollowRaf) { cancelAnimationFrame(_popupFollowRaf); _popupFollowRaf = 0; }
     document.removeEventListener('scroll', onPopupViewportChange, { capture: true });
     window.removeEventListener('resize', onPopupViewportChange);
-    if (_currentPopup?._glsEditObserver) {
-        _currentPopup._glsEditObserver.disconnect();
-        delete _currentPopup._glsEditObserver;
-    }
+    getVisualViewport()?.removeEventListener('resize', onPopupViewportChange);
+    getVisualViewport()?.removeEventListener('scroll', onPopupViewportChange);
     if (_currentPopup) { _currentPopup.remove(); _currentPopup = null; }
     _popupAnchor = null;
     _popupEditing = false;
@@ -1099,7 +1100,13 @@ function onPopupViewportChange(e) {
     // and the anchor can read as "gone" by rect (popup snaps shut mid-edit)
     // or the popup gets re-anchored somewhere behind the keyboard. The edit
     // is modal in practice — re-anchoring resumes once it's saved/cancelled.
-    if (_popupEditing) return;
+    // EXCEPTION: resizes (layout shrink on Android, visual-viewport shrink on
+    // iOS) must keep the popup itself in the VISIBLE band — position:fixed
+    // otherwise leaves it parked under the keyboard line, editor unreachable.
+    if (_popupEditing) {
+        if (e.type === 'resize') requestPopupEditingClamp();
+        return;
+    }
     if (_popupFollowRaf) return;
     _popupFollowRaf = requestAnimationFrame(() => {
         _popupFollowRaf = 0;
@@ -1114,6 +1121,73 @@ function onPopupViewportChange(e) {
         }
         positionPopup(_currentPopup, _popupAnchor);
     });
+}
+
+// visualViewport is universal in current browsers, but read it lazily (never at
+// module eval) — the unit-test DOM stub provides a minimal window.
+function getVisualViewport() {
+    try { return window.visualViewport ?? null; } catch { return null; }
+}
+
+/** Coalesce editing clamps through the same rAF ticket as the follow pump. */
+function requestPopupEditingClamp() {
+    if (_popupFollowRaf) return;
+    _popupFollowRaf = requestAnimationFrame(() => {
+        _popupFollowRaf = 0;
+        if (!_currentPopup) return;
+        clampPopupIntoViewport(_currentPopup);
+    });
+}
+
+/**
+ * Pure core of the editing clamp (unit-tested): clamp a position:fixed popup
+ * rectangle into the VISIBLE band of the viewport. `bandTop`/`bandHeight`
+ * describe that band in layout-viewport coordinates — equal to the whole
+ * viewport when the keyboard shrinks the layout viewport (Android), and to
+ * visualViewport.offsetTop/.height when it only shrinks the visual viewport
+ * (iOS). A popup taller than the band pins to the band's top edge and scrolls
+ * internally (.gls-popup has overflow-y + max-height). Returns {left, top}.
+ */
+export function clampPopupPosition(pos, popW, popH, vw, bandTop, bandHeight, margin = 10) {
+    const bandBottom = bandTop + bandHeight;
+    let top = pos.top;
+    if (popH >= bandHeight - margin * 2) {
+        top = bandTop + margin;
+    } else if (top + popH > bandBottom - margin) {
+        top = bandBottom - margin - popH;
+    }
+    if (top < bandTop + margin) top = bandTop + margin;
+    let left = pos.left;
+    if (left + popW > vw - margin) left = vw - margin - popW;
+    if (left < margin) left = margin;
+    return { left, top };
+}
+
+/**
+ * Clamp the live popup into the currently visible viewport band (see
+ * clampPopupPosition). Applied while the inline editor is mounted and the
+ * viewport resizes — the keyboard case — so the editor stays reachable.
+ * @returns {{left: number, top: number}} the applied position.
+ */
+export function clampPopupIntoViewport(popup) {
+    const vv = getVisualViewport();
+    const bandTop = vv ? vv.offsetTop : 0;
+    const bandHeight = vv ? vv.height : window.innerHeight;
+    const current = {
+        left: parseFloat(popup.style.left) || 0,
+        top: parseFloat(popup.style.top) || 0,
+    };
+    const pos = clampPopupPosition(
+        current,
+        popup.offsetWidth || 320,
+        popup.offsetHeight || 160,
+        window.innerWidth,
+        bandTop,
+        bandHeight,
+    );
+    popup.style.left = `${pos.left}px`;
+    popup.style.top = `${pos.top}px`;
+    return pos;
 }
 
 function onPopupKeydown(e) {

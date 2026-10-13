@@ -15,6 +15,7 @@
 import {
     state, S, getCtx, saveSettings, showConfirmModal, t, extractPlainText,
     PANEL_LAYOUT_KEY, MOBILE_BREAKPOINT, beginGenerationEpoch, isEpochCurrent,
+    debounce,
 } from '../core.js';
 import {
     getVariantFootnotes, getVariantPayload, digestFor, clearAll, clearVariant,
@@ -45,14 +46,9 @@ let _tabController = null;
 const _targetedState = { input: '', result: null, status: '', requestId: 0, generating: false };
 
 /** Debounced per-chat draft persist (the metadata writer coalesces further). */
-let _draftSaveTimer = null;
-function saveDraftSoon() {
-    clearTimeout(_draftSaveTimer);
-    _draftSaveTimer = setTimeout(() => {
-        _draftSaveTimer = null;
-        try { saveTargetedDraft(_targetedState.input); } catch { /* non-critical */ }
-    }, 400);
-}
+const saveDraftSoon = debounce(() => {
+    try { saveTargetedDraft(_targetedState.input); } catch { /* non-critical */ }
+}, 400);
 
 /**
  * Generate targeted footnotes for the focused message and COMMIT them through
@@ -86,7 +82,11 @@ async function runTargetedGeneration() {
     // requestId and this run's finally must STILL release its reference —
     // staleness guards below protect only the state writes, not resources.
     uiBusyBegin();
-    _targetedState.status = parseNotice || t('Generating');
+    // Remember the placeholder so the finally can clear it: the stale-epoch
+    // early returns below leave the state untouched, and without the clear the
+    // tab would claim "Generating" for a run that already ended.
+    const generatingLabel = parseNotice || t('Generating');
+    _targetedState.status = generatingLabel;
     _tabController?.refreshActiveTab();
     try {
         const { checkSourceConfigured } = await import('../connection.js');
@@ -179,6 +179,7 @@ async function runTargetedGeneration() {
         uiBusyEnd();
         if (requestId === _targetedState.requestId) {
             _targetedState.generating = false;
+            if (_targetedState.status === generatingLabel) _targetedState.status = '';
             _tabController?.refreshActiveTab();
         }
         panelInvalidate();
@@ -245,7 +246,7 @@ function renderTargetedTab(body) {
                 copy.disabled = !_targetedState.result?.footnotes?.length;
             }, 1500);
         } else {
-            toastr?.error?.(t('Copy failed'));
+            globalThis.toastr?.error?.(t('Copy failed'));
         }
     });
     generate.addEventListener('click', () => { runTargetedGeneration(); });
@@ -258,16 +259,7 @@ function renderTargetedTab(body) {
     for (const fn of _targetedState.result?.footnotes || []) {
         const row = document.createElement('div');
         row.className = 'gls-panel-entry';
-        const main = document.createElement('div');
-        main.className = 'gls-panel-entry-main';
-        const num = document.createElement('span');
-        num.className = 'gls-panel-num gls-panel-num--targeted';
-        num.textContent = indexToTargetedSymbol(fn.index);
-        const txt = document.createElement('span');
-        txt.className = 'gls-panel-text';
-        txt.innerHTML = formatFootnoteText(fn.text);
-        main.append(num, txt);
-        row.append(main);
+        row.append(makeEntryMain(fn, true));
         wrap.appendChild(row);
     }
     body.appendChild(wrap);
@@ -401,9 +393,11 @@ function buildPoolSection() {
         list.appendChild(empty);
     } else {
         for (const { anchor, key } of activeAnchors) {
-            list.appendChild(makePoolRow(anchor, key, {
-                onDelete: () => deleteAnchorFromPool(key),
-                onExclude: () => { togglePoolExcluded(anchor, true); _tabController?.refreshActiveTab(); },
+            list.appendChild(makePoolRow(anchor, {
+                buttons: [
+                    makeActionButton('gls-panel-del', 'trash', t('Delete footnote'), () => deleteAnchorFromPool(key)),
+                    makeActionButton('gls-panel-copy', 'ban', t('Exclude from pool'), () => { togglePoolExcluded(anchor, true); _tabController?.refreshActiveTab(); }),
+                ],
             }));
         }
     }
@@ -417,8 +411,9 @@ function buildPoolSection() {
         const exclList = document.createElement('div');
         exclList.className = 'gls-pool-list gls-pool-list--excluded';
         for (const { anchor } of excludedAnchors) {
-            exclList.appendChild(makeExcludedPoolRow(anchor, {
-                onRestore: () => { togglePoolExcluded(anchor, false); _tabController?.refreshActiveTab(); },
+            exclList.appendChild(makePoolRow(anchor, {
+                excluded: true,
+                buttons: [makeActionButton('gls-panel-copy', 'rotate-ccw', t('Restore'), () => { togglePoolExcluded(anchor, false); _tabController?.refreshActiveTab(); })],
             }));
         }
         wrap.append(exclTitle, exclList);
@@ -427,35 +422,31 @@ function buildPoolSection() {
     return wrap;
 }
 
-/** One row in the active pool: anchor text + delete + exclude-from-pool buttons. */
-function makePoolRow(anchor, key, { onDelete, onExclude }) {
-    const row = document.createElement('div');
-    row.className = 'gls-pool-item';
-    const text = document.createElement('span');
-    text.className = 'gls-pool-anchor';
-    text.textContent = anchor;
-    text.title = anchor;
-    const actions = document.createElement('div');
-    actions.className = 'gls-pool-item-actions';
-    actions.append(
-        makeRowButton('gls-panel-del', 'trash', t('Delete footnote'), onDelete),
-        makeRowButton('gls-panel-copy', 'ban', t('Exclude from pool'), onExclude),
-    );
-    row.append(text, actions);
-    return row;
+/** Shared row content: index/symbol chip + formatted body text. */
+function makeEntryMain(fn, isTargeted) {
+    const main = document.createElement('div');
+    main.className = 'gls-panel-entry-main';
+    const num = document.createElement('span');
+    num.className = 'gls-panel-num' + (isTargeted ? ' gls-panel-num--targeted' : '');
+    num.textContent = isTargeted ? indexToTargetedSymbol(fn.index) : fn.index;
+    const txt = document.createElement('span');
+    txt.className = 'gls-panel-text';
+    txt.innerHTML = formatFootnoteText(isTargeted ? fn.text : stripLeadingNumber(fn.text));
+    main.append(num, txt);
+    return main;
 }
 
-/** One row in the excluded block: anchor text + restore button. */
-function makeExcludedPoolRow(anchor, { onRestore }) {
+/** One pool-list row: anchor text + the given action buttons. */
+function makePoolRow(anchor, { excluded = false, buttons = [] }) {
     const row = document.createElement('div');
-    row.className = 'gls-pool-item gls-pool-item--excluded';
+    row.className = 'gls-pool-item' + (excluded ? ' gls-pool-item--excluded' : '');
     const text = document.createElement('span');
     text.className = 'gls-pool-anchor';
     text.textContent = anchor;
     text.title = anchor;
     const actions = document.createElement('div');
     actions.className = 'gls-pool-item-actions';
-    actions.append(makeRowButton('gls-panel-copy', 'rotate-ccw', t('Restore'), onRestore));
+    actions.append(...buttons);
     row.append(text, actions);
     return row;
 }
@@ -789,6 +780,9 @@ function makeDraggable(panel, handle, enabledWhen) {
         e.stopPropagation?.();
         clampPanel(panel);
         savePanelLayout({ left: parseInt(panel.style.left), top: parseInt(panel.style.top) });
+        // The panel moved — the FAB-over-header passthrough must be re-evaluated
+        // (syncFabPassthrough otherwise only fires on panel toggles/resizes).
+        syncFabPassthrough();
     };
 
     handle.addEventListener('mousedown', onDown);
@@ -846,6 +840,8 @@ function makeResizable(panel) {
         saveTimer = setTimeout(() => {
             savePanelLayout({ width: panel.offsetWidth, height: panel.offsetHeight });
         }, 300);
+        // The panel changed size — re-evaluate the FAB-over-header passthrough.
+        syncFabPassthrough();
     };
 
     const onDown = (e) => {
@@ -885,6 +881,17 @@ function makeResizable(panel) {
 // ══════════════════════════════════════════════════════════════════════════════
 // PANEL MOUNT / VISIBILITY
 // ══════════════════════════════════════════════════════════════════════════════
+
+/** Click-on-Enter/Space for the header's div-buttons. The header controls are
+ *  divs (styled via .gls-panel-btn; real <button> chrome fights the styling),
+ *  so without this they are pointer-only — a11y fix alongside role="button". */
+function wireKeyboardActivation(el) {
+    el.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        el.click();
+    });
+}
 
 /** Idempotent mount. Returns the #gls-panel element (or null on failure). */
 export function buildPanel() {
@@ -932,8 +939,10 @@ export function buildPanel() {
     jumpBtn.className = 'gls-panel-btn gls-panel-btn--jump';
     jumpBtn.title = t('Jump to the post');
     jumpBtn.setAttribute('role', 'button');
+    jumpBtn.setAttribute('tabindex', '0');
     jumpBtn.setAttribute('aria-label', t('Jump to the post'));
     jumpBtn.innerHTML = iconHtml('crosshair');
+    wireKeyboardActivation(jumpBtn);
     jumpBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const focusId = state.panelFocusMsgId;
@@ -955,6 +964,10 @@ export function buildPanel() {
     const clearMsgBtn = document.createElement('div');
     clearMsgBtn.className = 'gls-panel-btn gls-panel-btn--clear';
     clearMsgBtn.title = t('Clear message footnotes');
+    clearMsgBtn.setAttribute('role', 'button');
+    clearMsgBtn.setAttribute('tabindex', '0');
+    clearMsgBtn.setAttribute('aria-label', t('Clear message footnotes'));
+    wireKeyboardActivation(clearMsgBtn);
     clearMsgBtn.innerHTML = iconHtml('trash');
     clearMsgBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -977,6 +990,10 @@ export function buildPanel() {
     const closeBtn = document.createElement('div');
     closeBtn.className = 'gls-panel-btn';
     closeBtn.title = t('Close');
+    closeBtn.setAttribute('role', 'button');
+    closeBtn.setAttribute('tabindex', '0');
+    closeBtn.setAttribute('aria-label', t('Close'));
+    wireKeyboardActivation(closeBtn);
     closeBtn.innerHTML = iconHtml('xmark');
     closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1043,9 +1060,9 @@ export function buildPanel() {
         getScrollTop: () => body.scrollTop,
         setScrollTop: value => { body.scrollTop = value; },
     });
-    _tabController.registerTab({ id: 'footnotes', label: t('Footnotes'), render: () => renderFootnotesTab(state.panelFocusMsgId) });
-    _tabController.registerTab({ id: 'targeted', label: t('Targeted'), render: () => renderTargetedTab(body) });
-    _tabController.registerTab({ id: 'exclusions', label: t('Exclusions'), render: () => renderExclusionsTab(body) });
+    _tabController.registerTab({ id: 'footnotes', label: t('Footnotes'), labelKey: 'Footnotes', render: () => renderFootnotesTab(state.panelFocusMsgId) });
+    _tabController.registerTab({ id: 'targeted', label: t('Targeted'), labelKey: 'Targeted', render: () => renderTargetedTab(body) });
+    _tabController.registerTab({ id: 'exclusions', label: t('Exclusions'), labelKey: 'Exclusions', render: () => renderExclusionsTab(body) });
     _tabController.renderTabButtons(tabs, { panelId: body.id });
     // First mount after enable: load this chat's persisted targets draft into
     // the tab state (chat switches go through clearTargetedTabState instead).
@@ -1091,7 +1108,7 @@ export function clearTargetedTabState() {
     // _targetedState.input at fire time, which by then already holds the NEW
     // chat's draft — saving it would clobber the freshly loaded draft with a
     // tail of the old one (and the timer must not outlive cleanup either).
-    if (_draftSaveTimer) { clearTimeout(_draftSaveTimer); _draftSaveTimer = null; }
+    saveDraftSoon.cancel();
     clearTargetedState();
     // The targets draft is per-chat (chatMetadata): reload the NEW chat's
     // draft, drop the old chat's transient result/status, and bump requestId
@@ -1119,7 +1136,7 @@ export function panelIsVisible() {
     return !!_floatingPanel && _floatingPanel.style.display !== 'none';
 }
 
-export function isInChat() {
+function isInChat() {
     const ctx = getCtx();
     return ctx.characterId !== undefined || ctx.groupId !== undefined;
 }
@@ -1137,13 +1154,36 @@ export function isInChat() {
 export function updatePanel() {
     if (!S().floatingPanelEnabled) {
         if (_floatingPanel) destroyPanel();
+        syncFabPassthrough();
         return;
     }
     if (!_floatingPanel) buildPanel();
-    if (!isInChat()) { _floatingPanel.style.display = 'none'; return; }
-    if (S().floatingPanelHidden) { _floatingPanel.style.display = 'none'; return; }
+    if (!isInChat()) { _floatingPanel.style.display = 'none'; syncFabPassthrough(); return; }
+    if (S().floatingPanelHidden) { _floatingPanel.style.display = 'none'; syncFabPassthrough(); return; }
     _floatingPanel.style.display = '';
+    // Re-evaluate the mobile/desktop layout on every show: the resize handler
+    // skips a hidden panel, so rotating/narrowing while it was ✕-hidden would
+    // otherwise leave it in the stale mode until the next window resize.
+    if (isMobileViewport()) applyMobileMode(_floatingPanel);
+    else applyDesktopMode(_floatingPanel);
     renderPanel(state.panelFocusMsgId);
+    syncFabPassthrough();
+}
+
+/**
+ * UX: the FAB paints above the panel (z-order 2999 vs 2998 — contract-locked in
+ * tests/floating-launcher.test.mjs, the FAB must stay clickable over the
+ * fullscreen mobile sheet). A FAB *parked* over the panel's HEADER therefore
+ * swallows taps meant for Prev/Next/Jump/Clear/✕. floating-launcher resolves
+ * the conflict by making the FAB click-transparent while it overlaps the
+ * header of a visible panel; this module only reports visibility changes.
+ * Dynamic import — floating-launcher statically imports this module, so a
+ * static back-import would close a cycle (same pattern as launcher.js).
+ */
+function syncFabPassthrough() {
+    import('./floating-launcher.js')
+        .then(({ syncFloatingLauncher }) => syncFloatingLauncher())
+        .catch(() => { /* best-effort UI nicety */ });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1284,19 +1324,36 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
             });
         }
 
-        // §6.4: wire the "Open settings" CTA — expands the Generation Engine
-        // accordion in the Extensions panel and scrolls it into view.
+        // §6.4: wire the "Open settings" CTA — opens the Extensions drawer,
+        // then expands the Generation Engine accordion and scrolls it into
+        // view. FIX: the old code assumed the drawer was already open — on
+        // mobile the fullscreen panel covers the screen and the drawer is
+        // closed, so the click expanded an invisible accordion and visibly
+        // did nothing.
         const configureCta = empty.querySelector('.gls-empty-configure');
         if (configureCta) {
             configureCta.addEventListener('click', () => {
+                // ST drawer layout: #rm_extensions_block is the .drawer-content;
+                // its .drawer ancestor (#extensions-settings-button) holds the
+                // .drawer-toggle. ST flips closedDrawer→openDrawer synchronously
+                // in the toggle's click handler, so one click opens the drawer.
+                const content = document.getElementById('rm_extensions_block');
+                if (content && !content.classList.contains('openDrawer')) {
+                    content.closest('.drawer')?.querySelector('.drawer-toggle')?.click();
+                }
                 const container = document.getElementById('gls_settings_container');
                 if (!container) return;
-                const header = container.querySelector('.gls-s-section-header');
-                if (header) {
-                    const body2 = header.nextElementSibling;
-                    if (body2?.hidden) header.click();
-                    header.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
+                // Expand + scroll after a frame: the drawer's slide-down starts
+                // on the toggle click, and a same-tick scrollIntoView would
+                // measure the still-collapsed content and miss the target.
+                requestAnimationFrame(() => {
+                    const header = container.querySelector('.gls-s-section-header');
+                    if (header) {
+                        const body2 = header.nextElementSibling;
+                        if (body2?.hidden) header.click();
+                        header.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                });
             });
         }
 
@@ -1320,18 +1377,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
         // Targeted entries show their typographic symbol instead and carry no
         // numeric prefix at all; a floating one (target not present in the
         // post text) gets a badge since it has no marker in the chat.
-        const main = document.createElement('div');
-        main.className = 'gls-panel-entry-main';
-
-        const num = document.createElement('span');
-        num.className = 'gls-panel-num' + (isTargeted ? ' gls-panel-num--targeted' : '');
-        num.textContent = isTargeted ? indexToTargetedSymbol(fn.index) : fn.index;
-
-        const txtEl = document.createElement('span');
-        txtEl.className = 'gls-panel-text';
-        txtEl.innerHTML = formatFootnoteText(isTargeted ? fn.text : stripLeadingNumber(fn.text));
-
-        main.append(num, txtEl);
+        const main = makeEntryMain(fn, isTargeted);
         if (isTargeted && !fn.prefix && !fn.suffix) {
             const badge = document.createElement('span');
             badge.className = 'gls-panel-floating-badge';
@@ -1399,14 +1445,6 @@ function makeOrphanBanner(count, focusId, swipeIdx) {
     banner.append(label, btn);
     return banner;
 }
-
-// Alias kept for the trash-tab / pool-tab callers (delete-footnote,
-// exclude-from-pool, restore) — they predate the shared action module and use
-// the original name. The footnote Copy/Edit/Delete rows go through
-// buildFootnoteActions; only these auxiliary buttons stay local. The shared
-// builder is the single source: it also sets aria-label, which the removed
-// local duplicate never did.
-const makeRowButton = makeActionButton;
 
 function navigatePanel(dir) {
     const ids = getAllAnnotatableMsgIds();

@@ -2,13 +2,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-// Post-v3.2 message-identity tests: contentDigest, buildIdentity, isViableMessageText.
+// Post-v3.2 message-identity tests: contentDigest, isViableMessageText.
 // The legacy compositeHostKey, legacyFingerprint, and entry-store APIs are removed.
 
 import './helpers/stub-runtime.mjs';
 import { resetCtx } from './helpers/stub-runtime.mjs';
 import {
-    contentDigest, buildIdentity, isViableMessageText, messageText,
+    contentDigest, isViableMessageText,
 } from '../src/domain/message-identity.js';
 import { digestFor, variantIsViable, saveFootnotes, getVariantFootnotes, clearAll, listFootnoteSets, stats } from '../src/cache.js';
 import { makeMessage } from './helpers/stub-runtime.mjs';
@@ -48,24 +48,6 @@ test('isViableMessageText rejects placeholder, empty, and too-short text', () =>
 
 test('isViableMessageText accepts a normal-length body', () => {
     assert.equal(isViableMessageText('A sufficiently long AI message body to clear the guard.'), true);
-});
-
-// ── buildIdentity ──
-
-test('buildIdentity returns null for a non-viable message', () => {
-    resetCtx({ chat: [{ mes: '...', is_user: false, swipe_id: 0 }] });
-    assert.equal(buildIdentity(0, 0), null);
-});
-
-test('buildIdentity composes msgId/swipeIdx/digest from a viable message', () => {
-    const text = 'A sufficiently long AI message body to clear the guard.';
-    resetCtx({ chat: [{ mes: text, is_user: false, swipe_id: 0 }] });
-    const id = buildIdentity(0, 0);
-    assert.ok(id);
-    assert.equal(id.msgId, '0');
-    assert.equal(id.swipeIdx, 0);
-    assert.equal(id.contentDigest, contentDigest(text));
-    assert.equal(id.text, text);
 });
 
 // ── Per-variant payload API (replaces old entry-store tests) ──

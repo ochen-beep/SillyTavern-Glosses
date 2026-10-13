@@ -89,15 +89,3 @@ export function normalizeForcedIgnore(values) {
 export function combineForbiddenAnchors(stopWords, forcedIgnore) {
     return normalizeForcedIgnore([...(Array.isArray(stopWords) ? stopWords : []), ...(Array.isArray(forcedIgnore) ? forcedIgnore : [])]);
 }
-
-/** Remove only footnotes whose complete resolved anchor equals a forbidden key. */
-export function filterForcedFootnotes(footnotes, forbidden) {
-    const blocked = new Set((Array.isArray(forbidden) ? forbidden : []).map(normalizeAnchorKey).filter(Boolean));
-    return (Array.isArray(footnotes) ? footnotes : []).filter(footnote => !blocked.has(normalizeAnchorKey(footnote?.anchor)));
-}
-
-/** Resolve and filter a collection against a source text. Useful to policy callers. */
-export function resolveForcedAnchor(text, anchor, forbidden) {
-    const hit = findAnchorInText(text, anchor);
-    return hit && !filterForcedFootnotes([{ anchor: hit.text }], forbidden).length ? null : hit;
-}

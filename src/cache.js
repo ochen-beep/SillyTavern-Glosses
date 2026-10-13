@@ -29,7 +29,7 @@ import { createMetadataWriter } from './infrastructure/metadata-writer.js';
 import { createChatWriter } from './infrastructure/chat-writer.js';
 import { createMetadataRepository } from './infrastructure/metadata-repository.js';
 import {
-    readRawPayload, readVerifiedPayload, stampPayload, writePayload, clearPayload,
+    PAYLOAD_KEY, readRawPayload, readVerifiedPayload, stampPayload, writePayload, clearPayload,
     variantText, digestForVariant, targetedOf, payloadBelongsToOtherVariant,
 } from './domain/footnote-payload.js';
 import { isViableMessageText } from './domain/message-identity.js';
@@ -123,7 +123,10 @@ export function listFootnoteSets() {
             });
         }
     });
-    return out.sort((a, b) => (Number(b.msgId) || -1) - (Number(a.msgId) || -1));
+    // Number("0") is 0 — falsy — so `(Number(x) || -1)` would sort message 0
+    // with the missing-id bucket (bottom). The finite check keeps "0" at 0.
+    const ord = v => { const n = Number(v); return Number.isFinite(n) ? n : -1; };
+    return out.sort((a, b) => ord(b.msgId) - ord(a.msgId));
 }
 
 export function stats() {
@@ -345,10 +348,10 @@ export function clearAll(opts = {}) {
         if (!msg) continue;
         if (Array.isArray(msg.swipe_info)) {
             for (const slot of msg.swipe_info) {
-                if (slot?.extra && 'gls' in slot.extra) { delete slot.extra.gls; removed = true; }
+                if (slot?.extra && PAYLOAD_KEY in slot.extra) { delete slot.extra[PAYLOAD_KEY]; removed = true; }
             }
         }
-        if (msg.extra && 'gls' in msg.extra) { delete msg.extra.gls; removed = true; }
+        if (msg.extra && PAYLOAD_KEY in msg.extra) { delete msg.extra[PAYLOAD_KEY]; removed = true; }
     }
     const legacyWiped = _lists.wipeLegacyStore();
     const poolWiped = opts.clearPoolExcluded ? _lists.clearPoolExcluded() : false;
@@ -366,7 +369,7 @@ export const togglePoolExcluded = _lists.togglePoolExcluded;
 export const getTargetedDraft = _lists.getTargetedDraft;
 export const saveTargetedDraft = _lists.saveTargetedDraft;
 
-/** Expose both writers' flush for page-hide / cleanup (bounded). */
-export const flushMetadata = async () => {
+/** Flush BOTH coalesced writers (metadata + chat) for page-hide / cleanup. */
+export const flushWriters = async () => {
     await Promise.all([_metadataWriter.flush(), _chatWriter.flush()]);
 };

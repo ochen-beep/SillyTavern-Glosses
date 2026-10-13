@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { collectExplainedAnchors, combineForbiddenAnchors, filterForcedFootnotes, normalizeForcedIgnore } from '../src/anchor-policy.js';
+import { collectExplainedAnchors, combineForbiddenAnchors, normalizeForcedIgnore } from '../src/anchor-policy.js';
 
 function setFor(msgId, footnotes) {
     return { msgId, swipeIdx: 0, footnotes };
@@ -67,9 +67,7 @@ test('collectExplainedAnchors excludeKeys is optional and accepts non-array grac
     assert.deepEqual(collectExplainedAnchors({ sets, currentMsgId: 9, excludeKeys: 'astrolabe' }), ['Astrolabe']);
 });
 
-test('forced ignores preserve the first spelling and filter complete normalized anchors only', () => {
+test('forced ignores preserve the first spelling and combine with stop words', () => {
     assert.deepEqual(normalizeForcedIgnore(['  Кот ', 'кот', '', 'Dog']), ['Кот', 'Dog']);
     assert.deepEqual(combineForbiddenAnchors(['DOG'], ['dog', 'Кот']), ['DOG', 'Кот']);
-    const footnotes = [{ anchor: 'кот' }, { anchor: 'Котами' }, { anchor: 'Dog and cat' }];
-    assert.deepEqual(filterForcedFootnotes(footnotes, ['Кот', 'DOG']), [{ anchor: 'Котами' }, { anchor: 'Dog and cat' }]);
 });

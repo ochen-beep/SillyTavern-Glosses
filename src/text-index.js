@@ -106,13 +106,10 @@ export function computeContextSelectors(text, start, end, radius = 32) {
 /** Word-run positions in a space-normalized string. */
 function tokenizeWords(str) {
     const words = [];
-    let i = 0;
-    while (i < str.length) {
-        while (i < str.length && str[i] === ' ') i++;
-        if (i >= str.length) break;
-        const start = i;
-        while (i < str.length && str[i] !== ' ') i++;
-        words.push({ start, end: i });
+    let offset = 0;
+    for (const w of str.split(' ')) {
+        if (w) words.push({ start: offset, end: offset + w.length });
+        offset += w.length + 1;
     }
     return words;
 }

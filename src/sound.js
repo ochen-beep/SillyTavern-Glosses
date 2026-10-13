@@ -224,13 +224,6 @@ export async function playSound() {
     }
 }
 
-/** Drop the cached URI so a newly selected sound takes effect on next play. */
-export function invalidateSoundCache() {
-    // resolveSoundUri() builds the URI fresh on every play (no URI cache is
-    // kept — the old _cachedSoundUri variable was never read). The hook stays
-    // so existing callers keep working and a future cache has a clear hook.
-}
-
 /** Populate the sound <select>: bundled + server-side custom uploads. */
 export function populateSoundSelect(selectEl) {
     if (!selectEl) return;

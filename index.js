@@ -38,7 +38,7 @@ import {
 import {
     bindEvents, unbindEvents, initScrollObserver, disconnectScrollObserver,
 } from './src/events.js';
-import { flushMetadata, clearAll } from './src/cache.js';
+import { flushWriters, clearAll } from './src/cache.js';
 import { bindSettingsUI, unbindSettingsUI } from './src/ui/settings-sync.js';
 import { initThemeSync, disconnectThemeSync } from './src/ui/theme-sync.js';
 import { initIconSprite } from './src/ui/icons.js';
@@ -86,6 +86,7 @@ export async function onUpdate() {
 
 export async function onClean() {
     log('Cleaning extension data');
+    _runtime.stop();
     try { cleanup(); } catch (e) { error('cleanup error:', e); }
     try {
         const ctx = getCtx();
@@ -97,7 +98,7 @@ export async function onClean() {
         if (ctx.chatMetadata?.[META_KEY]) {
             delete ctx.chatMetadata[META_KEY];
         }
-        await flushMetadata();
+        await flushWriters();
     } catch (e) { error('cache cleanup error:', e); }
     try {
         // v3.6+ custom sounds live SERVER-side (data/<user>/user/files/) —
@@ -142,10 +143,10 @@ const _runtime = createInitializationController(init);
 const _onVisibilityChange = () => {
     if (document.visibilityState !== 'hidden') return;
     flushSettings();
-    // Bounded flush of the coalesced metadata writer (stage 5): persists any
-    // pending saveMetadata work exactly once instead of re-invoking the host
-    // save API directly (which could race an in-flight debounce).
-    try { flushMetadata(); } catch { /* non-critical */ }
+    // Bounded flush of the coalesced writers (stage 5): persists any
+    // pending saveMetadata/saveChat work exactly once instead of re-invoking
+    // the host save API directly (which could race an in-flight debounce).
+    flushWriters().catch(() => { /* non-critical */ });
 };
 
 async function init(isCancelled = () => false) {
@@ -256,6 +257,12 @@ function cleanup() {
     for (const ctrl of Object.values(state.abortControllers)) ctrl.abort();
     for (const k of Object.keys(state.abortControllers)) delete state.abortControllers[k];
     for (const k of Object.keys(state.isGenerating)) delete state.isGenerating[k];
+
+    // Flush pending writes BEFORE teardown. The writers' own debounce timers
+    // would still fire after disable (they are page-lifetime), but a tab
+    // closed inside that window — with the visibilitychange flusher already
+    // removed below — would drop the last footnote save.
+    flushWriters().catch(() => { /* non-critical */ });
 
     // Cancel the deferred scroll-observer arming BEFORE tearing down the
     // observer itself — otherwise the 0ms timer fires after disconnect and

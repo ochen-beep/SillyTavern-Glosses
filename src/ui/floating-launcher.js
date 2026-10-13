@@ -178,7 +178,12 @@ function makeDraggable(icon) {
         const wasDragging = dragging;
         dragging = false;
         icon.classList.remove('gls_fab_dragging');
-        if (wasDragging) persistPosition(icon);
+        if (wasDragging) {
+            persistPosition(icon);
+            // The FAB may have settled over (or out of) the panel header —
+            // re-evaluate the click-passthrough for the new spot.
+            syncFloatingLauncher();
+        }
         else if (_onToggle) _onToggle();
     });
 
@@ -201,6 +206,9 @@ function onWindowResize() {
     const pos = clampToViewportWithChrome({ left, top });
     icon.style.left = `${pos.left}px`;
     icon.style.top = `${pos.top}px`;
+    // Resizing also moves/resizes the panel — the header overlap may have
+    // appeared or disappeared.
+    syncFloatingLauncher();
 }
 
 // window.js keeps its own mobile check private; mirror the viewport-width rule
@@ -253,13 +261,43 @@ export function ensureFloatingLauncher({ onToggle } = {}) {
 }
 
 /**
- * Refresh the active (panel-open) highlight. Called from ensureFloatingLauncher()
- * on every ensureLauncher() pass, so all existing launcher refresh points keep
- * the FAB in sync too.
+ * Pure overlap test (unit-tested): does the FAB rect intersect the given
+ * rect? Used to detect a FAB parked over the panel header — see
+ * syncFloatingLauncher() for why that needs a pointer-events passthrough.
+ */
+export function rectsIntersect(a, b) {
+    if (!a || !b) return false;
+    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/**
+ * Refresh the active (panel-open) highlight, and reconcile the header
+ * passthrough. Called from ensureFloatingLauncher() on every ensureLauncher()
+ * pass (i.e. on every panel open/close via the launcher flows) and from the
+ * FAB's own drag-end/resize paths.
+ *
+ * Passthrough rationale: the FAB must paint ABOVE the panel (z-order contract;
+ * on mobile the fullscreen sheet would bury its own toggle otherwise), but a
+ * FAB parked over the panel's HEADER then swallows taps meant for the header
+ * controls (Prev/Next/Jump/Clear/✕). While the panel is visible and the FAB
+ * geometrically overlaps the header, the FAB is made click-transparent
+ * (.gls_fab--passthrough) — taps fall through to the header, the panel's own
+ * ✕ remains the way out, and the class clears as soon as the panel closes or
+ * the FAB moves.
  */
 export function syncFloatingLauncher() {
     const icon = getFab();
-    if (icon) icon.classList.toggle('gls_fab_active', panelIsVisible());
+    if (!icon) return;
+    const visible = panelIsVisible();
+    icon.classList.toggle('gls_fab_active', visible);
+    let passthrough = false;
+    if (visible) {
+        const header = document.querySelector('#gls-panel .gls-panel-header');
+        if (header) {
+            passthrough = rectsIntersect(icon.getBoundingClientRect(), header.getBoundingClientRect());
+        }
+    }
+    icon.classList.toggle('gls_fab--passthrough', passthrough);
 }
 
 export function removeFloatingLauncher() {
@@ -275,5 +313,5 @@ export function removeFloatingLauncher() {
 // `process` is read via globalThis: the bare identifier throws ReferenceError
 // in the browser (same pattern as commands.js).
 export const _test = (globalThis.process?.env?.NODE_TEST === '1')
-    ? { defaultPosition, clampPosition, clampFabPosition, computeRestoredPosition, FAB_SIZE, DRAG_THRESHOLD_PX }
+    ? { defaultPosition, clampPosition, clampFabPosition, computeRestoredPosition, rectsIntersect, FAB_SIZE, DRAG_THRESHOLD_PX }
     : null;

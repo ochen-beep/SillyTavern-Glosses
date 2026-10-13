@@ -20,7 +20,7 @@ import { buildSkinGallery } from './skin-gallery.js';
 import { ensureLauncher } from './launcher.js';
 import { initScrollObserver } from '../events.js';
 import {
-    populateSoundSelect, invalidateSoundCache, playSound,
+    populateSoundSelect, playSound,
     isCustomSoundId, resolveSoundId, nextCustomKey, glsSoundFileName,
     normalizeSoundFiles, deleteCustomSound, parseDataUrl,
 } from '../sound.js';
@@ -60,7 +60,7 @@ function setPreset(key) {
     if (!preset) return;
     const s = S();
     for (const [k, v] of Object.entries(preset)) {
-        s[k] = (k === 'hybridLenses') ? { ...v } : v;
+        s[k] = v;
     }
     s.selectedPreset = key;
     saveSettings();
@@ -687,7 +687,7 @@ export function bindSettingsUI() {
     populateSoundSelect(soundSel);
     refreshSoundReset();
 
-    on(soundSel, 'change', () => { S().soundId = soundSel.value; invalidateSoundCache(); refreshSoundReset(); saveSettings(); });
+    on(soundSel, 'change', () => { S().soundId = soundSel.value; refreshSoundReset(); saveSettings(); });
 
     // Upload → server-side per-user file store (travels with the ST data dir,
     // works on any device of the user). settings.json keeps only metadata.
@@ -708,7 +708,6 @@ export function bindSettingsUI() {
             await uploadUserFile(stored, parsed ? parsed.base64 : String(dataUrl).split(',')[1] || '');
             S().soundFiles = normalizeSoundFiles({ ...S().soundFiles, [key]: { name: file.name, file: stored } });
             S().soundId = key;
-            invalidateSoundCache();
             populateSoundSelect(soundSel);
             soundSel.value = key;
             refreshSoundReset();
@@ -724,7 +723,6 @@ export function bindSettingsUI() {
         const key = resolveSoundId();
         if (!isCustomSoundId(key)) return;
         await deleteCustomSound(key);
-        invalidateSoundCache();
         populateSoundSelect(soundSel);
         refreshSoundReset();
         saveSettings();
@@ -741,13 +739,19 @@ export function bindSettingsUI() {
     // Per-chat lorebook context (chatMetadata.gls_lorebook). The controls read
     // from chat METADATA, not from the global settings object, and re-sync on
     // every chat change.
-    const loreEnabledCb = $('gls_lore_enabled');
-    const loreModeSel = $('gls_lore_mode');
+    // syncLoreControls re-resolves the elements by id on EVERY call: the
+    // CHAT_CHANGED hook below is subscribed once (page-lifetime), while the
+    // settings DOM is rebuilt on disable→enable — closing over the first
+    // bind's elements would sync detached nodes forever after a re-enable.
     function syncLoreControls() {
         const cfg = getChatLoreConfig();
-        if (loreEnabledCb) loreEnabledCb.checked = cfg.enabled;
-        if (loreModeSel) loreModeSel.value = cfg.autoScope ?? 'all';
+        const cb = document.getElementById('gls_lore_enabled');
+        const sel = document.getElementById('gls_lore_mode');
+        if (cb) cb.checked = cfg.enabled;
+        if (sel) sel.value = cfg.autoScope ?? 'all';
     }
+    const loreEnabledCb = $('gls_lore_enabled');
+    const loreModeSel = $('gls_lore_mode');
     if (loreEnabledCb) on(loreEnabledCb, 'change', () => {
         saveChatLoreConfig({ ...getChatLoreConfig(), enabled: loreEnabledCb.checked });
     });
@@ -786,9 +790,30 @@ function bindNum(id, key) {
     const el = document.getElementById(id);
     if (!el) return;
     el.value = S()[key] ?? 0;
-    const apply = () => { const n = parseFloat(el.value); if (Number.isFinite(n)) { S()[key] = n; saveSettings(); } };
+    // Honor the input's own min/max contract (settings.html declares it, e.g.
+    // max footnotes 1–20, context depth 0–50). Native number validation only
+    // styles/spinners — it never blocks a TYPED value, so without this clamp
+    // out-of-range numbers persisted and showed in the field.
+    const min = parseFloat(el.getAttribute?.('min'));
+    const max = parseFloat(el.getAttribute?.('max'));
+    const clamp = (n) => {
+        if (Number.isFinite(min) && n < min) return min;
+        if (Number.isFinite(max) && n > max) return max;
+        return n;
+    };
+    const apply = () => {
+        const n = parseFloat(el.value);
+        if (Number.isFinite(n)) { S()[key] = clamp(n); saveSettings(); }
+    };
     on(el, 'input', apply);
-    on(el, 'change', apply);
+    on(el, 'change', () => {
+        apply();
+        // Normalize the visible field on commit (blur/Enter/spinner): a typed
+        // 25 shows 20; empty/garbage restores the last good setting. Mid-typing
+        // ('input') deliberately does NOT rewrite the field — fighting the caret.
+        const n = parseFloat(el.value);
+        el.value = String(Number.isFinite(n) ? clamp(n) : (S()[key] ?? ''));
+    });
 }
 
 export function updateSrcPanels() {

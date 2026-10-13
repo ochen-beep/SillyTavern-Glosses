@@ -26,12 +26,13 @@ import { collectExplainedAnchors, combineForbiddenAnchors } from './anchor-polic
 import { findAnchorInText } from './anchor-utils.js';
 import { getChatLoreConfig, collectAutomaticLore, LORE_MODE, LORE_SCOPE } from './lorebooks.js';
 import { buildTextIndex, computeContextSelectors, findFuzzySpan } from './text-index.js';
-import { parseResponse, validateFootnotes, validateFootnotesAgainstText, normalizeFootnotes, indexToSuperscript } from './parser.js';
+import { parseResponse, validateFootnotes, validateFootnotesAgainstText, normalizeFootnotes } from './parser.js';
 import { injectHighlights, setSpinner } from './renderer.js';
 import { updatePanel, panelInvalidate } from './ui/window.js';
 import { uiBusyBegin, uiBusyEnd } from './ui/busy.js';
 import { playSound } from './sound.js';
 import { generationCoordinator } from './application/generation-coordinator.js';
+import { renumberFootnotes } from './application/footnote-commands.js';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BASE SYSTEM PROMPTS
@@ -899,16 +900,6 @@ export async function buildUserPrompt(messageId, swipeIdx) {
 // GENERATION
 // ══════════════════════════════════════════════════════════════════════════════
 
-/** Copy a footnote with a fresh 1..len index + matching superscript in text. */
-function renumberFootnotes(fns) {
-    return fns.map((f, i) => {
-        const newIndex = i + 1;
-        const sup = indexToSuperscript(newIndex);
-        const text = String(f.text || '').replace(/^[⁰¹²³⁴⁵⁶⁷⁸⁹\d]+/u, sup);
-        return { ...f, index: newIndex, text };
-    });
-}
-
 /**
  * Build the DOM text model for a message element's rendered .mes_text.
  * Returns null when the element or the DOM API is unavailable (Node tests,
@@ -958,7 +949,7 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
     // words and misplace after un-translate. Ask the user to un-translate.
     const entryMsg = getCtx().chat?.[parseInt(messageId)];
     if (isTranslatedView(entryMsg)) {
-        toastr?.info?.(`[Glosses] ${t('The message is translated — un-translate it to regenerate footnotes.')}`);
+        globalThis.toastr?.info?.(`[Glosses] ${t('The message is translated — un-translate it to regenerate footnotes.')}`);
         return;
     }
     if (!variantIsViable(messageId, swipeIdx)) {
@@ -1004,9 +995,9 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
             // garbage" from "nothing in the post was worth glossing".
             const candidates = parsed?.footnotes?.length ?? 0;
             if (!candidates) {
-                toastr?.warning?.(`[Glosses] ${t('The model returned no parsable footnotes. Check the connection or try again.')}`);
+                globalThis.toastr?.warning?.(`[Glosses] ${t('The model returned no parsable footnotes. Check the connection or try again.')}`);
             } else {
-                toastr?.info?.(`[Glosses] ${t('All returned footnote anchors were rejected (not found in the post, duplicates, or forced-ignore).')}`);
+                globalThis.toastr?.info?.(`[Glosses] ${t('All returned footnote anchors were rejected (not found in the post, duplicates, or forced-ignore).')}`);
             }
             return;
         }
@@ -1073,7 +1064,7 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
         // toast. Manual /glosses_regen flows usually skip checkSourceConfigured,
         // so this catch is the only place they surface a failure into the panel.
         state.configuredState = { ok: false, reason: e.message || String(e) };
-        toastr?.error?.(`[Glosses] ${e.message}`);
+        globalThis.toastr?.error?.(`[Glosses] ${e.message}`);
     } finally {
         uiBusyEnd();
         // Only clean up if THIS call is still the active controller for the

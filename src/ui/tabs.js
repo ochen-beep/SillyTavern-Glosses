@@ -38,9 +38,19 @@ export function createTabController(options = {}) {
             button.tabIndex = active ? 0 : -1;
         }
     }
-    function registerTab({ id, label, render }) {
+    function registerTab({ id, label, labelKey, render }) {
         if (!id || typeof render !== 'function') throw new TypeError('tab id and render are required');
-        const tab = { id: String(id), label: String(label ?? id), render };
+        const tab = {
+            id: String(id),
+            label: String(label ?? id),
+            // Raw (English) translation key. renderTabButtons stamps it as
+            // data-i18n so ST's own i18n MutationObserver re-translates the
+            // button on insert — host-side localization that works even when
+            // the label was produced by t() before its translate surface
+            // resolved (buildPanel runs in one sync block at boot).
+            labelKey: labelKey != null ? String(labelKey) : null,
+            render,
+        };
         tabs.set(tab.id, tab);
         // Resolve only after the registry has all tabs. This lets persisted
         // targeted/exclusions selections win when those tabs register later.
@@ -89,6 +99,7 @@ export function createTabController(options = {}) {
             button.id = `gls-tab-${tab.id}`;
             button.dataset.tabId = tab.id;
             button.textContent = tab.label;
+            if (tab.labelKey) button.dataset.i18n = tab.labelKey;
             button.setAttribute('role', 'tab');
             button.setAttribute('aria-selected', String(tab.id === activeId));
             button.setAttribute('aria-controls', panelId);
@@ -117,39 +128,12 @@ export function createTabController(options = {}) {
         return buttons;
     }
 
-    function resetTabs() {
-        tabs.clear();
-        scroll.clear();
-        activeId = null;
-    }
-
     return {
         registerTab,
         resolveInitialTab,
         setActiveTab,
         refreshActiveTab,
         renderTabButtons,
-        resetTabs,
         getActiveTab: () => activeId,
-        getTabs: () => [...tabs.values()],
-        snapshotScroll: () => { if (activeId) scroll.set(activeId, Number(getScrollTop()) || 0); },
     };
 }
-
-let defaultController = null;
-function getDefaultController() {
-    if (!defaultController) {
-        defaultController = createTabController({
-            getPersistedTab: () => globalThis.localStorage?.getItem?.('gls-active-panel-tab'),
-            persistTab: id => { try { globalThis.localStorage?.setItem?.('gls-active-panel-tab', id); } catch {} },
-        });
-    }
-    return defaultController;
-}
-
-export function registerTab(tab) { return getDefaultController().registerTab(tab); }
-export function resolveInitialTab() { return getDefaultController().resolveInitialTab(); }
-export function setActiveTab(id, options) { return getDefaultController().setActiveTab(id, options); }
-export function refreshActiveTab() { return getDefaultController().refreshActiveTab(); }
-export function renderTabButtons(container, options) { return getDefaultController().renderTabButtons(container, options); }
-export function resetTabs() { return getDefaultController().resetTabs(); }

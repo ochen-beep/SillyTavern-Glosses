@@ -124,3 +124,24 @@ test('generating pulse rules cover both launchers with a reduced-motion fallback
     const reduced = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*?\.gls_fab\.gls_generating[\s\S]*?\n\}/);
     assert.ok(reduced, 'reduced-motion fallback for the generating pulse should exist');
 });
+
+// ── rectsIntersect (FAB↔panel-header passthrough, UX fix) ──
+// The FAB paints above the panel (contract above). When a parked FAB overlaps
+// the panel HEADER, syncFloatingLauncher() adds .gls_fab--passthrough so taps
+// fall through to the header controls; the pure overlap test is locked here.
+
+test('rectsIntersect: true only on real 2D overlap', () => {
+    const { rectsIntersect } = _test;
+    const header = { left: 969, top: 397, right: 1289, bottom: 440 };
+    // FAB parked on the header (the reported papercut): overlaps on both axes.
+    assert.equal(rectsIntersect({ left: 982, top: 382, right: 1018, bottom: 418 }, header), true);
+    // FAB below the header: vertical ranges touch but do not overlap.
+    assert.equal(rectsIntersect({ left: 982, top: 440, right: 1018, bottom: 476 }, header), false);
+    // FAB left of the header.
+    assert.equal(rectsIntersect({ left: 900, top: 382, right: 936, bottom: 418 }, header), false);
+    // Edge-touching is NOT an overlap (strict comparisons).
+    assert.equal(rectsIntersect({ left: 1289, top: 397, right: 1325, bottom: 433 }, header), false);
+    // Null rects (missing panel/FAB) never "overlap".
+    assert.equal(rectsIntersect(null, header), false);
+    assert.equal(rectsIntersect({ left: 0, top: 0, right: 10, bottom: 10 }, null), false);
+});

@@ -10,17 +10,8 @@
  * Ported from DS Comments/src/ui/empty.js (gls- prefix, Glosses vocabulary).
  */
 
-import { t } from '../core.js';
+import { t, escapeHtml } from '../core.js';
 import { iconHtml } from './icons.js';
-
-/** Escape an arbitrary reason string for safe HTML injection. The reason
- *  comes from state.configuredState.reason — an arbitrary API / transport
- *  error message, so never inject as raw HTML. */
-function _escapeText(s) {
-    return String(s || '').replace(/[&<>"']/g, (ch) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-    })[ch]);
-}
 
 /**
  * Decide *why* the panel has nothing to show.
@@ -56,9 +47,13 @@ export function renderEmptyStateHTML(reason, ctx = {}) {
         case 'unconfigured':
             // §6.4: persistent Source-not-configured badge with the failure
             // reason + an "Open settings" CTA. window.js wires the CTA to
-            // expand the Generation Engine accordion.
-            return `${icon('warn')}<div class="gls-empty-text">${t('Source not configured')}</div>` +
-                (ctx.reason ? `<div class="gls-empty-reason">${_escapeText(ctx.reason)}</div>` : '') +
+            // open the Extensions drawer and expand the Generation Engine
+            // accordion. A non-empty ctx.reason means the source IS configured
+            // but the last attempt failed (API/transport error carried in the
+            // reason) — head the badge with that instead of the misleading
+            // "not configured".
+            return `${icon('warn')}<div class="gls-empty-text">${ctx.reason ? t('Generation source error') : t('Source not configured')}</div>` +
+                (ctx.reason ? `<div class="gls-empty-reason">${escapeHtml(ctx.reason)}</div>` : '') +
                 `<button class="menu_button gls-empty-configure" type="button">${t('Open settings')}</button>`;
         case 'empty':
             // Annotatable message (AI, or {{user}} when glossUserMessages is on)

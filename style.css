@@ -604,35 +604,6 @@
 
 .gls-s-upload { cursor: pointer; }
 
-/* Font size stepper */
-.gls-fs-stepper {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.gls-fs-stepper select { flex: 1; }
-
-.gls-fs-btn {
-    width: 26px;
-    height: 26px;
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: 1px solid var(--gls-border);
-    border-radius: 4px;
-    color: var(--gls-text);
-    cursor: pointer;
-    font-size: 1em;
-    line-height: 1;
-    opacity: 0.75;
-    user-select: none;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-}
-
 /* Titled sub-card: grouped content inside a section (context blocks, the
    Popup appearance card, the Advanced lenses card). One visual grammar for
    all of them. [hidden] must beat display:flex — the hybrid lens card is
@@ -3281,7 +3252,7 @@
     user-select: none;
     font-size: 16px; /* FA glyph sizing */
     touch-action: none; -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
 }
 @media (hover: hover) {
     .gls_fab:hover {
@@ -3300,6 +3271,14 @@
     background: color-mix(in srgb, var(--gls-accent) 28%, var(--gls-bg));
     border-color: color-mix(in srgb, var(--gls-accent) 55%, transparent);
     color: var(--gls-accent);
+}
+/* UX: set while the panel is open AND the FAB overlaps the panel header —
+   taps pass through to the header controls underneath (the z-order FAB 2999 >
+   panel 2998 is contract-locked; the dimming shows the FAB is temporarily
+   inert). Cleared whenever the panel closes or the FAB moves. */
+.gls_fab.gls_fab--passthrough {
+    pointer-events: none;
+    opacity: 0.55;
 }
 .gls_fab.gls_fab_dragging {
     transition: none !important;
@@ -4078,11 +4057,6 @@
     /* Closed accordion headers hover neutral (they carry no accent until
        opened — see the [aria-expanded="true"] rule above). */
     .gls-s-section-header:hover { background: color-mix(in srgb, var(--gls-text) 8%, transparent); }
-    .gls-fs-btn:hover {
-        opacity: 1;
-        border-color: var(--gls-accent);
-        background: var(--gls-accent-dim);
-    }
     .gls-s-seg-btn:hover { opacity: 1; }
     .gls-color-btn:hover { border-color: var(--gls-accent); color: var(--gls-text); }
 

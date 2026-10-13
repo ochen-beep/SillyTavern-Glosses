@@ -26,12 +26,12 @@
  * floatingPanelEnabled instead of `collapsed`).
  */
 
-import { S, saveSettings, t } from '../core.js';
+import { S, saveSettings, t, warn, debounce } from '../core.js';
 import { whenSendFormReady } from './dom-ready.js';
 import { ensureFloatingLauncher, removeFloatingLauncher } from './floating-launcher.js';
 
 let _launcherObserver = null;
-let _launcherDebounce = null;
+const _debouncedEnsureLauncher = debounce(() => { if (S().enabled) ensureLauncher(); }, 100);
 // Disposer for the pending APP_READY subscription (when #send_form wasn't
 // mounted yet at attach time). cleanup() → removeLauncher() MUST invoke it,
 // or an extension disabled before APP_READY gets its launcher re-attached by
@@ -127,11 +127,28 @@ export function ensureLauncher() {
  *   panel visible        → toggle off permanently (floatingPanelEnabled=false)
  *   panel hidden + enabled → un-hide + clear the persisted floatingPanelHidden
  *   panel not mounted + disabled → first click enables + builds
+ *
+ * Serialized through a promise chain: the handler awaits dynamic imports, and
+ * both launcher buttons (QR bar + FAB) call it, so rapid clicks used to
+ * interleave — the second click could read panel state from the middle of the
+ * first toggle and the open/close alternation became unpredictable. Queuing
+ * makes every click observe the fully committed state of the previous one.
  */
-async function toggleLauncherPanel() {
+let _toggleChain = Promise.resolve();
+function toggleLauncherPanel() {
+    const run = _toggleChain.then(toggleLauncherPanelNow, toggleLauncherPanelNow);
+    // Keep the chain alive even if a toggle throws, and LOG the failure — a
+    // silently swallowed rejection here once hid a buildPanel ReferenceError
+    // (the panel simply never appeared, no console trace).
+    _toggleChain = run.catch(() => {});
+    run.catch(e => warn('Panel toggle failed:', e));
+    return run;
+}
+
+async function toggleLauncherPanelNow() {
     if (!S().enabled) return;
     // Dynamic import to avoid a launcher↔window cycle.
-    const { updatePanel, panelIsVisible, getPanel } = await import('./window.js');
+    const { updatePanel, panelIsVisible } = await import('./window.js');
 
     if (panelIsVisible()) {
         // Visible → toggle off permanently (the "I don't want the panel anymore" path).
@@ -150,39 +167,32 @@ async function toggleLauncherPanel() {
         // Enabled-but-hidden (after a prior ✕) → un-hide and persist that choice.
         // The flag must be cleared BEFORE updatePanel(), which reconciles
         // display from it (leaving it set would re-hide the panel instantly).
-        // If the panel was destroyed for some reason (chat switch mid-✕), build it.
-        const panel = getPanel();
+        // updatePanel() itself rebuilds the panel if it was destroyed (chat
+        // switch mid-✕), so no local getPanel() branch is needed.
         S().floatingPanelHidden = false;
         saveSettings();
-        if (panel) {
-            panel.style.display = '';
-            updatePanel();
-        } else {
-            S().floatingPanelEnabled = true; // already true — re-arm updatePanel
-            updatePanel();
-            if (S().floatingPanelEnabled) {
-                try {
-                    const { initScrollObserver } = await import('../events.js');
-                    setTimeout(initScrollObserver, 0);
-                } catch { /* non-critical */ }
-            }
-        }
+        updatePanel();
     } else {
         // Disabled in settings — first click enables (fresh, visible).
         S().floatingPanelEnabled = true;
         S().floatingPanelHidden = false;
         saveSettings();
         updatePanel();
-        if (S().floatingPanelEnabled) {
-            try {
-                const { initScrollObserver } = await import('../events.js');
-                setTimeout(initScrollObserver, 0);
-            } catch { /* non-critical */ }
-        }
     }
+    await rearmScrollObserver();
     ensureLauncher();
     const cb = document.getElementById('gls_floating_panel');
     if (cb) cb.checked = S().floatingPanelEnabled;
+}
+
+// After the launcher (re)enables the panel, re-arm the panel-mode scroll
+// observer (torn down with the panel). Deferred a tick so the panel exists.
+async function rearmScrollObserver() {
+    if (!S().floatingPanelEnabled) return;
+    try {
+        const { initScrollObserver } = await import('../events.js');
+        setTimeout(initScrollObserver, 0);
+    } catch { /* non-critical */ }
 }
 
 /**
@@ -196,8 +206,7 @@ export function observeQrBar() {
     if (_launcherObserver || _launcherReadyDispose) return;
     const attachObserver = (sendForm) => {
         _launcherObserver = new MutationObserver(() => {
-            if (_launcherDebounce) clearTimeout(_launcherDebounce);
-            _launcherDebounce = setTimeout(() => { _launcherDebounce = null; if (S().enabled) ensureLauncher(); }, 100);
+            _debouncedEnsureLauncher();
         });
         _launcherObserver.observe(sendForm, { childList: true, subtree: true });
     };
@@ -221,6 +230,6 @@ export function removeLauncher() {
     document.body.classList.remove('gls-launcher-mounted');
     removeFloatingLauncher();
     if (_launcherObserver) { _launcherObserver.disconnect(); _launcherObserver = null; }
-    if (_launcherDebounce) { clearTimeout(_launcherDebounce); _launcherDebounce = null; }
+    _debouncedEnsureLauncher.cancel();
     if (_launcherReadyDispose) { _launcherReadyDispose(); _launcherReadyDispose = null; }
 }
