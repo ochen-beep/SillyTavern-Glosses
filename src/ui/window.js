@@ -615,7 +615,6 @@ function applyDesktopMode(panel) {
 }
 
 let _viewportBound = false;
-let _viewportTimer = null;
 let _viewportHandler = null;
 let _chromeResizeObserver = null;
 // Disposer for the pending APP_READY subscription (when #send_form wasn't
@@ -632,19 +631,15 @@ let _viewportReadyDispose = null;
 export function initViewportSync() {
     if (_viewportBound) return;
     _viewportBound = true;
-    _viewportHandler = () => {
-        if (_viewportTimer) return;
-        _viewportTimer = setTimeout(() => {
-            _viewportTimer = null;
-            const panel = _floatingPanel;
-            if (!panel || panel.style.display === 'none') return;
-            if (isMobileViewport()) {
-                applyMobileMode(panel);
-            } else {
-                applyDesktopMode(panel);
-            }
-        }, 200);
-    };
+    _viewportHandler = debounce(() => {
+        const panel = _floatingPanel;
+        if (!panel || panel.style.display === 'none') return;
+        if (isMobileViewport()) {
+            applyMobileMode(panel);
+        } else {
+            applyDesktopMode(panel);
+        }
+    }, 200);
     window.addEventListener('resize', _viewportHandler);
     // #send_form's height changes at runtime (QR panel expand/collapse, extension
     // toolbar). Track it so the mobile bottom inset stays correct without a
@@ -671,7 +666,7 @@ export function initViewportSync() {
 }
 
 export function disconnectViewportSync() {
-    if (_viewportTimer) { clearTimeout(_viewportTimer); _viewportTimer = null; }
+    _viewportHandler?.cancel();
     if (_viewportBound && _viewportHandler) {
         window.removeEventListener('resize', _viewportHandler);
         _viewportHandler = null;
@@ -794,13 +789,15 @@ function makeResizable(panel) {
     panel.appendChild(grip);
 
     let isResizing = false, startX, startY, startW, startH;
-    let pendingFrame = 0, nextW = 0, nextH = 0, saveTimer = null;
+    let pendingFrame = 0, nextW = 0, nextH = 0;
 
     const flush = () => {
         pendingFrame = 0;
         panel.style.width = `${nextW}px`;
         panel.style.height = `${nextH}px`;
     };
+
+    const saveSoon = debounce(() => savePanelLayout({ width: panel.offsetWidth, height: panel.offsetHeight }), 300);
 
     const onMove = (e) => {
         if (!isResizing) return;
@@ -822,10 +819,7 @@ function makeResizable(panel) {
         if (pendingFrame) { cancelAnimationFrame(pendingFrame); pendingFrame = 0; }
         flush();
         panel.style.willChange = '';
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => {
-            savePanelLayout({ width: panel.offsetWidth, height: panel.offsetHeight });
-        }, 300);
+        saveSoon();
         // The panel changed size — re-evaluate the FAB-over-header passthrough.
         syncFabPassthrough();
     };
@@ -859,7 +853,7 @@ function makeResizable(panel) {
     _abortDragResize = (syntheticEvent) => {
         if (isResizing) onUp(syntheticEvent);
         else if (pendingFrame) { cancelAnimationFrame(pendingFrame); pendingFrame = 0; }
-        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        saveSoon.cancel();
         prevAbort?.(syntheticEvent);
     };
 }
