@@ -543,7 +543,7 @@ const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'me
  * @param {object} defaults - DEFAULT_SETTINGS.hybridLenses
  * @returns {Object<string, boolean>}
  */
-export function resolveActiveLenses(lenses, defaults) {
+function resolveActiveLenses(lenses, defaults) {
     const src = (lenses && typeof lenses === 'object') ? lenses : {};
     const out = {};
     for (const k of HYBRID_BUILTIN_LENSES) {

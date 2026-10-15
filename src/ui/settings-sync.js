@@ -42,7 +42,7 @@ import { openCssEditor } from './custom-css.js';
 // bindSettingsUI. Any manual edit of one of the preset's constituent fields
 // calls clearPresetOnManualEdit() so the dropdown auto-reverts to the sentinel
 // (the user is now in manual mode).
-export const PRESETS = {
+const PRESETS = {
     'pratchett50-ru':   { promptStyle: 'pratchett50', outputLanguage: 'ru' },
     'lang-en-ru-a2':    {
         promptStyle: 'language',   outputLanguage: 'ru',
@@ -827,7 +827,7 @@ function bindNum(id, key) {
     });
 }
 
-export function updateSrcPanels() {
+function updateSrcPanels() {
     const profEl = document.getElementById('gls_panel_profile');
     const custEl = document.getElementById('gls_panel_custom');
     if (profEl) profEl.hidden = S().source !== 'profile';
@@ -898,7 +898,7 @@ function bindHttpConfirm() {
     });
 }
 
-export function updatePromptPanels() {
+function updatePromptPanels() {
     const cw = document.getElementById('gls_custom_prompt_wrap');
     if (cw) cw.hidden = S().promptStyle !== 'custom';
     // The Language + CEFR selectors (gls_language_panel) are shown for the
@@ -912,7 +912,7 @@ export function updatePromptPanels() {
 }
 
 /** Reflect the active source button as pressed in the segmented picker. */
-export function syncSegSource() {
+function syncSegSource() {
     const src = S().source || 'default';
     document.querySelectorAll('#gls_source [data-gls-src]').forEach(b => {
         const active = b.dataset.glsSrc === src;
@@ -923,7 +923,7 @@ export function syncSegSource() {
 
 let _modelInfoReq = 0;
 /** Show "<API> · <model>" under the selected profile (race-guarded). */
-export function updateProfileModelInfo() {
+function updateProfileModelInfo() {
     const info = document.getElementById('gls_profile_info');
     const txt  = document.getElementById('gls_profile_model');
     if (!info || !txt) return;
@@ -968,7 +968,7 @@ function syncCustomApiKeyField(el) {
     fill();
 }
 
-export async function populateProfiles() {
+async function populateProfiles() {
     const sel = document.getElementById('gls_profile_select');
     if (!sel) return;
     sel.innerHTML = `<option value="">${t('-- Select Profile --')}</option>`;

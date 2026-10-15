@@ -42,7 +42,7 @@ export const LF_API_KEY = `${MODULE_NAME}_apiKey`;
 // (prompts/, sounds/, i18n/) regardless of where ST mounts third-party extensions.
 const _metaUrl = new URL(import.meta.url);
 const _metaPath = decodeURIComponent(_metaUrl.pathname);
-export const BASE_URL = _metaPath.substring(1).replace(/\/src\/core\.js$/, '');
+const BASE_URL = _metaPath.substring(1).replace(/\/src\/core\.js$/, '');
 export const MODULE_PATH = BASE_URL.replace(/^scripts\/extensions\//, '');
 
 /** URL prefix for addressing files shipped inside this extension. */

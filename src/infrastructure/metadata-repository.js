@@ -148,7 +148,6 @@ export function createMetadataRepository({ writer }) {
     }
 
     return {
-        getStore,
         wipeLegacyStore,
         getForcedIgnore,
         saveForcedIgnore,

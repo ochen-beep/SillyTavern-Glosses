@@ -265,7 +265,7 @@ export function ensureFloatingLauncher({ onToggle } = {}) {
  * rect? Used to detect a FAB parked over the panel header — see
  * syncFloatingLauncher() for why that needs a pointer-events passthrough.
  */
-export function rectsIntersect(a, b) {
+function rectsIntersect(a, b) {
     if (!a || !b) return false;
     return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
