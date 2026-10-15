@@ -20,7 +20,7 @@ import {
     PAYLOAD_KEY, readRawPayload, writePayload, clearPayload, digestForVariant,
 } from './domain/footnote-payload.js';
 import {
-    injectHighlights, removeHighlights, restoreHighlightsAll, restoreMessage, addRegenButton,
+    injectHighlights, removeHighlights, reinjectInto, restoreHighlightsAll, restoreMessage, addRegenButton,
     installMarkerDelegation, resetLazyInjector, closePopup,
 } from './renderer.js';
 import {
@@ -434,16 +434,9 @@ function onMsgUpdated(messageId) {
         return;
     }
     if (result) {
-        const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
-        if (mesEl) {
-            removeHighlights(mesEl);
-            // Merged read (regular + targeted): injecting result.payload.footnotes
-            // alone dropped the targeted entries' markers and block rows after
-            // an edit. rebindVariant persists its repair, so a fresh verified
-            // read is the same data — now with both kinds.
-            const merged = getVariantFootnotes(messageId, swipeIdx);
-            if (merged?.length) injectHighlights(mesEl, merged);
-        }
+        // Merged re-inject (regular + targeted): rebindVariant persists its
+        // repair, so a fresh verified read is the same data — now with both kinds.
+        reinjectInto(messageId, swipeIdx);
     }
     panelInvalidate();
     updatePanel();

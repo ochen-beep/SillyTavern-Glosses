@@ -25,7 +25,7 @@ import {
 } from '../cache.js';
 import { targetedOf } from '../domain/footnote-payload.js';
 import { isAnnotatableMsg } from '../domain/message-identity.js';
-import { removeHighlights, injectHighlights, formatFootnoteText } from '../renderer.js';
+import { removeHighlights, reinjectInto, formatFootnoteText } from '../renderer.js';
 import { indexToTargetedSymbol, stripLeadingNumber } from '../parser.js';
 import { normalizeAnchorKey } from '../anchor-utils.js';
 import { renumberFootnotes, reindexTargeted } from '../application/footnote-commands.js';
@@ -149,12 +149,7 @@ async function runTargetedGeneration() {
             return;
         }
         // Refresh the post's markers with the merged (regular + targeted) set.
-        const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
-        if (mesEl) {
-            removeHighlights(mesEl);
-            const merged = getVariantFootnotes(messageId, swipeIdx);
-            if (merged?.length) injectHighlights(mesEl, merged);
-        }
+        reinjectInto(messageId, swipeIdx);
         playSound();
         panelInvalidate();
         const floating = toSave.filter(e => !e.prefix && !e.suffix).length;
@@ -495,15 +490,9 @@ function deleteAnchorFromPool(key) {
     panelInvalidate();
     // Re-render each affected post's highlights (merged: regular + targeted).
     for (const msgId of affectedMsgIds) {
-        const mesEl = document.querySelector(`.mes[mesid="${msgId}"]`);
-        if (!mesEl) continue;
-        removeHighlights(mesEl);
-        const ctx = getCtx();
-        const msg = ctx.chat?.[parseInt(msgId)];
+        const msg = getCtx().chat?.[parseInt(msgId)];
         if (!msg) continue;
-        const swipeIdx = msg.swipe_id ?? 0;
-        const remaining = getVariantFootnotes(msgId, swipeIdx);
-        if (remaining?.length) injectHighlights(mesEl, remaining);
+        reinjectInto(msgId, msg.swipe_id ?? 0);
     }
     _tabController?.refreshActiveTab();
 }
@@ -1397,12 +1386,8 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
             // fresh from the store so both kinds survive — or strips
             // highlights when the payload was emptied.
             onRefreshHighlights: (_footnotes, msgId) => {
-                const mesEl = document.querySelector(`.mes[mesid="${msgId}"]`);
-                if (!mesEl) return;
-                removeHighlights(mesEl);
                 const swipe = getCtx().chat?.[parseInt(msgId)]?.swipe_id ?? 0;
-                const merged = getVariantFootnotes(msgId, swipe);
-                if (merged?.length) injectHighlights(mesEl, merged);
+                reinjectInto(msgId, swipe);
             },
             onAfterEdit: reRender,
             onAfterDelete: () => { panelInvalidate(); renderPanel(focusId); },

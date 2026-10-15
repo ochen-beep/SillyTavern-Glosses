@@ -466,6 +466,22 @@ export function removeHighlights(mesEl) {
 }
 
 /**
+ * Swap one message's markers for the merged (regular + targeted) set read
+ * fresh from the payload store, or strip them when the store is empty. The
+ * one re-injection path for post-mutation refreshes (edit, delete, targeted
+ * commit) in renderer, panel and events.
+ * @param {string|number} msgId
+ * @param {number} swipeIdx
+ */
+export function reinjectInto(msgId, swipeIdx) {
+    const mesEl = document.querySelector(`.mes[mesid="${msgId}"]`);
+    if (!mesEl) return;
+    removeHighlights(mesEl);
+    const merged = getVariantFootnotes(msgId, swipeIdx);
+    if (merged?.length) injectHighlights(mesEl, merged);
+}
+
+/**
  * Re-inject cached highlights for every AI message in the chat and re-add the
  * per-message regenerate button. Called on app-ready / chat-changed.
  *
@@ -865,23 +881,15 @@ export function showPopup(fn, anchorEl, ctx = null) {
                 // both kinds survive - or strips highlights when the payload was
                 // emptied.
                 onRefreshHighlights: (_footnotes, msgId) => {
-                    const mesEl = document.querySelector(`.mes[mesid="${msgId}"]`);
-                    if (!mesEl) return;
-                    removeHighlights(mesEl);
                     const swipe = getCtx().chat?.[parseInt(msgId)]?.swipe_id ?? 0;
-                    const merged = getVariantFootnotes(msgId, swipe);
-                    if (merged?.length) injectHighlights(mesEl, merged);
+                    reinjectInto(msgId, swipe);
                 },
                 onAfterEdit: () => {
                     _popupEditing = false;
-                    // The edit mutated the payload; refresh the underlying message's
-                    // highlights so the popup-text change is reflected inline too.
-                    const mesEl = document.querySelector(`.mes[mesid="${ctx.msgId}"]`);
-                    if (mesEl) {
-                        removeHighlights(mesEl);
-                        const footnotes = getVariantFootnotes(ctx.msgId, ctx.swipeIdx ?? 0);
-                        if (footnotes?.length) injectHighlights(mesEl, footnotes);
-                    }
+                    // The edit mutated the payload; refresh the underlying
+                    // message's highlights so the popup-text change is
+                    // reflected inline too.
+                    reinjectInto(ctx.msgId, ctx.swipeIdx ?? 0);
                     closePopup();
                     // An open floating panel still shows the pre-edit text —
                     // its render-key cache only refreshes on a render call.
