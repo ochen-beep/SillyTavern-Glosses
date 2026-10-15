@@ -103,6 +103,9 @@ export function mountInlineEditor(hostEl, opts) {
         cancel.disabled = true;
     };
 
+    /** Back to 'editing' after a failed save — the draft stays, buttons wake. */
+    const resume = () => { phase = 'editing'; save.disabled = false; cancel.disabled = false; };
+
     const handleSave = () => {
         if (phase !== 'editing') return; // saving in flight / already left
         commit();
@@ -118,26 +121,20 @@ export function mountInlineEditor(hostEl, opts) {
         }
         if (result.reason === 'empty') {
             // Stay in editing; re-enable the buttons so the user can fix it.
-            phase = 'editing';
-            save.disabled = false;
-            cancel.disabled = false;
+            resume();
             globalThis.toastr?.warning?.(t('Footnote text is required'));
             return;
         }
         if (result.reason === 'persistence-error') {
             // The write failed (not a staleness problem) — keep the editor
             // open with the draft intact so the user can retry.
-            phase = 'editing';
-            save.disabled = false;
-            cancel.disabled = false;
+            resume();
             globalThis.toastr?.error?.(t('Could not save the edit; try again'));
             return;
         }
         // 'stale' / 'not-found' — the message or the footnote moved under us;
         // bail and let the caller reset.
-        phase = 'editing';
-        save.disabled = false;
-        cancel.disabled = false;
+        resume();
         globalThis.toastr?.warning?.(t('The message changed; edit was cancelled'));
         onCancelled?.();
     };
