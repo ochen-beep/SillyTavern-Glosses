@@ -17,7 +17,7 @@
  * becomes valid again — the desired behaviour (the footnotes still apply).
  */
 
-import { MIN_POST_LENGTH } from '../core.js';
+import { MIN_POST_LENGTH, S } from '../core.js';
 
 /**
  * Compute a stable, non-cryptographic digest of the full NFC-normalized text.
@@ -73,3 +73,18 @@ export function isTranslatedView(msg) {
     return Boolean(msg?.extra?.display_text || msg?.extra?.reasoning_display_text);
 }
 
+/**
+ * Can this message carry footnotes at all? AI messages always; the user's own
+ * posts only when glossUserMessages is on; system messages never. The single
+ * predicate behind the targeted tab's focus check, the panel's empty-state
+ * decision, and /glosses_regen target picking. (The marker-rendering guards
+ * in renderer.js are a DIFFERENT, weaker predicate — user gate + translation
+ * gate, no is_system exclusion — and deliberately stay inline there.)
+ * @param {{ is_system?: unknown, is_user?: unknown } | null | undefined} msg
+ * @returns {boolean}
+ */
+export function isAnnotatableMsg(msg) {
+    if (!msg) return false;
+    if (msg.is_system) return false;
+    return msg.is_user ? Boolean(S().glossUserMessages) : true;
+}

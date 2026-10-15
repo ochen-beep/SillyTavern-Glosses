@@ -147,7 +147,6 @@ export function createGenerationCoordinator() {
         bumpMessageRevision,
         invalidateAll,
         abortAutoRuns,
-        revisionOf,
     };
 }
 

@@ -18,16 +18,17 @@ import {
     debounce,
 } from '../core.js';
 import {
-    getVariantFootnotes, getVariantPayload, digestFor, clearAll, clearVariant,
+    getVariantPayload, digestFor, clearAll, clearVariant,
     mutateFootnotes, saveTargeted, getTargetedDraft, saveTargetedDraft,
     getForcedIgnore, saveForcedIgnore, getPoolExcluded, togglePoolExcluded,
     listFootnoteSets,
 } from '../cache.js';
-import { targetedOf } from '../domain/footnote-payload.js';
-import { removeHighlights, injectHighlights, formatFootnoteText } from '../renderer.js';
+import { targetedOf, reindexTargeted, variantText } from '../domain/footnote-payload.js';
+import { isAnnotatableMsg } from '../domain/message-identity.js';
+import { removeHighlights, reinjectInto, formatFootnoteText } from '../renderer.js';
 import { indexToTargetedSymbol, stripLeadingNumber } from '../parser.js';
 import { normalizeAnchorKey } from '../anchor-utils.js';
-import { renumberFootnotes, reindexTargeted } from '../application/footnote-commands.js';
+import { renumberFootnotes } from '../application/footnote-commands.js';
 import { whenSendFormReady } from './dom-ready.js';
 import { createTabController } from './tabs.js';
 import { copyText } from './clipboard.js';
@@ -37,7 +38,7 @@ import {
 } from '../targeted-generation.js';
 import { playSound } from '../sound.js';
 import { iconHtml } from './icons.js';
-import { detectEmptyReason, renderEmptyStateHTML } from './empty.js';
+import { renderEmptyStateHTML } from './empty.js';
 import { buildFootnoteActions, makeActionButton } from './footnote-actions.js';
 import { uiBusyBegin, uiBusyEnd } from './busy.js';
 
@@ -67,8 +68,7 @@ async function runTargetedGeneration() {
     }
     const messageId = state.panelFocusMsgId;
     const message = getCtx().chat?.[parseInt(messageId)];
-    const annotatable = Boolean(message) && !message.is_system
-        && (S().glossUserMessages ? true : !message.is_user);
+    const annotatable = isAnnotatableMsg(message);
     if (!annotatable) {
         _targetedState.status = t('Focus a message that can carry footnotes first');
         _tabController?.refreshActiveTab();
@@ -97,7 +97,7 @@ async function runTargetedGeneration() {
         const swipeIdx = message.swipe_id ?? 0;
         const startDigest = digestFor(messageId, swipeIdx);
         const epoch = beginGenerationEpoch();
-        const { assembleStyle, buildContextBlocks } = await import('../generator.js');
+        const { assembleStyle, buildContextBlocks, getOutputLanguage } = await import('../generator.js');
         const [style, blocks] = await Promise.all([
             assembleStyle(),
             // skipForbidden: explicit user targets must not be second-guessed
@@ -107,11 +107,9 @@ async function runTargetedGeneration() {
         if (requestId !== _targetedState.requestId || !isEpochCurrent(epoch)) return;
         const result = await generateTargetedFootnotes({
             targets: _targetedState.input,
-            messageId,
-            swipeIdx,
             epoch,
             style,
-            outputLanguage: S().outputLanguage === 'en' ? 'English' : 'Russian',
+            outputLanguage: getOutputLanguage(),
             context: blocks.join('\n\n'),
         });
         if (requestId !== _targetedState.requestId || !isEpochCurrent(epoch)) return;
@@ -127,7 +125,7 @@ async function runTargetedGeneration() {
         }
 
         // Anchor + persist through the payload store (survives restarts).
-        const rawMes = Array.isArray(message.swipes) ? (message.swipes[swipeIdx] ?? message.mes) : message.mes;
+        const rawMes = variantText(message, swipeIdx);
         const plain = extractPlainText(rawMes);
         const resolved = resolveTargetedAnchors(
             result.footnotes.map(fn => ({ anchor: fn.anchor, text: fn.text })), plain);
@@ -151,12 +149,7 @@ async function runTargetedGeneration() {
             return;
         }
         // Refresh the post's markers with the merged (regular + targeted) set.
-        const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
-        if (mesEl) {
-            removeHighlights(mesEl);
-            const merged = getVariantFootnotes(messageId, swipeIdx);
-            if (merged?.length) injectHighlights(mesEl, merged);
-        }
+        reinjectInto(messageId, swipeIdx);
         playSound();
         panelInvalidate();
         const floating = toSave.filter(e => !e.prefix && !e.suffix).length;
@@ -497,15 +490,9 @@ function deleteAnchorFromPool(key) {
     panelInvalidate();
     // Re-render each affected post's highlights (merged: regular + targeted).
     for (const msgId of affectedMsgIds) {
-        const mesEl = document.querySelector(`.mes[mesid="${msgId}"]`);
-        if (!mesEl) continue;
-        removeHighlights(mesEl);
-        const ctx = getCtx();
-        const msg = ctx.chat?.[parseInt(msgId)];
+        const msg = getCtx().chat?.[parseInt(msgId)];
         if (!msg) continue;
-        const swipeIdx = msg.swipe_id ?? 0;
-        const remaining = getVariantFootnotes(msgId, swipeIdx);
-        if (remaining?.length) injectHighlights(mesEl, remaining);
+        reinjectInto(msgId, msg.swipe_id ?? 0);
     }
     _tabController?.refreshActiveTab();
 }
@@ -628,7 +615,6 @@ function applyDesktopMode(panel) {
 }
 
 let _viewportBound = false;
-let _viewportTimer = null;
 let _viewportHandler = null;
 let _chromeResizeObserver = null;
 // Disposer for the pending APP_READY subscription (when #send_form wasn't
@@ -645,19 +631,15 @@ let _viewportReadyDispose = null;
 export function initViewportSync() {
     if (_viewportBound) return;
     _viewportBound = true;
-    _viewportHandler = () => {
-        if (_viewportTimer) return;
-        _viewportTimer = setTimeout(() => {
-            _viewportTimer = null;
-            const panel = _floatingPanel;
-            if (!panel || panel.style.display === 'none') return;
-            if (isMobileViewport()) {
-                applyMobileMode(panel);
-            } else {
-                applyDesktopMode(panel);
-            }
-        }, 200);
-    };
+    _viewportHandler = debounce(() => {
+        const panel = _floatingPanel;
+        if (!panel || panel.style.display === 'none') return;
+        if (isMobileViewport()) {
+            applyMobileMode(panel);
+        } else {
+            applyDesktopMode(panel);
+        }
+    }, 200);
     window.addEventListener('resize', _viewportHandler);
     // #send_form's height changes at runtime (QR panel expand/collapse, extension
     // toolbar). Track it so the mobile bottom inset stays correct without a
@@ -684,7 +666,7 @@ export function initViewportSync() {
 }
 
 export function disconnectViewportSync() {
-    if (_viewportTimer) { clearTimeout(_viewportTimer); _viewportTimer = null; }
+    _viewportHandler?.cancel();
     if (_viewportBound && _viewportHandler) {
         window.removeEventListener('resize', _viewportHandler);
         _viewportHandler = null;
@@ -709,7 +691,7 @@ export function disconnectViewportSync() {
  */
 let _abortDragResize = null;
 
-function makeDraggable(panel, handle, enabledWhen) {
+function makeDraggable(panel, handle) {
     let startX, startY, startLeft, startTop, isDragging = false, hasMoved = false;
     let pendingFrame = 0;
     let nextLeft = 0, nextTop = 0;
@@ -722,7 +704,6 @@ function makeDraggable(panel, handle, enabledWhen) {
 
     const onDown = (e) => {
         if (isMobileViewport()) return;
-        if (enabledWhen && !enabledWhen()) return;
         if (e.target.closest('button, .gls-panel-btn, .gls-panel-nav-btn')) return;
         isDragging = true; hasMoved = false;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -808,13 +789,15 @@ function makeResizable(panel) {
     panel.appendChild(grip);
 
     let isResizing = false, startX, startY, startW, startH;
-    let pendingFrame = 0, nextW = 0, nextH = 0, saveTimer = null;
+    let pendingFrame = 0, nextW = 0, nextH = 0;
 
     const flush = () => {
         pendingFrame = 0;
         panel.style.width = `${nextW}px`;
         panel.style.height = `${nextH}px`;
     };
+
+    const saveSoon = debounce(() => savePanelLayout({ width: panel.offsetWidth, height: panel.offsetHeight }), 300);
 
     const onMove = (e) => {
         if (!isResizing) return;
@@ -836,10 +819,7 @@ function makeResizable(panel) {
         if (pendingFrame) { cancelAnimationFrame(pendingFrame); pendingFrame = 0; }
         flush();
         panel.style.willChange = '';
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => {
-            savePanelLayout({ width: panel.offsetWidth, height: panel.offsetHeight });
-        }, 300);
+        saveSoon();
         // The panel changed size — re-evaluate the FAB-over-header passthrough.
         syncFabPassthrough();
     };
@@ -873,7 +853,7 @@ function makeResizable(panel) {
     _abortDragResize = (syntheticEvent) => {
         if (isResizing) onUp(syntheticEvent);
         else if (pendingFrame) { cancelAnimationFrame(pendingFrame); pendingFrame = 0; }
-        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        saveSoon.cancel();
         prevAbort?.(syntheticEvent);
     };
 }
@@ -1125,10 +1105,6 @@ export function panelInvalidate() {
     _floatingPanel?.removeAttribute('data-render-key');
 }
 
-export function getPanel() {
-    return _floatingPanel;
-}
-
 /** §6.3: panel-is-visible predicate — mounted AND display !== 'none'. Used by
  *  the launcher click decision (toggle off vs. un-hide) and for the launcher's
  *  active-state class (so a ✕-hidden-but-enabled panel is not lit). */
@@ -1213,15 +1189,15 @@ function getAllAnnotatableMsgIds() {
  * Render the panel body for a given (or focused) message. Skips re-render when
  * the data-render-key already matches — call panelInvalidate() to force.
  */
-export function renderPanel(msgId, swipeIdxHint) {
+export function renderPanel(msgId) {
     if (_tabController && _tabController.getActiveTab() !== 'footnotes') {
         _tabController.refreshActiveTab();
         return;
     }
-    renderFootnotesTab(msgId, swipeIdxHint);
+    renderFootnotesTab(msgId);
 }
 
-function renderFootnotesTab(msgId, swipeIdxHint) {
+function renderFootnotesTab(msgId) {
     if (!_floatingPanel) return;
     const body = document.getElementById('gls-panel-body');
     const navLabel = document.getElementById('gls-panel-nav-label');
@@ -1244,7 +1220,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
 
     const focusId = state.panelFocusMsgId;
     const msg = ctx.chat?.[parseInt(focusId)];
-    const swipeIdx = swipeIdxHint !== undefined ? swipeIdxHint : (msg?.swipe_id ?? 0);
+    const swipeIdx = msg?.swipe_id ?? 0;
     const swipeCount = Array.isArray(msg?.swipes) ? msg.swipes.length : 1;
     const name = msg?.name || t('Message');
 
@@ -1269,7 +1245,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
     // don't change the digest (text unchanged), so without them a targeted
     // commit would leave the Footnotes tab showing a stale list.
     const cacheKey = `footnotes:${focusId}:${swipeIdx}:${digest || 'none'}:${payload?.generatedAt ?? 0}:${targeted.length}`;
-    if (_floatingPanel.dataset.renderKey === cacheKey && swipeIdxHint === undefined) return;
+    if (_floatingPanel.dataset.renderKey === cacheKey) return;
     _floatingPanel.dataset.renderKey = cacheKey;
     body.innerHTML = '';
 
@@ -1288,8 +1264,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
         }
         // Centralized empty-state via empty.js (disabled / unconfigured /
         // generating / empty+CTA).
-        const msg2 = ctx.chat?.[parseInt(focusId)];
-        const isAnnotatable = msg2 && !msg2.is_system && (S().glossUserMessages ? true : !msg2.is_user);
+        const isAnnotatable = isAnnotatableMsg(ctx.chat?.[parseInt(focusId)]);
         let reason;
         // §6.4: !state.configuredState.ok wins over everything else so a
         // persistent "Source not configured" badge stays until a successful
@@ -1297,11 +1272,11 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
         if (!state.configuredState.ok) reason = 'unconfigured';
         else if (state.isGenerating[focusId]) reason = 'generating';
         else if (!isAnnotatable) reason = 'empty';   // system message -> neutral, no CTA
-        else reason = detectEmptyReason({
-            enabled: true,
-            generating: false,
-            configured: state.configuredState,
-        });
+        else reason = 'empty';
+        // The dropped detectEmptyReason call was provably 'empty' here: the
+        // if-chain above already handled !configuredState.ok and the
+        // generating case, so enabled=true/generating=false/configured=ok.
+        // Both remaining branches yield 'empty'; the renderer keys the CTA off ctx.isAnnotatable.
         const empty = document.createElement('div');
         empty.className = 'gls-empty gls-empty--state';
         empty.innerHTML = renderEmptyStateHTML(reason, {
@@ -1391,7 +1366,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
         const actions = document.createElement('div');
         actions.className = 'gls-panel-entry-actions';
 
-        const reRender = () => { panelInvalidate(); renderPanel(focusId, swipeIdx); };
+        const reRender = () => { panelInvalidate(); renderPanel(focusId); };
         const buttons = buildFootnoteActions({
             fn, msgId: focusId, swipeIdx, digest,
             kind: isTargeted ? 't' : 'fn',
@@ -1405,12 +1380,8 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
             // fresh from the store so both kinds survive — or strips
             // highlights when the payload was emptied.
             onRefreshHighlights: (_footnotes, msgId) => {
-                const mesEl = document.querySelector(`.mes[mesid="${msgId}"]`);
-                if (!mesEl) return;
-                removeHighlights(mesEl);
                 const swipe = getCtx().chat?.[parseInt(msgId)]?.swipe_id ?? 0;
-                const merged = getVariantFootnotes(msgId, swipe);
-                if (merged?.length) injectHighlights(mesEl, merged);
+                reinjectInto(msgId, swipe);
             },
             onAfterEdit: reRender,
             onAfterDelete: () => { panelInvalidate(); renderPanel(focusId); },
@@ -1477,7 +1448,5 @@ export function setVisiblePost(msgId) {
     // focus/caret. The Footnotes tab picks the new focus up when reselected.
     if (!panelIsVisible()) return;
     if (_tabController && _tabController.getActiveTab() !== 'footnotes') return;
-    // No swipeIdxHint on purpose: the render-key cache already keys on
-    // swipeIdx, and passing the hint bypasses the cache on every scroll pick.
     renderPanel(msgId);
 }

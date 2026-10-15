@@ -125,7 +125,7 @@ export function forceOpaqueBg(input, fallback = FALLBACK_BG) {
  * Read ST's theme tint, force it opaque, and write it to --gls-bg on
  * documentElement. Safe to call repeatedly.
  */
-export function applyOpaqueBackground() {
+function applyOpaqueBackground() {
     try {
         const root = document.documentElement;
         const raw = getComputedStyle(root).getPropertyValue('--SmartThemeBlurTintColor');

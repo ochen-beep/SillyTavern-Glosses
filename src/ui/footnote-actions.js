@@ -11,8 +11,7 @@
  *     src/application/footnote-commands.js, which are pure data: exact-context
  *     validation, immutable mutation, persistence. They never touch the DOM.
  *   - The inline editor is the separate component src/ui/footnote-editor.js
- *     (own state machine + disposer). This module only wires it into the action
- *     bar and re-exports it so existing callers keep one import surface.
+ *     (own state machine + disposer). This module only wires it into the action bar.
  *   - This module imports NO renderer.js — the cycle that the previous version
  *     introduced (renderer → footnote-actions → renderer) is gone. DOM refresh
  *     is supplied by the caller, who already owns the renderer reference.
@@ -28,9 +27,6 @@ import {
 } from '../application/footnote-commands.js';
 import { mountInlineEditor } from './footnote-editor.js';
 import { copyText } from './clipboard.js';
-
-// Re-export the editor so the action bar and any caller share one surface.
-export { mountInlineEditor };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BUTTON FACTORY + COPY FEEDBACK

@@ -33,6 +33,7 @@ import { uiBusyBegin, uiBusyEnd } from './ui/busy.js';
 import { playSound } from './sound.js';
 import { generationCoordinator } from './application/generation-coordinator.js';
 import { renumberFootnotes } from './application/footnote-commands.js';
+import { generateWithConfiguredSource } from './connection.js';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BASE SYSTEM PROMPTS
@@ -369,7 +370,7 @@ Post (context only; footnote its words/phrases/situations, not wholesale).
 // target). Set via the "Output language" dropdown; default 'ru'. This replaces
 // the old heuristic (document.documentElement.lang) which inferred it from the
 // ST UI language — see anchor-count-language spec §3.
-function getOutputLanguage() {
+export function getOutputLanguage() {
     return S().outputLanguage === 'en' ? 'English' : 'Russian';
 }
 
@@ -381,6 +382,14 @@ function isOutputRu() {
 function langCacheKey() {
     const s = S();
     return `${s.targetLanguage || 'en'}:${s.cefrLevel || 'auto'}:${getOutputLanguage()}`;
+}
+
+/** Drop every cached prompt whose key starts with the prefix (style/lang/
+ *  hybrid signature changed → stale entries). */
+function invalidatePromptCache(prefix) {
+    for (const k of Object.keys(state.promptCache)) {
+        if (k.startsWith(prefix)) delete state.promptCache[k];
+    }
 }
 
 /**
@@ -404,9 +413,7 @@ export async function assembleStyle() {
             stylePrompt = state.promptCache[key];
         } else {
             // Invalidate any stale language caches (settings changed).
-            for (const k of Object.keys(state.promptCache)) {
-                if (k.startsWith('language:')) delete state.promptCache[k];
-            }
+            invalidatePromptCache('language:');
             try {
                 const resp = await fetch(`${getExtBase()}/prompts/language.md`);
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -436,9 +443,7 @@ export async function assembleStyle() {
         if (state.promptCache[key]) {
             stylePrompt = state.promptCache[key];
         } else {
-            for (const k of Object.keys(state.promptCache)) {
-                if (k.startsWith(`${style}:`)) delete state.promptCache[k];
-            }
+            invalidatePromptCache(`${style}:`);
             try {
                 const resp = await fetch(`${getExtBase()}/prompts/${style}.md`);
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -543,7 +548,7 @@ const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'me
  * @param {object} defaults - DEFAULT_SETTINGS.hybridLenses
  * @returns {Object<string, boolean>}
  */
-export function resolveActiveLenses(lenses, defaults) {
+function resolveActiveLenses(lenses, defaults) {
     const src = (lenses && typeof lenses === 'object') ? lenses : {};
     const out = {};
     for (const k of HYBRID_BUILTIN_LENSES) {
@@ -574,9 +579,7 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
     if (state.promptCache[key]) return state.promptCache[key];
 
     // Invalidate stale hybrid prompts (active lens set / lang changed).
-    for (const k of Object.keys(state.promptCache)) {
-        if (k.startsWith('hybrid:')) delete state.promptCache[k];
-    }
+    invalidatePromptCache('hybrid:');
 
     let raw = '';
     try {
@@ -1084,8 +1087,6 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
 }
 
 async function callAPI(systemPrompt, userPrompt, signal) {
-    const s = S();
-
     // Test-only injection point: tests set _testApiOverride to a function
     // returning a canned raw model response (possibly gated behind a promise
     // they control to simulate mid-flight chat switches). Gated on NODE_TEST
@@ -1100,20 +1101,7 @@ async function callAPI(systemPrompt, userPrompt, signal) {
         return _testApiOverride(systemPrompt, userPrompt, signal);
     }
 
-    if (s.source === 'profile') {
-        const { generateWithProfile } = await import('./connection.js');
-        return generateWithProfile(s.selectedProfile, systemPrompt, userPrompt, signal);
-    }
-    if (s.source === 'custom') {
-        const { generateWithCustomEndpoint } = await import('./connection.js');
-        return generateWithCustomEndpoint(systemPrompt, userPrompt, signal, s.customEndpoint, s.customModel);
-    }
-    // No 'default' source — the old ST-API passthrough was removed (it routed
-    // footnote generation through the main LLM pipeline, picking up presets,
-    // instruct formatting and other extensions' injections). Only the two
-    // isolated sources above are supported; an unset/stale source is a
-    // configuration error the user must resolve in settings.
-    throw new Error(t('Select a generation source (Connection Profile or Custom) in Glosses settings.'));
+    return generateWithConfiguredSource(systemPrompt, userPrompt, signal);
 }
 
 // ── Test-only hooks (gated on NODE_TEST) ──

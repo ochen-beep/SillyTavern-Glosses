@@ -9,7 +9,7 @@
 
 import { state, S, getCtx, t, sanitize, warn } from './core.js';
 import { generationCoordinator } from './application/generation-coordinator.js';
-import { getVariantFootnotes, getVariantPayload, digestFor } from './cache.js';
+import { getVariantFootnotes, getVariantPayload } from './cache.js';
 import { targetedOf } from './domain/footnote-payload.js';
 import { isTranslatedView } from './domain/message-identity.js';
 import { indexToSuperscript, indexToTargetedSymbol, stripLeadingNumber } from './parser.js';
@@ -185,19 +185,6 @@ export function injectHighlights(mesEl, footnotes) {
     if (mode === 'inline' || mode === 'both') renderInlineBlock(mesEl, footnotes);
     return report;
 }
-
-/**
- * Rank an anchor's occurrences by the footnote's stored context selectors
- * (W3C TextQuoteSelector style, computed at save time). Occurrences whose
- * surrounding text matches the stored prefix/suffix sort first, so a
- * re-injection after an edit lands on the occurrence the anchor was
- * originally placed on instead of jumping to the first match. Falls back to
- * document order when nothing matches (heavily edited text).
- *
- * Moved to domain/rebind.js (pure) so the rebind engine and the renderer
- * share ONE ranking policy; re-exported here for the wrap-time call below.
- */
-export { rankOccurrencesByContext } from './domain/rebind.js';
 
 /**
  * Place every footnote's marker against the message's text INDEX (one
@@ -424,14 +411,9 @@ function revealInlineFootnote(marker) {
     entry.addEventListener('animationend', () => entry.classList.remove('gls-fn-flash'), { once: true });
 }
 
-function onDelegatedPointerUp(e) {
-    // Touch path: fire the popup on pointerup for instant response, then flag
-    // the marker so the immediately-following click is suppressed.
-    if (e.pointerType === 'mouse') return;
-    const marker = e.target.closest?.('.gls-marker');
-    if (!marker) return;
-    e.stopPropagation();
-    marker._glsTouchHandled = true;
+/** One marker-activation policy for both input paths: popup modes resolve and
+ *  show; inline mode reveals the block. */
+function activateMarker(marker) {
     if (S().displayMode !== 'inline') {
         const resolved = resolveFootnoteFromMarker(marker);
         if (resolved) showPopup(resolved.fn, marker, resolved);
@@ -440,17 +422,23 @@ function onDelegatedPointerUp(e) {
     }
 }
 
+function onDelegatedPointerUp(e) {
+    // Touch path: fire the popup on pointerup for instant response, then flag
+    // the marker so the immediately-following click is suppressed.
+    if (e.pointerType === 'mouse') return;
+    const marker = e.target.closest?.('.gls-marker');
+    if (!marker) return;
+    e.stopPropagation();
+    marker._glsTouchHandled = true;
+    activateMarker(marker);
+}
+
 function onDelegatedClick(e) {
     const marker = e.target.closest?.('.gls-marker');
     if (!marker) return;
     e.stopPropagation();
     if (marker._glsTouchHandled) { marker._glsTouchHandled = false; return; }
-    if (S().displayMode !== 'inline') {
-        const resolved = resolveFootnoteFromMarker(marker);
-        if (resolved) showPopup(resolved.fn, marker, resolved);
-    } else {
-        revealInlineFootnote(marker);
-    }
+    activateMarker(marker);
 }
 
 /**
@@ -476,6 +464,22 @@ export function removeHighlights(mesEl) {
     mesEl.querySelectorAll(':scope > .gls-inline-fns, :scope > .mes_block > .gls-inline-fns')
         .forEach(el => el.remove());
     try { mesEl.normalize(); } catch { /* Safari quirk */ }
+}
+
+/**
+ * Swap one message's markers for the merged (regular + targeted) set read
+ * fresh from the payload store, or strip them when the store is empty. The
+ * one re-injection path for post-mutation refreshes (edit, delete, targeted
+ * commit) in renderer, panel and events.
+ * @param {string|number} msgId
+ * @param {number} swipeIdx
+ */
+export function reinjectInto(msgId, swipeIdx) {
+    const mesEl = document.querySelector(`.mes[mesid="${msgId}"]`);
+    if (!mesEl) return;
+    removeHighlights(mesEl);
+    const merged = getVariantFootnotes(msgId, swipeIdx);
+    if (merged?.length) injectHighlights(mesEl, merged);
 }
 
 /**
@@ -878,23 +882,15 @@ export function showPopup(fn, anchorEl, ctx = null) {
                 // both kinds survive - or strips highlights when the payload was
                 // emptied.
                 onRefreshHighlights: (_footnotes, msgId) => {
-                    const mesEl = document.querySelector(`.mes[mesid="${msgId}"]`);
-                    if (!mesEl) return;
-                    removeHighlights(mesEl);
                     const swipe = getCtx().chat?.[parseInt(msgId)]?.swipe_id ?? 0;
-                    const merged = getVariantFootnotes(msgId, swipe);
-                    if (merged?.length) injectHighlights(mesEl, merged);
+                    reinjectInto(msgId, swipe);
                 },
                 onAfterEdit: () => {
                     _popupEditing = false;
-                    // The edit mutated the payload; refresh the underlying message's
-                    // highlights so the popup-text change is reflected inline too.
-                    const mesEl = document.querySelector(`.mes[mesid="${ctx.msgId}"]`);
-                    if (mesEl) {
-                        removeHighlights(mesEl);
-                        const footnotes = getVariantFootnotes(ctx.msgId, ctx.swipeIdx ?? 0);
-                        if (footnotes?.length) injectHighlights(mesEl, footnotes);
-                    }
+                    // The edit mutated the payload; refresh the underlying
+                    // message's highlights so the popup-text change is
+                    // reflected inline too.
+                    reinjectInto(ctx.msgId, ctx.swipeIdx ?? 0);
                     closePopup();
                     // An open floating panel still shows the pre-edit text —
                     // its render-key cache only refreshes on a render call.

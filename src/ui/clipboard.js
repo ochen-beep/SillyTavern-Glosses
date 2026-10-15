@@ -22,7 +22,7 @@
  * @param {Document} [doc]
  * @returns {boolean}
  */
-export function copyViaFallback(text, doc = document) {
+function copyViaFallback(text, doc = document) {
     try {
         const ta = doc.createElement('textarea');
         ta.value = text;

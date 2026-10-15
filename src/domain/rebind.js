@@ -19,6 +19,7 @@
 import { findAllAnchorSpans, normalizeAnchorKey } from '../anchor-utils.js';
 import { computeContextSelectors, findFuzzySpan } from '../text-index.js';
 import { normalizeFootnotes } from '../parser.js';
+import { reindexTargeted } from './footnote-payload.js';
 
 /**
  * Rank an anchor's occurrences by the footnote's stored context selectors
@@ -191,6 +192,6 @@ export function rebindTargeted(targeted, newText) {
         survivors.push(out);
     }
 
-    const reindexed = survivors.map((e, i) => ({ ...e, index: i + 1 }));
+    const reindexed = reindexTargeted(survivors);
     return { targeted: reindexed, orphans, fuzzyRescues };
 }

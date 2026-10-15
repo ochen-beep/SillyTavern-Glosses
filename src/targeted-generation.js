@@ -9,7 +9,7 @@
  */
 import { parseResponse } from './parser.js';
 import { normalizeAnchorKey } from './anchor-utils.js';
-import { S, beginGenerationEpoch, isEpochCurrent, t } from './core.js';
+import { beginGenerationEpoch, isEpochCurrent } from './core.js';
 import { rebindTargeted } from './domain/rebind.js';
 
 const MAX_TARGETS = 20;
@@ -53,8 +53,7 @@ function footnoteText(value) {
 }
 
 export function validateTargetedResponse(parsed, targets) {
-    const orderedTargets = Array.isArray(targets) ? targets : parseTargetLines(targets).targets;
-    const byKey = new Map(orderedTargets.map(target => [keyOf(target), target]));
+    const byKey = new Map(targets.map(target => [keyOf(target), target]));
     const used = new Set();
     const accepted = [];
     let invalidCount = 0;
@@ -68,7 +67,7 @@ export function validateTargetedResponse(parsed, targets) {
         used.add(key);
         accepted.push({ anchor: target, text: candidate.text });
     }
-    const footnotes = orderedTargets.filter(target => used.has(keyOf(target))).map((target, index) => {
+    const footnotes = targets.filter(target => used.has(keyOf(target))).map((target, index) => {
         const found = accepted.find(fn => keyOf(fn.anchor) === keyOf(target));
         // Body WITHOUT a numeric prefix — targeted entries are marked by a
         // symbol derived from their position at render time, never by digits.
@@ -76,7 +75,7 @@ export function validateTargetedResponse(parsed, targets) {
     });
     return {
         footnotes,
-        missingTargets: orderedTargets.filter(target => !used.has(keyOf(target))),
+        missingTargets: targets.filter(target => !used.has(keyOf(target))),
         invalidCount,
     };
 }
@@ -111,8 +110,8 @@ export function clearTargetedState() {
 }
 
 /**
- * @param {{targets: string[], messageId?: string|number, swipeIdx?: number, signal?: AbortSignal,
- *   systemPrompt?: string, userPrompt?: string, request?: Function, epoch?: number}} options
+ * @param {{targets: string[], systemPrompt?: string, userPrompt?: string,
+ *   request?: Function, epoch?: number}} options
  */
 export async function generateTargetedFootnotes(options = {}) {
     const targets = parseTargetLines(options.targets || '').targets;
@@ -122,22 +121,10 @@ export async function generateTargetedFootnotes(options = {}) {
     const epoch = options.epoch ?? beginGenerationEpoch();
     const run = { controller, epoch };
     activeRun = run;
-    if (options.signal) {
-        if (options.signal.aborted) controller.abort();
-        else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
-    }
     try {
         const request = options.request || (async (system, user, signal) => {
-            const s = S();
-            if (s.source === 'profile') {
-                const { generateWithProfile } = await import('./connection.js');
-                return generateWithProfile(s.selectedProfile, system, user, signal);
-            }
-            if (s.source === 'custom') {
-                const { generateWithCustomEndpoint } = await import('./connection.js');
-                return generateWithCustomEndpoint(system, user, signal, s.customEndpoint, s.customModel);
-            }
-            throw new Error(t('Select a generation source (Connection Profile or Custom) in Glosses settings.'));
+            const { generateWithConfiguredSource } = await import('./connection.js');
+            return generateWithConfiguredSource(system, user, signal);
         });
         const prompt = options.userPrompt || buildTargetedPrompt({ targets, style: options.style, outputLanguage: options.outputLanguage, context: options.context });
         const raw = await request(options.systemPrompt || TARGETED_SYSTEM_PROMPT, prompt, controller.signal, options);
@@ -149,5 +136,3 @@ export async function generateTargetedFootnotes(options = {}) {
         if (activeRun === run) activeRun = null;
     }
 }
-
-export const _test = { keyOf, footnoteText };

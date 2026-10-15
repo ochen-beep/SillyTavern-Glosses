@@ -37,7 +37,7 @@ export const BUNDLED_SOUNDS = [
     { file: 'music-reminder-sound.ogg', label: 'Music Reminder' },
 ];
 
-export const LEGACY_CUSTOM_SOUND = '__custom__';
+const LEGACY_CUSTOM_SOUND = '__custom__';
 const CUSTOM_KEY_RE = /^custom_(\d+)$/;
 const MIME_TO_EXT = {
     'audio/mpeg': 'mp3', 'audio/mp3': 'mp3',
@@ -57,7 +57,7 @@ const MIME_TO_EXT = {
  * @param {unknown} value
  * @returns {string}
  */
-export function normalizeSoundId(value) {
+function normalizeSoundId(value) {
     const s = String(value ?? '').trim();
     if (!s) return '';
     if (s === LEGACY_CUSTOM_SOUND) return s;
@@ -124,7 +124,7 @@ export function normalizeSoundFiles(value) {
  * localforage blob) to soundId + server-side files. Idempotent: a no-op when
  * soundId is already valid. Returns true when something was written.
  */
-export async function migrateLegacySound() {
+async function migrateLegacySound() {
     if (normalizeSoundId(S().soundId)) return false;
     const legacy = String(S().soundName ?? '');
     const mapped = normalizeSoundId(legacy);
@@ -164,7 +164,7 @@ export async function migrateLegacySound() {
 }
 
 /** Verify server-side customs; returns the metadata keys whose file is gone. */
-export async function missingCustomSoundKeys() {
+async function missingCustomSoundKeys() {
     const files = normalizeSoundFiles(S().soundFiles);
     const keys = Object.keys(files);
     if (!keys.length) return [];

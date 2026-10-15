@@ -7,8 +7,9 @@ import assert from 'node:assert/strict';
 
 import './helpers/stub-runtime.mjs';
 import { resetCtx } from './helpers/stub-runtime.mjs';
+import { S } from '../src/core.js';
 import {
-    contentDigest, isViableMessageText,
+    contentDigest, isViableMessageText, isAnnotatableMsg,
 } from '../src/domain/message-identity.js';
 import { digestFor, variantIsViable, saveFootnotes, getVariantFootnotes, clearAll, listFootnoteSets, stats } from '../src/cache.js';
 import { makeMessage } from './helpers/stub-runtime.mjs';
@@ -120,4 +121,17 @@ test('clearAll wipes all payloads', () => {
 test('saveFootnotes returns false with no chatId', () => {
     resetCtx({ chat: [makeMessage({ mes: 'A sufficiently long AI message body to clear the guard.' })], chatId: null });
     assert.equal(saveFootnotes('0', 0, [{ index: 1, anchor: 'a', text: '¹a' }]), false);
+});
+
+test('isAnnotatableMsg: AI yes, system no, user gated by glossUserMessages', () => {
+    try {
+        assert.equal(isAnnotatableMsg({ is_system: false, is_user: false }), true);
+        assert.equal(isAnnotatableMsg({ is_system: true, is_user: false }), false);
+        assert.equal(isAnnotatableMsg({ is_system: false, is_user: true }), false);
+        assert.equal(isAnnotatableMsg(null), false);
+        S().glossUserMessages = true;
+        assert.equal(isAnnotatableMsg({ is_system: false, is_user: true }), true);
+    } finally {
+        S().glossUserMessages = false;
+    }
 });

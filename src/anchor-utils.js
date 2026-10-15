@@ -1,12 +1,19 @@
 // @ts-check
 /** Shared exact-normalized anchor matching policy. */
 
+// Quote/dash canonicalization shared by the per-char and per-key normalizers.
+// String.replace never persists lastIndex for /g regexes, so module-level
+// constants are safe to share.
+const _SINGLE_QUOTES = /[\u2018\u2019\u201A\u201B']/gu;
+const _DOUBLE_QUOTES = /[\u201C\u201D\u201E\u201F«»"]/gu;
+const _DASHES = /[\u2010\u2011\u2012\u2013\u2014\u2212-]/gu;
+
 function normalizeChar(ch) {
     return ch
         .normalize('NFC')
-        .replace(/[\u2018\u2019\u201A\u201B']/gu, "'")
-        .replace(/[\u201C\u201D\u201E\u201F«»"]/gu, '"')
-        .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212-]/gu, '-');
+        .replace(_SINGLE_QUOTES, "'")
+        .replace(_DOUBLE_QUOTES, '"')
+        .replace(_DASHES, '-');
 }
 
 export function normalizeAnchorKey(value) {
@@ -14,9 +21,9 @@ export function normalizeAnchorKey(value) {
         .normalize('NFC')
         .trim()
         .toLowerCase()
-        .replace(/[\u2018\u2019\u201A\u201B']/gu, "'")
-        .replace(/[\u201C\u201D\u201E\u201F«»"]/gu, '"')
-        .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212-]/gu, '-')
+        .replace(_SINGLE_QUOTES, "'")
+        .replace(_DOUBLE_QUOTES, '"')
+        .replace(_DASHES, '-')
         .replace(/\s+/gu, ' ');
 }
 

@@ -20,7 +20,7 @@ import {
     PAYLOAD_KEY, readRawPayload, writePayload, clearPayload, digestForVariant,
 } from './domain/footnote-payload.js';
 import {
-    injectHighlights, removeHighlights, restoreHighlightsAll, restoreMessage, addRegenButton,
+    injectHighlights, removeHighlights, reinjectInto, restoreHighlightsAll, restoreMessage, addRegenButton,
     installMarkerDelegation, resetLazyInjector, closePopup,
 } from './renderer.js';
 import {
@@ -240,19 +240,18 @@ function onCharMsgRendered(messageId) {
         };
         return null;
     })();
-    const msg = msg0;
     // Track swipes.length on EVERY render (before the guards) — a swipe of a
     // message that never passed them must not look like an appending swipe.
-    _swipesLen.set(Number(messageId), Array.isArray(msg?.swipes) ? msg.swipes.length : 0);
-    if (!msg || msg.is_user || msg.is_system || msg.is_hidden || !S().enabled) return;
+    _swipesLen.set(Number(messageId), Array.isArray(msg0?.swipes) ? msg0.swipes.length : 0);
+    if (!msg0 || msg0.is_user || msg0.is_system || msg0.is_hidden || !S().enabled) return;
 
     // False-start guard (mirrors DS Comments src/events.js CHARACTER_MESSAGE_RENDERED
     // handler). SillyTavern leaves mes/swipe text as the `'...'` placeholder (or
     // empty) while a new post is still being generated. Without this guard the
     // placeholder would pass as a truthy identity, the payload read misses, and
     // generateFootnotes fires on a not-yet-written post — burning an API call.
-    const swipeIdx = msg.swipe_id ?? 0;
-    const candidate = Array.isArray(msg.swipes) ? (msg.swipes[swipeIdx] ?? msg.mes) : msg.mes;
+    const swipeIdx = msg0.swipe_id ?? 0;
+    const candidate = Array.isArray(msg0.swipes) ? (msg0.swipes[swipeIdx] ?? msg0.mes) : msg0.mes;
     const postText = (candidate || '').trim();
     if (!postText || postText === '...' || postText.length < MIN_POST_LENGTH) return;
 
@@ -435,16 +434,9 @@ function onMsgUpdated(messageId) {
         return;
     }
     if (result) {
-        const mesEl = document.querySelector(`.mes[mesid="${messageId}"]`);
-        if (mesEl) {
-            removeHighlights(mesEl);
-            // Merged read (regular + targeted): injecting result.payload.footnotes
-            // alone dropped the targeted entries' markers and block rows after
-            // an edit. rebindVariant persists its repair, so a fresh verified
-            // read is the same data — now with both kinds.
-            const merged = getVariantFootnotes(messageId, swipeIdx);
-            if (merged?.length) injectHighlights(mesEl, merged);
-        }
+        // Merged re-inject (regular + targeted): rebindVariant persists its
+        // repair, so a fresh verified read is the same data — now with both kinds.
+        reinjectInto(messageId, swipeIdx);
     }
     panelInvalidate();
     updatePanel();
@@ -536,7 +528,9 @@ let _pickTimer = null;
 // every scroll frame — the main source of the panel's sluggishness.
 const SCROLL_PICK_DEBOUNCE_MS = 200;
 
-export function initScrollObserver() {
+/** Shared observer/listener teardown: initScrollObserver (re-run) and
+ *  disconnectScrollObserver must leave exactly the same clean state. */
+function teardownScroll() {
     _scrollIO?.disconnect(); _scrollIO = null;
     _scrollMO?.disconnect(); _scrollMO = null;
     if (_scrollChatEl && _scrollHandler) {
@@ -545,6 +539,10 @@ export function initScrollObserver() {
     }
     if (_pickTimer) { clearTimeout(_pickTimer); _pickTimer = null; }
     _observedIds.clear(); _observedEls.clear();
+}
+
+export function initScrollObserver() {
+    teardownScroll();
 
     // Scroll-follow is a panel-display-mode feature: in inline/popup/both the
     // footnotes are read where they sit, so the panel has no reason to chase
@@ -631,12 +629,5 @@ function pickMostVisible() {
 
 export function disconnectScrollObserver() {
     if (_postChatSwitchTimer) { clearTimeout(_postChatSwitchTimer); _postChatSwitchTimer = null; }
-    _scrollIO?.disconnect(); _scrollIO = null;
-    _scrollMO?.disconnect(); _scrollMO = null;
-    if (_scrollChatEl && _scrollHandler) {
-        _scrollChatEl.removeEventListener('scroll', _scrollHandler);
-        _scrollChatEl.removeEventListener('touchend', _scrollHandler);
-    }
-    if (_pickTimer) { clearTimeout(_pickTimer); _pickTimer = null; }
-    _observedIds.clear(); _observedEls.clear();
+    teardownScroll();
 }

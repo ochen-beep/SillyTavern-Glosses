@@ -11,6 +11,7 @@
 import { state, S, getCtx, saveSettings, log, warn, t } from './core.js';
 import { clearAll, stats } from './cache.js';
 import { removeHighlights, restoreHighlightsAll } from './renderer.js';
+import { isAnnotatableMsg } from './domain/message-identity.js';
 import { generateFootnotes } from './generator.js';
 import { lastCustomEndpointDebug } from './connection.js';
 import { updatePanel, panelInvalidate } from './ui/window.js';
@@ -22,7 +23,6 @@ import { ensureLauncher } from './ui/launcher.js';
 // build appends instead. Track what's already succeeded and only retry the
 // APIs that were unavailable last time.
 let _slashRegistered = false;
-let _debugRegistered = false;
 const _debugIds = new Set();
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -122,15 +122,14 @@ export function registerSlashCommands() {
     } catch (e) { warn('Failed to register slash commands:', e); }
 }
 
-// "Annotatable" = AI messages, OR (when S().glossUserMessages is on) user
-// messages too. System messages are never annotatable. Used by /glosses_regen
-// to pick the last eligible message regardless of author.
+// Annotatable = the shared domain predicate isAnnotatableMsg (AI messages, or
+// user messages when glossUserMessages is on; system never). Used by
+// /glosses_regen to pick the last eligible message regardless of author.
 function _allAnnotatableMsgIds(ctx) {
     if (!ctx.chat) return [];
-    const allowUser = S().glossUserMessages;
     return ctx.chat
         .map((msg, i) => ({ msg, i }))
-        .filter(({ msg }) => msg && !msg.is_system && (allowUser ? true : !msg.is_user))
+        .filter(({ msg }) => isAnnotatableMsg(msg))
         .map(({ i }) => String(i));
 }
 
@@ -199,7 +198,6 @@ export function registerDebugFunctions() {
             );
             _debugIds.add('gls_toggle_debug_capture');
         }
-        _debugRegistered = _debugIds.size === 3;
     } catch (e) { warn('Failed to register debug functions:', e); }
 }
 
@@ -219,13 +217,12 @@ export function registerDebugFunctions() {
 export const _test = (globalThis.process?.env?.NODE_TEST === '1') ? {
     resetRegistrations() {
         _slashRegistered = false;
-        _debugRegistered = false;
         _debugIds.clear();
     },
     registrationState() {
         return {
             slash: _slashRegistered,
-            debug: _debugRegistered,
+            debug: _debugIds.size === 3,
             debugIds: [..._debugIds],
         };
     },

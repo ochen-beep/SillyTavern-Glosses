@@ -32,7 +32,7 @@
 
 import { getCtx, state } from './core.js';
 
-export const LORE_META_KEY = 'gls_lorebook';
+const LORE_META_KEY = 'gls_lorebook';
 
 export const LORE_MODE = Object.freeze({
     AUTOMATIC: 'automatic',
@@ -64,7 +64,7 @@ function parseUid(value) {
 }
 
 /** @param {{ book: string, uid: number|string }} ref */
-export function loreRefKey({ book, uid }) {
+function loreRefKey({ book, uid }) {
     let safeUid = '';
     try {
         safeUid = String(uid);
@@ -75,7 +75,7 @@ export function loreRefKey({ book, uid }) {
 }
 
 /** @param {unknown} value */
-export function normalizeLoreConfig(value) {
+function normalizeLoreConfig(value) {
     const source = value && typeof value === 'object' ? value : {};
     const mode = source.mode === LORE_MODE.MANUAL
         ? LORE_MODE.MANUAL
@@ -170,7 +170,7 @@ export function saveChatLoreConfig(config, ctx = getCtx()) {
  * @param {ReturnType<typeof getCtx>} [ctx]
  * @returns {Array<{ role: 'char'|'chat'|'persona', book: string }>}
  */
-export function resolveAttachedLorebookSources(ctx = getCtx()) {
+function resolveAttachedLorebookSources(ctx = getCtx()) {
     const candidates = [
         { role: 'char', book: ctx?.characters?.[ctx?.characterId]?.data?.extensions?.world },
         { role: 'chat', book: ctx?.chatMetadata?.world_info },
@@ -191,49 +191,8 @@ export function resolveAttachedLorebookSources(ctx = getCtx()) {
  * @param {ReturnType<typeof getCtx>} [ctx]
  * @returns {Set<string>} trimmed, deduplicated book names; possibly empty
  */
-export function resolveAttachedLorebooks(ctx = getCtx()) {
+function resolveAttachedLorebooks(ctx = getCtx()) {
     return new Set(resolveAttachedLorebookSources(ctx).map(source => source.book));
-}
-
-/** @param {ReturnType<typeof getCtx>} ctx @param {string} book */
-export async function loadLorebookEntries(ctx, book) {
-    const payload = await ctx.loadWorldInfo(book);
-    const container = payload?.entries;
-    const rows = Array.isArray(container)
-        ? container.map(entry => [undefined, entry])
-        : container && typeof container === 'object'
-            ? Object.entries(container)
-            : [];
-    const entries = [];
-
-    for (const [key, entry] of rows) {
-        if (!entry || typeof entry !== 'object') continue;
-
-        const sourceUid = parseUid(entry.uid);
-        const uid = sourceUid ?? (key === undefined ? undefined : parseUid(key));
-        if (uid === undefined) continue;
-
-        const keyLabel = Array.isArray(entry.key) ? entry.key[0] : undefined;
-        const label = entry.comment || entry.name || keyLabel || `Entry ${uid}`;
-        entries.push({
-            book,
-            uid,
-            label,
-            content: typeof entry.content === 'string' ? entry.content : '',
-            vectorized: Boolean(entry.vectorized),
-        });
-    }
-
-    entries.sort((left, right) => left.uid - right.uid);
-    return entries;
-}
-
-/** @param {ReturnType<typeof getCtx>} [ctx] */
-export async function listLorebookNames(ctx = getCtx()) {
-    const names = await ctx.getWorldInfoNames();
-    return Array.isArray(names)
-        ? names.filter(name => typeof name === 'string').sort((left, right) => left.localeCompare(right))
-        : [];
 }
 
 /**
@@ -243,7 +202,7 @@ export async function listLorebookNames(ctx = getCtx()) {
  * @param {ReturnType<typeof getCtx>} ctx
  * @param {{ anchorMsgId?: string, anchorSwipeIdx?: number }} input
  */
-export function getAnchorMatchedActivatedEntries(ctx, { anchorMsgId, anchorSwipeIdx }) {
+function getAnchorMatchedActivatedEntries(ctx, { anchorMsgId, anchorSwipeIdx }) {
     const cached = state.lastActivatedWorldInfo;
     if (!cached
         || cached.chatId !== ctx.chatId
@@ -266,7 +225,7 @@ export function getAnchorMatchedActivatedEntries(ctx, { anchorMsgId, anchorSwipe
  * @param {ReturnType<typeof getCtx>} ctx
  * @param {{ anchorMsgId?: string, anchorSwipeIdx?: number }} input
  */
-export async function collectAttachedLore(ctx, { anchorMsgId, anchorSwipeIdx }) {
+async function collectAttachedLore(ctx, { anchorMsgId, anchorSwipeIdx }) {
     const empty = { text: '', entries: [], missing: [], cacheMatched: false };
     const attached = resolveAttachedLorebooks(ctx);
     if (!attached.size) return empty;

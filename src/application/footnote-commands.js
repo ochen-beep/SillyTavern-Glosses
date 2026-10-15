@@ -16,15 +16,17 @@
  * equal the digest captured when the UI was rendered, the caller's predicate
  * must hold, and the footnote must still resolve in the payload.
  *
- * Deps: core (getCtx, extractPlainText, beginGenerationEpoch, isEpochCurrent),
- * cache (mutateFootnotes, digestFor), parser. No DOM, no renderer, no toastr.
+ * Deps: core (getCtx, extractPlainText, isEpochCurrent),
+ * cache (mutateFootnotes, digestFor), parser, domain/footnote-payload (reindexTargeted).
+ * No DOM, no renderer, no toastr.
  */
 
 import {
-    getCtx, extractPlainText, beginGenerationEpoch, isEpochCurrent,
+    getCtx, extractPlainText, isEpochCurrent,
 } from '../core.js';
 import { mutateFootnotes, digestFor } from '../cache.js';
 import { indexToSuperscript, normalizeFootnotes } from '../parser.js';
+import { reindexTargeted } from '../domain/footnote-payload.js';
 
 /**
  * Resolve which footnote in a footnotes array the command targets.
@@ -68,18 +70,6 @@ export function renumberFootnotes(footnotes) {
         const sup = indexToSuperscript(newIndex);
         return { ...f, index: newIndex, text: String(f.text || '').replace(/^[⁰¹²³⁴⁵⁶⁷⁸⁹\d]+/u, sup) };
     });
-}
-
-/**
- * Reindex a targeted array positionally 1..M WITHOUT touching the text —
- * targeted bodies carry no numeric prefix (the symbol marker is derived from
- * the index at render time), so there is nothing to rewrite.
- *
- * @param {Array} targeted
- * @returns {Array}
- */
-export function reindexTargeted(targeted) {
-    return (Array.isArray(targeted) ? targeted : []).map((e, i) => ({ ...e, index: i + 1 }));
 }
 
 /**
@@ -195,18 +185,3 @@ export function deleteFootnote(command) {
         return { ok: false, reason: 'persistence-error' };
     }
 }
-
-/**
- * Begin an edit epoch for an editor session. The editor captures this and
- * passes it back in the editFootnote command; a chat change / swipe / edit
- * elsewhere bumps the epoch and the late Save is rejected as stale.
- */
-export function beginEditEpoch() {
-    return beginGenerationEpoch();
-}
-
-/**
- * Re-expose isEpochCurrent so editor code can import the contract from the
- * command module instead of reaching into core directly.
- */
-export { isEpochCurrent };

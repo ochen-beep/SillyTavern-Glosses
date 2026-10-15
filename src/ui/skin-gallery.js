@@ -36,39 +36,22 @@ export const SKINS = [
     'cinnabar', 'koyo', 'gloam', 'afterglow', 'starseed',
 ];
 
-/** English names mirroring the settings.html option texts (fake-DOM fallback
- *  when the select's options collection is not readable). */
-const FALLBACK_LABELS = {
-    adaptive: 'Adaptive (match theme)', paper: 'Paper note', terminal: 'Terminal',
-    telegram: 'Telegram blank', bubble: 'Messenger bubble', glass: 'Frosted glass',
-    codex: 'Ancient codex', neon: 'Neon', vellum: 'Vellum', inkwell: 'Inkwell',
-    washi: 'Washi', tideglass: 'Tideglass', herbarium: 'Herbarium',
-    marquee: 'Marquee', rime: 'Rime', adobe: 'Adobe', velvet: 'Velvet',
-    phosphor: 'Phosphor', rosewindow: 'Rosewindow', mahou: 'Mahou',
-    moonjar: 'Moonjar', cinnabar: 'Cinnabar', koyo: 'Koyo', gloam: 'Gloam',
-    afterglow: 'Afterglow', starseed: 'Starseed',
-};
-
 const currentSkin = () => {
     const v = S().popupTheme;
     return SKINS.includes(v) ? v : 'adaptive';
 };
 
-/**
- * Chip entries: skin ids from the fixed vocabulary, labels from the select's
- * option texts when they are readable (they carry ST's translated text) and
- * the English fallbacks otherwise.
- */
+/** Chip entries: skin ids from the fixed vocabulary, labels from the select's
+ *  option texts (they carry ST's translated text). In the browser the select
+ *  is always readable; a fake-DOM test passes its own stub select. */
 const readEntries = (select) => SKINS.map((value) => {
-    let label = FALLBACK_LABELS[value] ?? value;
-    try {
-        const options = select?.options;
-        if (options) {
-            for (let i = 0; i < options.length; i++) {
-                if (options[i]?.value === value) { label = options[i].text || label; break; }
-            }
+    let label = value;
+    const options = select?.options;
+    if (options) {
+        for (let i = 0; i < options.length; i++) {
+            if (options[i]?.value === value) { label = options[i].text || value; break; }
         }
-    } catch { /* fake DOM / exotic select — fallback label stands */ }
+    }
     return { value, label };
 });
 

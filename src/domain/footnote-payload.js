@@ -194,6 +194,18 @@ export function targetedOf(payload) {
 }
 
 /**
+ * Reindex a targeted array positionally 1..M WITHOUT touching the text —
+ * targeted bodies carry no numeric prefix (the symbol marker is derived from
+ * the index at render time), so there is nothing to rewrite.
+ *
+ * @param {Array} targeted
+ * @returns {Array}
+ */
+export function reindexTargeted(targeted) {
+    return (Array.isArray(targeted) ? targeted : []).map((e, i) => ({ ...e, index: i + 1 }));
+}
+
+/**
  * Persist a payload for a variant. Race-safe write rule:
  *   - the swipe_info slot is written ALWAYS (it is variant-addressed, so a
  *     concurrent variant switch cannot misfile it);
