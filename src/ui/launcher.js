@@ -168,7 +168,7 @@ async function toggleLauncherPanelNow() {
         // The flag must be cleared BEFORE updatePanel(), which reconciles
         // display from it (leaving it set would re-hide the panel instantly).
         // updatePanel() itself rebuilds the panel if it was destroyed (chat
-        // switch mid-✕), so no local getPanel() branch is needed.
+        // switch mid-✕), so no local panel-existence branch is needed.
         S().floatingPanelHidden = false;
         saveSettings();
         updatePanel();

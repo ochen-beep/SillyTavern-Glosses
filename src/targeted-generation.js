@@ -53,8 +53,7 @@ function footnoteText(value) {
 }
 
 export function validateTargetedResponse(parsed, targets) {
-    const orderedTargets = targets;
-    const byKey = new Map(orderedTargets.map(target => [keyOf(target), target]));
+    const byKey = new Map(targets.map(target => [keyOf(target), target]));
     const used = new Set();
     const accepted = [];
     let invalidCount = 0;
@@ -68,7 +67,7 @@ export function validateTargetedResponse(parsed, targets) {
         used.add(key);
         accepted.push({ anchor: target, text: candidate.text });
     }
-    const footnotes = orderedTargets.filter(target => used.has(keyOf(target))).map((target, index) => {
+    const footnotes = targets.filter(target => used.has(keyOf(target))).map((target, index) => {
         const found = accepted.find(fn => keyOf(fn.anchor) === keyOf(target));
         // Body WITHOUT a numeric prefix — targeted entries are marked by a
         // symbol derived from their position at render time, never by digits.
@@ -76,7 +75,7 @@ export function validateTargetedResponse(parsed, targets) {
     });
     return {
         footnotes,
-        missingTargets: orderedTargets.filter(target => !used.has(keyOf(target))),
+        missingTargets: targets.filter(target => !used.has(keyOf(target))),
         invalidCount,
     };
 }

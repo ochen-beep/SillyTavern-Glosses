@@ -29,7 +29,7 @@
  *     the caller re-renders — no disposer is returned or needed.
  *   - Escape cancels the edit and the caller restores focus (plan §2.4).
  *
- * Deps: icons, core (t, beginGenerationEpoch), parser (stripLeadingNumber), application commands.
+ * Deps: core (t, beginGenerationEpoch), parser (stripLeadingNumber), application commands.
  * No renderer, no window.js — DOM refresh is the caller's job.
  */
 
