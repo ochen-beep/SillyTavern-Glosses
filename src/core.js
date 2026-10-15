@@ -600,9 +600,6 @@ export function extractPlainText(htmlString) {
 }
 
 // ── Misc utilities ──
-export function escapeRegex(s) {
-    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /** Trailing debounce with a cancel handle for teardown paths. */
 export function debounce(fn, ms) {
