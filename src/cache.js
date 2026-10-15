@@ -30,7 +30,7 @@ import { createChatWriter } from './infrastructure/chat-writer.js';
 import { createMetadataRepository } from './infrastructure/metadata-repository.js';
 import {
     PAYLOAD_KEY, readRawPayload, readVerifiedPayload, stampPayload, writePayload, clearPayload,
-    variantText, digestForVariant, targetedOf, payloadBelongsToOtherVariant,
+    variantText, digestForVariant, targetedOf, payloadBelongsToOtherVariant, reindexTargeted,
 } from './domain/footnote-payload.js';
 import { isViableMessageText } from './domain/message-identity.js';
 import { normalizeAnchorKey } from './anchor-utils.js';
@@ -204,7 +204,7 @@ export function saveTargeted(msgId, swipeIdx, entries, opts = {}) {
         if (existing) merged[merged.indexOf(existing)] = entry; // replace in place
         else if (merged.length < TARGETED_CAP) { byKey.set(key, entry); merged.push(entry); }
     }
-    const targeted = merged.map((e, i) => ({ ...e, index: i + 1 }));
+    const targeted = reindexTargeted(merged);
     const stamped = stampPayload(msg, swipeIdx, payload?.footnotes ?? [], {
         style: payload?.style ?? '',
         orphans: payload?.orphans ?? [],

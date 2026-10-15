@@ -23,12 +23,12 @@ import {
     getForcedIgnore, saveForcedIgnore, getPoolExcluded, togglePoolExcluded,
     listFootnoteSets,
 } from '../cache.js';
-import { targetedOf } from '../domain/footnote-payload.js';
+import { targetedOf, reindexTargeted } from '../domain/footnote-payload.js';
 import { isAnnotatableMsg } from '../domain/message-identity.js';
 import { removeHighlights, reinjectInto, formatFootnoteText } from '../renderer.js';
 import { indexToTargetedSymbol, stripLeadingNumber } from '../parser.js';
 import { normalizeAnchorKey } from '../anchor-utils.js';
-import { renumberFootnotes, reindexTargeted } from '../application/footnote-commands.js';
+import { renumberFootnotes } from '../application/footnote-commands.js';
 import { whenSendFormReady } from './dom-ready.js';
 import { createTabController } from './tabs.js';
 import { copyText } from './clipboard.js';

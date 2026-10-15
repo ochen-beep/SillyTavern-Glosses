@@ -25,6 +25,7 @@ import {
 } from '../core.js';
 import { mutateFootnotes, digestFor } from '../cache.js';
 import { indexToSuperscript, normalizeFootnotes } from '../parser.js';
+import { reindexTargeted } from '../domain/footnote-payload.js';
 
 /**
  * Resolve which footnote in a footnotes array the command targets.
@@ -68,18 +69,6 @@ export function renumberFootnotes(footnotes) {
         const sup = indexToSuperscript(newIndex);
         return { ...f, index: newIndex, text: String(f.text || '').replace(/^[⁰¹²³⁴⁵⁶⁷⁸⁹\d]+/u, sup) };
     });
-}
-
-/**
- * Reindex a targeted array positionally 1..M WITHOUT touching the text —
- * targeted bodies carry no numeric prefix (the symbol marker is derived from
- * the index at render time), so there is nothing to rewrite.
- *
- * @param {Array} targeted
- * @returns {Array}
- */
-export function reindexTargeted(targeted) {
-    return (Array.isArray(targeted) ? targeted : []).map((e, i) => ({ ...e, index: i + 1 }));
 }
 
 /**
