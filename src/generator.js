@@ -33,6 +33,7 @@ import { uiBusyBegin, uiBusyEnd } from './ui/busy.js';
 import { playSound } from './sound.js';
 import { generationCoordinator } from './application/generation-coordinator.js';
 import { renumberFootnotes } from './application/footnote-commands.js';
+import { generateWithConfiguredSource } from './connection.js';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BASE SYSTEM PROMPTS
@@ -1086,8 +1087,6 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
 }
 
 async function callAPI(systemPrompt, userPrompt, signal) {
-    const s = S();
-
     // Test-only injection point: tests set _testApiOverride to a function
     // returning a canned raw model response (possibly gated behind a promise
     // they control to simulate mid-flight chat switches). Gated on NODE_TEST
@@ -1102,20 +1101,7 @@ async function callAPI(systemPrompt, userPrompt, signal) {
         return _testApiOverride(systemPrompt, userPrompt, signal);
     }
 
-    if (s.source === 'profile') {
-        const { generateWithProfile } = await import('./connection.js');
-        return generateWithProfile(s.selectedProfile, systemPrompt, userPrompt, signal);
-    }
-    if (s.source === 'custom') {
-        const { generateWithCustomEndpoint } = await import('./connection.js');
-        return generateWithCustomEndpoint(systemPrompt, userPrompt, signal, s.customEndpoint, s.customModel);
-    }
-    // No 'default' source — the old ST-API passthrough was removed (it routed
-    // footnote generation through the main LLM pipeline, picking up presets,
-    // instruct formatting and other extensions' injections). Only the two
-    // isolated sources above are supported; an unset/stale source is a
-    // configuration error the user must resolve in settings.
-    throw new Error(t('Select a generation source (Connection Profile or Custom) in Glosses settings.'));
+    return generateWithConfiguredSource(systemPrompt, userPrompt, signal);
 }
 
 // ── Test-only hooks (gated on NODE_TEST) ──

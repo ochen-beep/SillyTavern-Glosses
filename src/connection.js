@@ -450,3 +450,20 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     warn('Custom endpoint: could not extract text from response', data);
     return '';
 }
+
+/**
+ * Dispatch a footnote generation through the configured source ('profile' →
+ * Connection Manager, 'custom' → the OpenAI-compatible endpoint). The single
+ * entry point for callAPI (generator.js) and the targeted run's default
+ * request. An unset/stale source is a configuration error.
+ */
+export async function generateWithConfiguredSource(systemPrompt, userPrompt, signal) {
+    const s = S();
+    if (s.source === 'profile') {
+        return generateWithProfile(s.selectedProfile, systemPrompt, userPrompt, signal);
+    }
+    if (s.source === 'custom') {
+        return generateWithCustomEndpoint(systemPrompt, userPrompt, signal, s.customEndpoint, s.customModel);
+    }
+    throw new Error(t('Select a generation source (Connection Profile or Custom) in Glosses settings.'));
+}

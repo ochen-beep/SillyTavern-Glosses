@@ -9,7 +9,7 @@
  */
 import { parseResponse } from './parser.js';
 import { normalizeAnchorKey } from './anchor-utils.js';
-import { S, beginGenerationEpoch, isEpochCurrent, t } from './core.js';
+import { beginGenerationEpoch, isEpochCurrent } from './core.js';
 import { rebindTargeted } from './domain/rebind.js';
 
 const MAX_TARGETS = 20;
@@ -123,16 +123,8 @@ export async function generateTargetedFootnotes(options = {}) {
     activeRun = run;
     try {
         const request = options.request || (async (system, user, signal) => {
-            const s = S();
-            if (s.source === 'profile') {
-                const { generateWithProfile } = await import('./connection.js');
-                return generateWithProfile(s.selectedProfile, system, user, signal);
-            }
-            if (s.source === 'custom') {
-                const { generateWithCustomEndpoint } = await import('./connection.js');
-                return generateWithCustomEndpoint(system, user, signal, s.customEndpoint, s.customModel);
-            }
-            throw new Error(t('Select a generation source (Connection Profile or Custom) in Glosses settings.'));
+            const { generateWithConfiguredSource } = await import('./connection.js');
+            return generateWithConfiguredSource(system, user, signal);
         });
         const prompt = options.userPrompt || buildTargetedPrompt({ targets, style: options.style, outputLanguage: options.outputLanguage, context: options.context });
         const raw = await request(options.systemPrompt || TARGETED_SYSTEM_PROMPT, prompt, controller.signal, options);
