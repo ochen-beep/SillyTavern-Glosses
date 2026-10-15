@@ -528,7 +528,9 @@ let _pickTimer = null;
 // every scroll frame — the main source of the panel's sluggishness.
 const SCROLL_PICK_DEBOUNCE_MS = 200;
 
-export function initScrollObserver() {
+/** Shared observer/listener teardown: initScrollObserver (re-run) and
+ *  disconnectScrollObserver must leave exactly the same clean state. */
+function teardownScroll() {
     _scrollIO?.disconnect(); _scrollIO = null;
     _scrollMO?.disconnect(); _scrollMO = null;
     if (_scrollChatEl && _scrollHandler) {
@@ -537,6 +539,10 @@ export function initScrollObserver() {
     }
     if (_pickTimer) { clearTimeout(_pickTimer); _pickTimer = null; }
     _observedIds.clear(); _observedEls.clear();
+}
+
+export function initScrollObserver() {
+    teardownScroll();
 
     // Scroll-follow is a panel-display-mode feature: in inline/popup/both the
     // footnotes are read where they sit, so the panel has no reason to chase
@@ -623,12 +629,5 @@ function pickMostVisible() {
 
 export function disconnectScrollObserver() {
     if (_postChatSwitchTimer) { clearTimeout(_postChatSwitchTimer); _postChatSwitchTimer = null; }
-    _scrollIO?.disconnect(); _scrollIO = null;
-    _scrollMO?.disconnect(); _scrollMO = null;
-    if (_scrollChatEl && _scrollHandler) {
-        _scrollChatEl.removeEventListener('scroll', _scrollHandler);
-        _scrollChatEl.removeEventListener('touchend', _scrollHandler);
-    }
-    if (_pickTimer) { clearTimeout(_pickTimer); _pickTimer = null; }
-    _observedIds.clear(); _observedEls.clear();
+    teardownScroll();
 }
