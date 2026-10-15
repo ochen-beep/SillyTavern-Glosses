@@ -14,21 +14,6 @@ import { t, escapeHtml } from '../core.js';
 import { iconHtml } from './icons.js';
 
 /**
- * Decide *why* the panel has nothing to show.
- * @param {{enabled: boolean, generating: boolean, configured?: {ok: boolean}}} s
- * @returns {'disabled' | 'no-ai' | 'generating' | 'unconfigured' | 'empty'}
- */
-export function detectEmptyReason({ enabled, generating, configured }) {
-    if (!enabled) return 'disabled';
-    // §6.4: unresolved source-configured state wins over the generating /
-    // empty reasons so the badge stays visible until a successful generation
-    // flips state.configuredState back to ok.
-    if (configured && !configured.ok) return 'unconfigured';
-    if (generating) return 'generating';
-    return 'empty';
-}
-
-/**
  * Build the inner HTML for an empty panel body. The host (window.js) still
  * owns wiring the CTA click - it returns a marker class so the host can find
  * it via querySelector('.gls-empty-generate') / querySelector('.gls-empty-configure').

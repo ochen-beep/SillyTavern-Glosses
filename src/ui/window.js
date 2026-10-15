@@ -1276,6 +1276,7 @@ function renderFootnotesTab(msgId) {
         // The dropped detectEmptyReason call was provably 'empty' here: the
         // if-chain above already handled !configuredState.ok and the
         // generating case, so enabled=true/generating=false/configured=ok.
+        // Both remaining branches yield 'empty'; the renderer keys the CTA off ctx.isAnnotatable.
         const empty = document.createElement('div');
         empty.className = 'gls-empty gls-empty--state';
         empty.innerHTML = renderEmptyStateHTML(reason, {
