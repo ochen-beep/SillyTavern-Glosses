@@ -1125,10 +1125,6 @@ export function panelInvalidate() {
     _floatingPanel?.removeAttribute('data-render-key');
 }
 
-export function getPanel() {
-    return _floatingPanel;
-}
-
 /** §6.3: panel-is-visible predicate — mounted AND display !== 'none'. Used by
  *  the launcher click decision (toggle off vs. un-hide) and for the launcher's
  *  active-state class (so a ✕-hidden-but-enabled panel is not lit). */
