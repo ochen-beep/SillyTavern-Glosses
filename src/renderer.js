@@ -411,14 +411,9 @@ function revealInlineFootnote(marker) {
     entry.addEventListener('animationend', () => entry.classList.remove('gls-fn-flash'), { once: true });
 }
 
-function onDelegatedPointerUp(e) {
-    // Touch path: fire the popup on pointerup for instant response, then flag
-    // the marker so the immediately-following click is suppressed.
-    if (e.pointerType === 'mouse') return;
-    const marker = e.target.closest?.('.gls-marker');
-    if (!marker) return;
-    e.stopPropagation();
-    marker._glsTouchHandled = true;
+/** One marker-activation policy for both input paths: popup modes resolve and
+ *  show; inline mode reveals the block. */
+function activateMarker(marker) {
     if (S().displayMode !== 'inline') {
         const resolved = resolveFootnoteFromMarker(marker);
         if (resolved) showPopup(resolved.fn, marker, resolved);
@@ -427,17 +422,23 @@ function onDelegatedPointerUp(e) {
     }
 }
 
+function onDelegatedPointerUp(e) {
+    // Touch path: fire the popup on pointerup for instant response, then flag
+    // the marker so the immediately-following click is suppressed.
+    if (e.pointerType === 'mouse') return;
+    const marker = e.target.closest?.('.gls-marker');
+    if (!marker) return;
+    e.stopPropagation();
+    marker._glsTouchHandled = true;
+    activateMarker(marker);
+}
+
 function onDelegatedClick(e) {
     const marker = e.target.closest?.('.gls-marker');
     if (!marker) return;
     e.stopPropagation();
     if (marker._glsTouchHandled) { marker._glsTouchHandled = false; return; }
-    if (S().displayMode !== 'inline') {
-        const resolved = resolveFootnoteFromMarker(marker);
-        if (resolved) showPopup(resolved.fn, marker, resolved);
-    } else {
-        revealInlineFootnote(marker);
-    }
+    activateMarker(marker);
 }
 
 /**
