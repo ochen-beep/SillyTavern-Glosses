@@ -122,12 +122,16 @@ test('saveFootnotes returns false with no chatId', () => {
     resetCtx({ chat: [makeMessage({ mes: 'A sufficiently long AI message body to clear the guard.' })], chatId: null });
     assert.equal(saveFootnotes('0', 0, [{ index: 1, anchor: 'a', text: '¹a' }]), false);
 });
+
 test('isAnnotatableMsg: AI yes, system no, user gated by glossUserMessages', () => {
-    assert.equal(isAnnotatableMsg({ is_system: false, is_user: false }), true);
-    assert.equal(isAnnotatableMsg({ is_system: true, is_user: false }), false);
-    assert.equal(isAnnotatableMsg({ is_system: false, is_user: true }), false);
-    assert.equal(isAnnotatableMsg(null), false);
-    S().glossUserMessages = true;
-    assert.equal(isAnnotatableMsg({ is_system: false, is_user: true }), true);
-    S().glossUserMessages = false;
+    try {
+        assert.equal(isAnnotatableMsg({ is_system: false, is_user: false }), true);
+        assert.equal(isAnnotatableMsg({ is_system: true, is_user: false }), false);
+        assert.equal(isAnnotatableMsg({ is_system: false, is_user: true }), false);
+        assert.equal(isAnnotatableMsg(null), false);
+        S().glossUserMessages = true;
+        assert.equal(isAnnotatableMsg({ is_system: false, is_user: true }), true);
+    } finally {
+        S().glossUserMessages = false;
+    }
 });

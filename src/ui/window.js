@@ -18,7 +18,7 @@ import {
     debounce,
 } from '../core.js';
 import {
-    getVariantFootnotes, getVariantPayload, digestFor, clearAll, clearVariant,
+    getVariantPayload, digestFor, clearAll, clearVariant,
     mutateFootnotes, saveTargeted, getTargetedDraft, saveTargetedDraft,
     getForcedIgnore, saveForcedIgnore, getPoolExcluded, togglePoolExcluded,
     listFootnoteSets,

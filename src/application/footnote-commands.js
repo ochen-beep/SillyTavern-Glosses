@@ -17,7 +17,8 @@
  * must hold, and the footnote must still resolve in the payload.
  *
  * Deps: core (getCtx, extractPlainText, isEpochCurrent),
- * cache (mutateFootnotes, digestFor), parser. No DOM, no renderer, no toastr.
+ * cache (mutateFootnotes, digestFor), parser, domain/footnote-payload (reindexTargeted).
+ * No DOM, no renderer, no toastr.
  */
 
 import {

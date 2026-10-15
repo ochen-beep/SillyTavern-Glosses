@@ -88,4 +88,3 @@ export function isAnnotatableMsg(msg) {
     if (msg.is_system) return false;
     return msg.is_user ? Boolean(S().glossUserMessages) : true;
 }
-
