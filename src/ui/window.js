@@ -107,8 +107,6 @@ async function runTargetedGeneration() {
         if (requestId !== _targetedState.requestId || !isEpochCurrent(epoch)) return;
         const result = await generateTargetedFootnotes({
             targets: _targetedState.input,
-            messageId,
-            swipeIdx,
             epoch,
             style,
             outputLanguage: S().outputLanguage === 'en' ? 'English' : 'Russian',

@@ -53,7 +53,7 @@ function footnoteText(value) {
 }
 
 export function validateTargetedResponse(parsed, targets) {
-    const orderedTargets = Array.isArray(targets) ? targets : parseTargetLines(targets).targets;
+    const orderedTargets = targets;
     const byKey = new Map(orderedTargets.map(target => [keyOf(target), target]));
     const used = new Set();
     const accepted = [];
@@ -111,8 +111,8 @@ export function clearTargetedState() {
 }
 
 /**
- * @param {{targets: string[], messageId?: string|number, swipeIdx?: number, signal?: AbortSignal,
- *   systemPrompt?: string, userPrompt?: string, request?: Function, epoch?: number}} options
+ * @param {{targets: string[], systemPrompt?: string, userPrompt?: string,
+ *   request?: Function, epoch?: number}} options
  */
 export async function generateTargetedFootnotes(options = {}) {
     const targets = parseTargetLines(options.targets || '').targets;
@@ -122,10 +122,6 @@ export async function generateTargetedFootnotes(options = {}) {
     const epoch = options.epoch ?? beginGenerationEpoch();
     const run = { controller, epoch };
     activeRun = run;
-    if (options.signal) {
-        if (options.signal.aborted) controller.abort();
-        else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
-    }
     try {
         const request = options.request || (async (system, user, signal) => {
             const s = S();
@@ -149,5 +145,3 @@ export async function generateTargetedFootnotes(options = {}) {
         if (activeRun === run) activeRun = null;
     }
 }
-
-export const _test = { keyOf, footnoteText };
