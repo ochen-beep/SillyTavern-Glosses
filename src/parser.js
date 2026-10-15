@@ -67,25 +67,8 @@ function extractFirstJsonBlock(text) {
     const t = String(text || '');
     const start = t.indexOf('{');
     if (start < 0) return '';
-    let depth = 0;
-    let inStr = false;
-    let escape = false;
-    for (let i = start; i < t.length; i++) {
-        const ch = t[i];
-        if (inStr) {
-            if (escape) escape = false;
-            else if (ch === '\\') escape = true;
-            else if (ch === '"') inStr = false;
-        } else if (ch === '"') {
-            inStr = true;
-        } else if (ch === '{') {
-            depth++;
-        } else if (ch === '}') {
-            depth--;
-            if (depth === 0) return t.slice(start, i + 1);
-        }
-    }
-    return ''; // unbalanced - let the caller fall through to the text parser
+    const end = findMatchingBrace(t, start);
+    return end > 0 ? t.slice(start, end + 1) : '';
 }
 
 // ── JSON repair (4-tier escalating strategy) ──
@@ -507,7 +490,7 @@ export function normalizeFootnotes(footnotes, plainText) {
     return withPos.map(({ f }, i) => {
         const newIndex = i + 1;
         const sup = indexToSuperscript(newIndex);
-        const body = String(f.text || '').replace(/^[⁰¹²³⁴⁵⁶⁷⁸⁹\d]+\s*/u, '').trim();
+        const body = stripLeadingNumber(f.text).trim();
         return { ...f, index: newIndex, text: body ? `${sup} ${body}` : sup };
     });
 }
