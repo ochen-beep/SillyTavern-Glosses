@@ -9,7 +9,7 @@
 
 import { state, S, getCtx, t, sanitize, warn } from './core.js';
 import { generationCoordinator } from './application/generation-coordinator.js';
-import { getVariantFootnotes, getVariantPayload, digestFor } from './cache.js';
+import { getVariantFootnotes, getVariantPayload } from './cache.js';
 import { targetedOf } from './domain/footnote-payload.js';
 import { isTranslatedView } from './domain/message-identity.js';
 import { indexToSuperscript, indexToTargetedSymbol, stripLeadingNumber } from './parser.js';
@@ -185,19 +185,6 @@ export function injectHighlights(mesEl, footnotes) {
     if (mode === 'inline' || mode === 'both') renderInlineBlock(mesEl, footnotes);
     return report;
 }
-
-/**
- * Rank an anchor's occurrences by the footnote's stored context selectors
- * (W3C TextQuoteSelector style, computed at save time). Occurrences whose
- * surrounding text matches the stored prefix/suffix sort first, so a
- * re-injection after an edit lands on the occurrence the anchor was
- * originally placed on instead of jumping to the first match. Falls back to
- * document order when nothing matches (heavily edited text).
- *
- * Moved to domain/rebind.js (pure) so the rebind engine and the renderer
- * share ONE ranking policy; re-exported here for the wrap-time call below.
- */
-export { rankOccurrencesByContext } from './domain/rebind.js';
 
 /**
  * Place every footnote's marker against the message's text INDEX (one
