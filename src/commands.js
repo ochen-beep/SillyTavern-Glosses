@@ -11,6 +11,7 @@
 import { state, S, getCtx, saveSettings, log, warn, t } from './core.js';
 import { clearAll, stats } from './cache.js';
 import { removeHighlights, restoreHighlightsAll } from './renderer.js';
+import { isAnnotatableMsg } from './domain/message-identity.js';
 import { generateFootnotes } from './generator.js';
 import { lastCustomEndpointDebug } from './connection.js';
 import { updatePanel, panelInvalidate } from './ui/window.js';
@@ -121,15 +122,14 @@ export function registerSlashCommands() {
     } catch (e) { warn('Failed to register slash commands:', e); }
 }
 
-// "Annotatable" = AI messages, OR (when S().glossUserMessages is on) user
-// messages too. System messages are never annotatable. Used by /glosses_regen
-// to pick the last eligible message regardless of author.
+// Annotatable = the shared domain predicate isAnnotatableMsg (AI messages, or
+// user messages when glossUserMessages is on; system never). Used by
+// /glosses_regen to pick the last eligible message regardless of author.
 function _allAnnotatableMsgIds(ctx) {
     if (!ctx.chat) return [];
-    const allowUser = S().glossUserMessages;
     return ctx.chat
         .map((msg, i) => ({ msg, i }))
-        .filter(({ msg }) => msg && !msg.is_system && (allowUser ? true : !msg.is_user))
+        .filter(({ msg }) => isAnnotatableMsg(msg))
         .map(({ i }) => String(i));
 }
 

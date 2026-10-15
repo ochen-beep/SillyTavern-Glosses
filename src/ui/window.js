@@ -24,6 +24,7 @@ import {
     listFootnoteSets,
 } from '../cache.js';
 import { targetedOf } from '../domain/footnote-payload.js';
+import { isAnnotatableMsg } from '../domain/message-identity.js';
 import { removeHighlights, injectHighlights, formatFootnoteText } from '../renderer.js';
 import { indexToTargetedSymbol, stripLeadingNumber } from '../parser.js';
 import { normalizeAnchorKey } from '../anchor-utils.js';
@@ -67,8 +68,7 @@ async function runTargetedGeneration() {
     }
     const messageId = state.panelFocusMsgId;
     const message = getCtx().chat?.[parseInt(messageId)];
-    const annotatable = Boolean(message) && !message.is_system
-        && (S().glossUserMessages ? true : !message.is_user);
+    const annotatable = isAnnotatableMsg(message);
     if (!annotatable) {
         _targetedState.status = t('Focus a message that can carry footnotes first');
         _tabController?.refreshActiveTab();
@@ -1281,8 +1281,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
         }
         // Centralized empty-state via empty.js (disabled / unconfigured /
         // generating / empty+CTA).
-        const msg2 = ctx.chat?.[parseInt(focusId)];
-        const isAnnotatable = msg2 && !msg2.is_system && (S().glossUserMessages ? true : !msg2.is_user);
+        const isAnnotatable = isAnnotatableMsg(ctx.chat?.[parseInt(focusId)]);
         let reason;
         // §6.4: !state.configuredState.ok wins over everything else so a
         // persistent "Source not configured" badge stays until a successful
