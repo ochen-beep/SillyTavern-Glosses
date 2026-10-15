@@ -383,6 +383,14 @@ function langCacheKey() {
     return `${s.targetLanguage || 'en'}:${s.cefrLevel || 'auto'}:${getOutputLanguage()}`;
 }
 
+/** Drop every cached prompt whose key starts with the prefix (style/lang/
+ *  hybrid signature changed → stale entries). */
+function invalidatePromptCache(prefix) {
+    for (const k of Object.keys(state.promptCache)) {
+        if (k.startsWith(prefix)) delete state.promptCache[k];
+    }
+}
+
 /**
  * Assemble the STYLE half of the prompt (style rules + few-shot examples) for
  * the current promptStyle + output language, WITHOUT the base system prompt.
@@ -404,9 +412,7 @@ export async function assembleStyle() {
             stylePrompt = state.promptCache[key];
         } else {
             // Invalidate any stale language caches (settings changed).
-            for (const k of Object.keys(state.promptCache)) {
-                if (k.startsWith('language:')) delete state.promptCache[k];
-            }
+            invalidatePromptCache('language:');
             try {
                 const resp = await fetch(`${getExtBase()}/prompts/language.md`);
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -436,9 +442,7 @@ export async function assembleStyle() {
         if (state.promptCache[key]) {
             stylePrompt = state.promptCache[key];
         } else {
-            for (const k of Object.keys(state.promptCache)) {
-                if (k.startsWith(`${style}:`)) delete state.promptCache[k];
-            }
+            invalidatePromptCache(`${style}:`);
             try {
                 const resp = await fetch(`${getExtBase()}/prompts/${style}.md`);
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -574,9 +578,7 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
     if (state.promptCache[key]) return state.promptCache[key];
 
     // Invalidate stale hybrid prompts (active lens set / lang changed).
-    for (const k of Object.keys(state.promptCache)) {
-        if (k.startsWith('hybrid:')) delete state.promptCache[k];
-    }
+    invalidatePromptCache('hybrid:');
 
     let raw = '';
     try {
