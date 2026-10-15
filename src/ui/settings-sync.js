@@ -259,17 +259,8 @@ export function bindSettingsUI() {
     }
 
     // Prompt style
-    const psEl = $('gls_prompt_style');
-    if (psEl) {
-        psEl.value = S().promptStyle;
-        on(psEl, 'change', () => {
-            S().promptStyle = psEl.value;
-            // §6.1: any manual edit deselects the current preset (manual mode).
-            clearPresetOnManualEdit();
-            saveSettings();
-            updatePromptPanels();
-        });
-    }
+    bindSelect('gls_prompt_style', 'promptStyle',
+        { onChange() { clearPresetOnManualEdit(); updatePromptPanels(); } });
     updatePromptPanels();
 
     on($('gls_custom_prompt'), 'input', function () {
@@ -287,24 +278,10 @@ export function bindSettingsUI() {
         tlEl.querySelectorAll('optgroup[data-gls-i18n-optgroup]').forEach(og => {
             og.label = t(og.dataset.glsI18nOptgroup);
         });
-        tlEl.value = S().targetLanguage;
-        on(tlEl, 'change', () => {
-            S().targetLanguage = tlEl.value;
-            clearPresetOnManualEdit();   // §6.1
-            _invalidateLanguageCache();
-            saveSettings();
-        });
     }
-    const cefrEl = $('gls_cefr_level');
-    if (cefrEl) {
-        cefrEl.value = S().cefrLevel;
-        on(cefrEl, 'change', () => {
-            S().cefrLevel = cefrEl.value;
-            clearPresetOnManualEdit();   // §6.1
-            _invalidateLanguageCache();
-            saveSettings();
-        });
-    }
+    bindSelect('gls_target_language', 'targetLanguage',
+        { onChange() { clearPresetOnManualEdit(); _invalidateLanguageCache(); } });
+    bindSelect('gls_cefr_level', 'cefrLevel', { onChange() { clearPresetOnManualEdit(); _invalidateLanguageCache(); } });
 
     // Hybrid lens toggles. Each flip changes the active lens signature →
     // the hybrid cache key changes → _invalidateLanguageCache drops stale
@@ -469,15 +446,12 @@ export function bindSettingsUI() {
     bindSlider('gls_highlight_opacity', 'gls_highlight_opacity_val', 'highlightOpacity',
         { readout: n => `${n}%`, publish: applyHighlightStyles });
 
-    const hsEl = $('gls_highlight_style');
-    if (hsEl) { hsEl.value = S().highlightStyle; on(hsEl, 'change', () => { S().highlightStyle = hsEl.value; applyHighlightStyles(); syncDisplayPreviews(); saveSettings(); }); }
+    bindSelect('gls_highlight_style', 'highlightStyle', { onChange() { applyHighlightStyles(); syncDisplayPreviews(); } });
 
-    const ffEl = $('gls_font_family');
-    if (ffEl) { ffEl.value = S().footnoteFontFamily; on(ffEl, 'change', () => { S().footnoteFontFamily = ffEl.value; applyHighlightStyles(); saveSettings(); }); }
+    bindSelect('gls_font_family', 'footnoteFontFamily', { onChange: applyHighlightStyles });
 
     // Floating panel font pair — separate settings, same publishing path.
-    const pffEl = $('gls_panel_font_family');
-    if (pffEl) { pffEl.value = S().panelFontFamily || 'inherit'; on(pffEl, 'change', () => { S().panelFontFamily = pffEl.value; applyHighlightStyles(); saveSettings(); }); }
+    bindSelect('gls_panel_font_family', 'panelFontFamily', { fallback: 'inherit', onChange: applyHighlightStyles });
 
     // Font size slider (0.70–1.50em, step 0.05). The setting keeps the
     // historical "0.90em" string format; the slider speaks plain numbers and
@@ -515,13 +489,11 @@ export function bindSettingsUI() {
     }
 
     // Popup placement preference - read at positionPopup time (every open).
-    const ppEl = $('gls_popup_position');
-    if (ppEl) { ppEl.value = S().popupPosition || 'auto'; on(ppEl, 'change', () => { S().popupPosition = ppEl.value; saveSettings(); }); }
+    bindSelect('gls_popup_position', 'popupPosition', { fallback: 'auto' });
 
     // Launcher mode - ensureLauncher() mounts/unmounts both launchers (bar
     // button + FAB) to match the new mode immediately.
-    const lmEl = $('gls_launcher_mode');
-    if (lmEl) { lmEl.value = S().launcherMode || 'bar'; on(lmEl, 'change', () => { S().launcherMode = lmEl.value; saveSettings(); ensureLauncher(); }); }
+    bindSelect('gls_launcher_mode', 'launcherMode', { fallback: 'bar', onChange: ensureLauncher });
 
     // Popup width slider - applyHighlightStyles republishes --gls-popup-maxw,
     // and the next showPopup positions against whatever width that yields.
@@ -550,11 +522,9 @@ export function bindSettingsUI() {
         }
     }
 
-    const pdEl = $('gls_popup_density');
-    if (pdEl) { pdEl.value = S().popupDensity || 'comfortable'; on(pdEl, 'change', () => { S().popupDensity = pdEl.value; applyHighlightStyles(); saveSettings(); }); }
+    bindSelect('gls_popup_density', 'popupDensity', { fallback: 'comfortable', onChange: applyHighlightStyles });
 
-    const pshEl = $('gls_popup_shadow');
-    if (pshEl) { pshEl.value = S().popupShadow || 'strong'; on(pshEl, 'change', () => { S().popupShadow = pshEl.value; applyHighlightStyles(); saveSettings(); }); }
+    bindSelect('gls_popup_shadow', 'popupShadow', { fallback: 'strong', onChange: applyHighlightStyles });
 
     bindSlider('gls_popup_corner', 'gls_popup_corner_val', 'popupCornerRadius', { readout: n => `${n}px`, publish: applyHighlightStyles });
 
@@ -792,6 +762,15 @@ function bindSlider(id, valId, key, { toSlider, toSetting, readout, publish } = 
         publish?.();
         saveSettings();
     });
+}
+
+/** Select + persist. `fallback` mirrors the `|| fallback` inits; `onChange`
+ *  runs after the setting is saved (live-surface refresh hooks). */
+function bindSelect(id, key, { fallback, onChange } = {}) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = S()[key] || fallback || '';
+    on(el, 'change', () => { S()[key] = el.value; saveSettings(); onChange?.(); });
 }
 
 function updateSrcPanels() {
