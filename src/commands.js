@@ -22,7 +22,6 @@ import { ensureLauncher } from './ui/launcher.js';
 // build appends instead. Track what's already succeeded and only retry the
 // APIs that were unavailable last time.
 let _slashRegistered = false;
-let _debugRegistered = false;
 const _debugIds = new Set();
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -199,7 +198,6 @@ export function registerDebugFunctions() {
             );
             _debugIds.add('gls_toggle_debug_capture');
         }
-        _debugRegistered = _debugIds.size === 3;
     } catch (e) { warn('Failed to register debug functions:', e); }
 }
 
@@ -219,13 +217,12 @@ export function registerDebugFunctions() {
 export const _test = (globalThis.process?.env?.NODE_TEST === '1') ? {
     resetRegistrations() {
         _slashRegistered = false;
-        _debugRegistered = false;
         _debugIds.clear();
     },
     registrationState() {
         return {
             slash: _slashRegistered,
-            debug: _debugRegistered,
+            debug: _debugIds.size === 3,
             debugIds: [..._debugIds],
         };
     },

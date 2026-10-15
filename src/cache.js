@@ -217,7 +217,7 @@ export function saveTargeted(msgId, swipeIdx, entries, opts = {}) {
 }
 
 /** Merge previous and fresh orphans, deduped by normalized anchor+kind, capped. */
-function mergeOrphans(previous, fresh, cap = 40) {
+function mergeOrphans(previous, fresh) {
     const merged = [];
     const seen = new Set();
     for (const orphan of [...(fresh ?? []), ...(previous ?? [])]) {
@@ -226,7 +226,7 @@ function mergeOrphans(previous, fresh, cap = 40) {
         if (!normalizeAnchorKey(anchor) || seen.has(key)) continue;
         seen.add(key);
         merged.push({ index: orphan?.index ?? 0, anchor, kind: orphan?.kind === 't' ? 't' : 'fn' });
-        if (merged.length >= cap) break;
+        if (merged.length >= 40) break;
     }
     return merged;
 }

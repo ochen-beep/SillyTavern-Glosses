@@ -219,12 +219,6 @@ export async function generateWithProfile(sel, systemPrompt, userPrompt, signal)
     throw new Error(t('Profile "{0}" responded, but text could not be extracted.', profile.name));
 }
 
-/** Back-compat shim for the removed `callProfileAPI` import — deleted in
- *  v3.1 (spec §5.2). No external callers ever existed; the function was a
- *  maintenance tax whose premise was never validated. Kept as a marker
- *  comment so future readers don't reintroduce the shim.
- */
-
 /**
  * Extract a plain-text answer from the various shapes connectionManager /
  * OpenAI / Gemini / Claude responses can take.

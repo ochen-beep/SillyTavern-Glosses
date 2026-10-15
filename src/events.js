@@ -240,19 +240,18 @@ function onCharMsgRendered(messageId) {
         };
         return null;
     })();
-    const msg = msg0;
     // Track swipes.length on EVERY render (before the guards) — a swipe of a
     // message that never passed them must not look like an appending swipe.
-    _swipesLen.set(Number(messageId), Array.isArray(msg?.swipes) ? msg.swipes.length : 0);
-    if (!msg || msg.is_user || msg.is_system || msg.is_hidden || !S().enabled) return;
+    _swipesLen.set(Number(messageId), Array.isArray(msg0?.swipes) ? msg0.swipes.length : 0);
+    if (!msg0 || msg0.is_user || msg0.is_system || msg0.is_hidden || !S().enabled) return;
 
     // False-start guard (mirrors DS Comments src/events.js CHARACTER_MESSAGE_RENDERED
     // handler). SillyTavern leaves mes/swipe text as the `'...'` placeholder (or
     // empty) while a new post is still being generated. Without this guard the
     // placeholder would pass as a truthy identity, the payload read misses, and
     // generateFootnotes fires on a not-yet-written post — burning an API call.
-    const swipeIdx = msg.swipe_id ?? 0;
-    const candidate = Array.isArray(msg.swipes) ? (msg.swipes[swipeIdx] ?? msg.mes) : msg.mes;
+    const swipeIdx = msg0.swipe_id ?? 0;
+    const candidate = Array.isArray(msg0.swipes) ? (msg0.swipes[swipeIdx] ?? msg0.mes) : msg0.mes;
     const postText = (candidate || '').trim();
     if (!postText || postText === '...' || postText.length < MIN_POST_LENGTH) return;
 

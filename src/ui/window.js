@@ -707,7 +707,7 @@ export function disconnectViewportSync() {
  */
 let _abortDragResize = null;
 
-function makeDraggable(panel, handle, enabledWhen) {
+function makeDraggable(panel, handle) {
     let startX, startY, startLeft, startTop, isDragging = false, hasMoved = false;
     let pendingFrame = 0;
     let nextLeft = 0, nextTop = 0;
@@ -720,7 +720,6 @@ function makeDraggable(panel, handle, enabledWhen) {
 
     const onDown = (e) => {
         if (isMobileViewport()) return;
-        if (enabledWhen && !enabledWhen()) return;
         if (e.target.closest('button, .gls-panel-btn, .gls-panel-nav-btn')) return;
         isDragging = true; hasMoved = false;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
