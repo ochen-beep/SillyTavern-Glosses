@@ -195,47 +195,6 @@ export function resolveAttachedLorebooks(ctx = getCtx()) {
     return new Set(resolveAttachedLorebookSources(ctx).map(source => source.book));
 }
 
-/** @param {ReturnType<typeof getCtx>} ctx @param {string} book */
-export async function loadLorebookEntries(ctx, book) {
-    const payload = await ctx.loadWorldInfo(book);
-    const container = payload?.entries;
-    const rows = Array.isArray(container)
-        ? container.map(entry => [undefined, entry])
-        : container && typeof container === 'object'
-            ? Object.entries(container)
-            : [];
-    const entries = [];
-
-    for (const [key, entry] of rows) {
-        if (!entry || typeof entry !== 'object') continue;
-
-        const sourceUid = parseUid(entry.uid);
-        const uid = sourceUid ?? (key === undefined ? undefined : parseUid(key));
-        if (uid === undefined) continue;
-
-        const keyLabel = Array.isArray(entry.key) ? entry.key[0] : undefined;
-        const label = entry.comment || entry.name || keyLabel || `Entry ${uid}`;
-        entries.push({
-            book,
-            uid,
-            label,
-            content: typeof entry.content === 'string' ? entry.content : '',
-            vectorized: Boolean(entry.vectorized),
-        });
-    }
-
-    entries.sort((left, right) => left.uid - right.uid);
-    return entries;
-}
-
-/** @param {ReturnType<typeof getCtx>} [ctx] */
-export async function listLorebookNames(ctx = getCtx()) {
-    const names = await ctx.getWorldInfoNames();
-    return Array.isArray(names)
-        ? names.filter(name => typeof name === 'string').sort((left, right) => left.localeCompare(right))
-        : [];
-}
-
 /**
  * Consumed WORLD_INFO_ACTIVATED cache entries bound to the anchor post, or
  * null when the cache is absent / belongs to another chat or post.
