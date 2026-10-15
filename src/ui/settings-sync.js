@@ -466,18 +466,8 @@ export function bindSettingsUI() {
         on(document, 'keydown', (e) => { if (e.key === 'Escape') closePicker(); });
     }
 
-    const hoEl = $('gls_highlight_opacity');
-    const hoVal = $('gls_highlight_opacity_val');
-    if (hoEl) {
-        hoEl.value = S().highlightOpacity;
-        if (hoVal) hoVal.textContent = `${S().highlightOpacity}%`;
-        on(hoEl, 'input', () => {
-            S().highlightOpacity = parseInt(hoEl.value);
-            if (hoVal) hoVal.textContent = `${S().highlightOpacity}%`;
-            applyHighlightStyles();
-            saveSettings();
-        });
-    }
+    bindSlider('gls_highlight_opacity', 'gls_highlight_opacity_val', 'highlightOpacity',
+        { readout: n => `${n}%`, publish: applyHighlightStyles });
 
     const hsEl = $('gls_highlight_style');
     if (hsEl) { hsEl.value = S().highlightStyle; on(hsEl, 'change', () => { S().highlightStyle = hsEl.value; applyHighlightStyles(); syncDisplayPreviews(); saveSettings(); }); }
@@ -492,32 +482,20 @@ export function bindSettingsUI() {
     // Font size slider (0.70–1.50em, step 0.05). The setting keeps the
     // historical "0.90em" string format; the slider speaks plain numbers and
     // the readout restores the two-decimal em form.
-    const fsEl = $('gls_font_size');
-    const fsVal = $('gls_font_size_val');
-    if (fsEl) {
-        fsEl.value = parseFloat(S().footnoteFontSize || '0.90em');
-        if (fsVal) fsVal.textContent = `${parseFloat(fsEl.value).toFixed(2)}em`;
-        on(fsEl, 'input', () => {
-            S().footnoteFontSize = `${parseFloat(fsEl.value).toFixed(2)}em`;
-            if (fsVal) fsVal.textContent = S().footnoteFontSize;
-            applyHighlightStyles();
-            saveSettings();
-        });
-    }
+    bindSlider('gls_font_size', 'gls_font_size_val', 'footnoteFontSize', {
+        toSlider: v => parseFloat(v || '0.90em'),
+        toSetting: n => `${n.toFixed(2)}em`,
+        readout: n => `${n.toFixed(2)}em`,
+        publish: applyHighlightStyles,
+    });
 
     // Floating panel font size slider — mirrors the popup one above.
-    const pfsEl = $('gls_panel_font_size');
-    const pfsVal = $('gls_panel_font_size_val');
-    if (pfsEl) {
-        pfsEl.value = parseFloat(S().panelFontSize || '0.90em');
-        if (pfsVal) pfsVal.textContent = `${parseFloat(pfsEl.value).toFixed(2)}em`;
-        on(pfsEl, 'input', () => {
-            S().panelFontSize = `${parseFloat(pfsEl.value).toFixed(2)}em`;
-            if (pfsVal) pfsVal.textContent = S().panelFontSize;
-            applyHighlightStyles();
-            saveSettings();
-        });
-    }
+    bindSlider('gls_panel_font_size', 'gls_panel_font_size_val', 'panelFontSize', {
+        toSlider: v => parseFloat(v || '0.90em'),
+        toSetting: n => `${n.toFixed(2)}em`,
+        readout: n => `${n.toFixed(2)}em`,
+        publish: applyHighlightStyles,
+    });
 
     on($('gls_marker_size'), 'change', function () { S().markerFontSize = this.value; applyHighlightStyles(); saveSettings(); });
 
@@ -547,18 +525,7 @@ export function bindSettingsUI() {
 
     // Popup width slider - applyHighlightStyles republishes --gls-popup-maxw,
     // and the next showPopup positions against whatever width that yields.
-    const pwEl = $('gls_popup_width');
-    const pwVal = $('gls_popup_width_val');
-    if (pwEl) {
-        pwEl.value = S().popupMaxWidth;
-        if (pwVal) pwVal.textContent = `${S().popupMaxWidth}px`;
-        on(pwEl, 'input', () => {
-            S().popupMaxWidth = parseInt(pwEl.value);
-            if (pwVal) pwVal.textContent = `${S().popupMaxWidth}px`;
-            applyHighlightStyles();
-            saveSettings();
-        });
-    }
+    bindSlider('gls_popup_width', 'gls_popup_width_val', 'popupMaxWidth', { readout: n => `${n}px`, publish: applyHighlightStyles });
 
     // Popup skin + knobs. Everything publishes through applyHighlightStyles
     // (:root classes + the radius var), which restyles the live popup on its
@@ -589,18 +556,7 @@ export function bindSettingsUI() {
     const pshEl = $('gls_popup_shadow');
     if (pshEl) { pshEl.value = S().popupShadow || 'strong'; on(pshEl, 'change', () => { S().popupShadow = pshEl.value; applyHighlightStyles(); saveSettings(); }); }
 
-    const pcEl = $('gls_popup_corner');
-    const pcVal = $('gls_popup_corner_val');
-    if (pcEl) {
-        pcEl.value = parseInt(S().popupCornerRadius, 10);
-        if (pcVal) pcVal.textContent = `${parseInt(pcEl.value, 10)}px`;
-        on(pcEl, 'input', () => {
-            S().popupCornerRadius = parseInt(pcEl.value, 10);
-            if (pcVal) pcVal.textContent = `${S().popupCornerRadius}px`;
-            applyHighlightStyles();
-            saveSettings();
-        });
-    }
+    bindSlider('gls_popup_corner', 'gls_popup_corner_val', 'popupCornerRadius', { readout: n => `${n}px`, publish: applyHighlightStyles });
 
     // Popup custom CSS layer. The toggle republishes the <style> tags through
     // applyHighlightStyles (which calls applyCustomCss); Edit opens the dialog
@@ -674,17 +630,7 @@ export function bindSettingsUI() {
 
     // Sound
     bindCb('gls_sound_enabled', 'soundEnabled');
-    const svEl = $('gls_sound_volume');
-    const svVal = $('gls_sound_volume_val');
-    if (svEl) {
-        svEl.value = S().soundVolume;
-        if (svVal) svVal.textContent = `${S().soundVolume}%`;
-        on(svEl, 'input', () => {
-            S().soundVolume = parseInt(svEl.value);
-            if (svVal) svVal.textContent = `${S().soundVolume}%`;
-            saveSettings();
-        });
-    }
+    bindSlider('gls_sound_volume', 'gls_sound_volume_val', 'soundVolume', { readout: n => `${n}%` });
 
     const soundSel = $('gls_sound_select');
     const soundResetBtn = $('gls_sound_reset');
@@ -824,6 +770,27 @@ function bindNum(id, key) {
         // ('input') deliberately does NOT rewrite the field — fighting the caret.
         const n = parseFloat(el.value);
         el.value = String(Number.isFinite(n) ? clamp(n) : (S()[key] ?? ''));
+    });
+}
+
+/** Slider + readout + persist. `toSlider`/`toSetting` map between the
+ *  setting's stored shape (e.g. the "0.90em" string) and the slider's plain
+ *  number; `readout(n)` renders the value span; `publish` refreshes the
+ *  live surfaces before save (same order as the hand-written copies). */
+function bindSlider(id, valId, key, { toSlider, toSetting, readout, publish } = {}) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const val = document.getElementById(valId);
+    const initial = toSlider ? toSlider(S()[key]) : (S()[key] ?? 0);
+    el.value = initial;
+    const show = (n) => { if (val) val.textContent = readout ? readout(n) : `${n}`; };
+    show(initial);
+    on(el, 'input', () => {
+        const n = parseFloat(el.value);
+        S()[key] = toSetting ? toSetting(n) : n;
+        show(n);
+        publish?.();
+        saveSettings();
     });
 }
 
