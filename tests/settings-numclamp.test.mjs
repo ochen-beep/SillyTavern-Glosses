@@ -38,6 +38,8 @@ test('bindNum clamps typed values to the input min/max contract', () => {
     const depthEl = makeNumInput(0, 50);
     const origGet = globalThis.document.getElementById;
     globalThis.document.getElementById = (id) => {
+        // bindSettingsUI refuses to bind without the settings container.
+        if (id === 'gls_settings_container') return {};
         if (id === 'gls_max_footnotes') return footnotesEl;
         if (id === 'gls_context_depth') return depthEl;
         return origGet(id);

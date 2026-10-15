@@ -18,6 +18,11 @@ import {
 } from '../src/ui/settings-sync.js';
 import { loadSettings, S } from '../src/core.js';
 
+// bindSettingsUI refuses to bind without the settings container in the DOM;
+// these tests exercise the controller lifecycle, not the container lookup.
+const _origById = globalThis.document.getElementById;
+globalThis.document.getElementById = (id) => id === 'gls_settings_container' ? {} : _origById(id);
+
 function freshSettingsContext() {
     resetCtx({ extensionSettings: { Glosses: {} } });
     loadSettings();
@@ -113,7 +118,10 @@ test('launcher mode select initializes from settings and writes changes back', (
     let saves = 0;
     globalThis._stCtx.saveSettingsDebounced = () => { saves++; };
     const origById = document.getElementById;
-    document.getElementById = (id) => (id === 'gls_launcher_mode' ? select : null);
+    document.getElementById = (id) => {
+        if (id === 'gls_settings_container') return {};
+        return id === 'gls_launcher_mode' ? select : null;
+    };
     try {
         bindSettingsUI();
         assert.equal(select.value, 'floating', 'select initialized from settings on bind');

@@ -11,6 +11,7 @@
 import {
     state, S, saveSettings, t, getApiKey, setApiKey, notifyUser, warn, getCtx,
 } from '../core.js';
+import { generationCoordinator } from '../application/generation-coordinator.js';
 import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll, closePopup } from '../renderer.js';
 import { getProfiles, getProfileDetails, confirmInsecureEndpoint } from '../connection.js';
 import { classifyEndpoint, isOriginAllowed } from '../infrastructure/endpoint-policy.js';
@@ -140,6 +141,11 @@ function on(el, ev, fn, opts = {}) {
 
 export function bindSettingsUI() {
     if (_settingsBound) return;
+    // Don't latch the flag when the settings DOM isn't there: a failed first
+    // template load (init() warns and continues) would otherwise leave the
+    // panel permanently unbound once it does load — every toggle clickable,
+    // none of them reaching S().
+    if (!document.getElementById('gls_settings_container')) return;
     _settingsBound = true;
     _settingsAbort = new AbortController();
     const $ = id => document.getElementById(id);
@@ -637,7 +643,12 @@ export function bindSettingsUI() {
     }
 
     // Behavior
-    bindCb('gls_auto_generate', 'autoGenerate');
+    // Toggle-off aborts in-flight AUTO runs (manual regen runs keep going):
+    // without this a run started seconds before the flip still committed its
+    // footnotes, reading as "generation fired while auto-generate is off".
+    bindCb('gls_auto_generate', 'autoGenerate', () => {
+        if (!S().autoGenerate) generationCoordinator.abortAutoRuns();
+    });
     // Gloss user posts (manual-only): toggling mounts/unmounts the per-message
     // regen button + cached highlights on {{user}} posts. AI posts are never
     // touched. OFF -> strip user-post chrome; ON -> restoreHighlightsAll picks

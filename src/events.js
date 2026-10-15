@@ -513,7 +513,7 @@ async function autoGenerateIfConfigured(messageId, swipeIdx, mesEl) {
         return;
     }
     state.configWarned = false;
-    await generateFootnotes(messageId, swipeIdx, mesEl);
+    await generateFootnotes(messageId, swipeIdx, mesEl, { auto: true });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

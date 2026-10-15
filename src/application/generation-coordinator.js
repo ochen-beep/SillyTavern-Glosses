@@ -36,6 +36,8 @@ import {
 export function createGenerationCoordinator() {
     /** @type {Record<string, number>} per-message revision counters */
     const revisions = {};
+    /** Ids whose CURRENT in-flight run was started by the auto-generate path. */
+    const autoRuns = new Set();
     let tokenSeq = 0;
 
     function revisionOf(messageId) {
@@ -63,6 +65,7 @@ export function createGenerationCoordinator() {
     function invalidateAll() {
         bumpGenerationEpoch();
         for (const ctrl of Object.values(state.abortControllers)) ctrl.abort();
+        autoRuns.clear();
     }
 
     /**
@@ -71,14 +74,19 @@ export function createGenerationCoordinator() {
      * controller + isGenerating flag on state for host-visible progress.
      *
      * @param {number|string} messageId
+     * @param {{ auto?: boolean }} [opts] auto: run started by the auto-generate
+     *   path (autoGenerateIfConfigured), abortable via abortAutoRuns().
      * @returns {{ id: string, token: number, ctrl: AbortController, messageRevision: number, chatEpoch: number }}
      */
-    function beginRun(messageId) {
+    function beginRun(messageId, { auto = false } = {}) {
         const id = String(messageId);
         state.abortControllers[id]?.abort();
         const ctrl = new AbortController();
         state.abortControllers[id] = ctrl;
         state.isGenerating[id] = true;
+        // The slot now belongs to THIS run, so its kind wins — a manual run
+        // superseding an auto one must clear the message's auto mark.
+        if (auto) autoRuns.add(id); else autoRuns.delete(id);
         return {
             id,
             token: ++tokenSeq,
@@ -86,6 +94,19 @@ export function createGenerationCoordinator() {
             messageRevision: revisionOf(id),
             chatEpoch: beginGenerationEpoch(),
         };
+    }
+
+    /**
+     * Abort every in-flight AUTO run (autoGenerateIfConfigured-started); manual
+     * runs (regen button, panel CTAs, /glosses_regen) keep going. Called when
+     * the autoGenerate toggle flips off: without it a run started seconds
+     * earlier would still commit its footnotes, reading as "generation fired
+     * while disabled". bumpMessageRevision aborts AND bumps the revision, so
+     * even a transport that ignores AbortSignal fails the commit guard.
+     */
+    function abortAutoRuns() {
+        for (const id of [...autoRuns]) bumpMessageRevision(id);
+        autoRuns.clear();
     }
 
     /**
@@ -115,6 +136,7 @@ export function createGenerationCoordinator() {
         if (state.abortControllers[run.id] !== run.ctrl) return false;
         delete state.abortControllers[run.id];
         delete state.isGenerating[run.id];
+        autoRuns.delete(run.id);
         return true;
     }
 
@@ -124,6 +146,7 @@ export function createGenerationCoordinator() {
         endRun,
         bumpMessageRevision,
         invalidateAll,
+        abortAutoRuns,
         revisionOf,
     };
 }

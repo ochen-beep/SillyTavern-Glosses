@@ -138,3 +138,58 @@ test('endRun only cleans up when the run is still the owner', () => {
     assert.equal(generationCoordinator.endRun(run2), true);
     assert.equal(state.abortControllers['0'], undefined);
 });
+// ── abortAutoRuns: toggle-off kills auto runs, manual runs survive ──
+
+test('abortAutoRuns aborts an in-flight auto run and blocks its commit', async () => {
+    setup();
+    let resolveApi;
+    _testSetApiOverride(() => new Promise(r => { resolveApi = r; }));
+    const p = generateFootnotes('0', 0, null, { auto: true });
+    await tick();
+    assert.equal(state.isGenerating['0'], true, 'auto run in flight');
+
+    generationCoordinator.abortAutoRuns();
+    assert.equal(state.abortControllers['0'].signal.aborted, true);
+
+    resolveApi(RAW_A);
+    await p;
+    assert.equal(getVariantFootnotes('0', 0), null, 'aborted auto run must not commit');
+    _testClearApiOverride();
+});
+
+test('abortAutoRuns leaves a manual run alone — it still commits', async () => {
+    setup();
+    let resolveApi;
+    _testSetApiOverride(() => new Promise(r => { resolveApi = r; }));
+    const p = generateFootnotes('0', 0, null);   // manual (default)
+    await tick();
+
+    generationCoordinator.abortAutoRuns();
+    assert.equal(state.abortControllers['0'].signal.aborted, false, 'manual run untouched');
+
+    resolveApi(RAW_A);
+    await p;
+    assert.equal(getVariantFootnotes('0', 0)?.length, 1, 'manual run commits');
+    _testClearApiOverride();
+});
+
+test('a manual run superseding an auto run clears the auto mark', async () => {
+    setup();
+    const pending = [];
+    _testSetApiOverride(() => new Promise(r => pending.push(r)));
+    const pAuto = generateFootnotes('0', 0, null, { auto: true });
+    await tick();
+    const pManual = generateFootnotes('0', 0, null);   // manual regen supersedes
+    await tick();
+    assert.equal(pending.length, 2, 'both runs reached the API');
+
+    generationCoordinator.abortAutoRuns();
+    assert.equal(state.abortControllers['0'].signal.aborted, false,
+        'the surviving run is manual — abortAutoRuns must not touch it');
+
+    pending[0](RAW_A);   // superseded auto run
+    pending[1](RAW_A);   // live manual run
+    await Promise.all([pAuto, pManual]);
+    assert.equal(getVariantFootnotes('0', 0)?.length, 1, 'the manual run committed');
+    _testClearApiOverride();
+});

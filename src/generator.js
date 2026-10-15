@@ -942,7 +942,7 @@ function buildDomTextModel(mesEl) {
 // uiBusyBegin/uiBusyEnd pair; superseded runs release too — their finally
 // still runs after beginRun() replaced their controller.
 
-export async function generateFootnotes(messageId, swipeIdx, mesEl) {
+export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = false } = {}) {
     // Translate-guard (manual paths included): regenerating over a translated
     // view would validate anchors against the translation but stamp the
     // payload with the ORIGINAL body's digest — markers land on translation
@@ -959,7 +959,9 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl) {
     const startDigest = digestFor(messageId, swipeIdx);
     // Stage 6: the coordinator owns the per-message run (controller + token +
     // revision + chatEpoch). Starting a new run supersedes any previous one.
-    const run = generationCoordinator.beginRun(messageId);
+    // `auto` marks runs the autoGenerate toggle-off may abort (abortAutoRuns);
+    // manual entry points (regen button, panel CTAs, /glosses_regen) stay immune.
+    const run = generationCoordinator.beginRun(messageId, { auto });
     const ctrl = run.ctrl;
     setSpinner(messageId, true);
     uiBusyBegin();

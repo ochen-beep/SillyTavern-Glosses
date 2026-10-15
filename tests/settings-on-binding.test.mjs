@@ -145,6 +145,10 @@ function withFakeDom(fn) {
 /** Register the settings controls bindSettingsUI binds + one accordion header.
  *  The header's chevron is a STABLE instance so handler writes are observable. */
 function seedControls() {
+    // The container is what init() appends to #extensions_settings; the
+    // bindSettingsUI guard refuses to bind without it (a failed template load
+    // must not latch the flag).
+    fakeDoc.register('gls_settings_container');
     for (const id of [
         'gls_enabled', 'gls_preset', 'gls_prompt_style', 'gls_output_language',
         'gls_floating_panel', 'gls_auto_generate', 'gls_gloss_user', 'gls_sound_enabled',
@@ -222,6 +226,21 @@ test('bindSettingsUI binds real listeners with the abort signal (regression: on(
         assert.equal(fakeDoc.get('gls_floating_panel').listeners['change'].length, 1, 'checkbox bound');
 
         // Leave the module unbound so the next test starts clean.
+        unbindSettingsUI();
+    });
+});
+
+test('bindSettingsUI does not latch without the settings container (failed template load)', () => {
+    freshSettingsContext();
+    withFakeDom(() => {
+        // Template never appended (init() warned and continued): no container.
+        bindSettingsUI();
+        assert.equal(spyInstances.length, 0, 'no controller created, flag not latched');
+        // The template lands later (e.g. a retried init) — binding must work.
+        seedControls();
+        bindSettingsUI();
+        assert.equal(spyInstances.length, 1, 'bound once the DOM exists');
+        assert.equal(fakeDoc.get('gls_auto_generate').listeners['change'].length, 1);
         unbindSettingsUI();
     });
 });

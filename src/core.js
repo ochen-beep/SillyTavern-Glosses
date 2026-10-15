@@ -65,7 +65,13 @@ export function getCtx() {
 // loadSettings() deep-clones it before merging user values.
 export const DEFAULT_SETTINGS = Object.freeze({
     enabled: true,
-    autoGenerate: true,
+    // Opt-in: auto-generation silently spends the user's API quota on every
+    // new AI message, so a fresh install must not enable it behind their
+    // back. Footnotes stay discoverable without it — the panel's Generate
+    // CTA, the per-message regen button and /glosses_regen are all manual.
+    // Users who flip the toggle persist their choice; the default only
+    // applies when no settings blob exists yet.
+    autoGenerate: false,
     // Allow footnotes on the user's own ({{user}}) posts. Off by default:
     // footnotes are primarily a literary device for the AI's prose. When on, a
     // per-message regenerate button (renderer.addRegenButton) is mounted on
