@@ -116,6 +116,23 @@ function tEndpointError(error) {
 }
 
 /**
+ * Classify + authorize a custom endpoint URL: shape (classifyEndpoint) and,
+ * for non-loopback HTTP, the confirmed-origin allow-list. Single gate shared
+ * by the configured-check and the actual request path.
+ * @param {string} endpointUrl
+ * @returns {{ ok: true, verdict: object } | { ok: false, reason: string }}
+ */
+function authorizeEndpoint(endpointUrl) {
+    const verdict = classifyEndpoint(endpointUrl);
+    if (!verdict.ok) return { ok: false, reason: tEndpointError(verdict.error) };
+    if (verdict.kind === 'insecure-http'
+        && !isOriginAllowed(verdict.normalized, S().customEndpointAllowlist || [])) {
+        return { ok: false, reason: t('Custom endpoint uses plain HTTP on a non-local host. Confirm this origin in Glosses settings before use.') };
+    }
+    return { ok: true, verdict };
+}
+
+/**
  * Pre-flight: is the generation source configured enough to ATTEMPT an
  * auto-generation? Mirrors the config-level throws in generateWithProfile /
  * generateWithCustomEndpoint - NOT the runtime CM-availability / profile-existence
@@ -142,14 +159,8 @@ export async function checkSourceConfigured() {
         }
         // Stage 8: authorize the endpoint URL BEFORE reading the API key. A
         // malformed / non-http / credentialed URL must never reach the key read.
-        const verdict = classifyEndpoint(s.customEndpoint);
-        if (!verdict.ok) {
-            return { ok: false, reason: tEndpointError(verdict.error) };
-        }
-        if (verdict.kind === 'insecure-http'
-            && !isOriginAllowed(verdict.normalized, s.customEndpointAllowlist || [])) {
-            return { ok: false, reason: t('Custom endpoint uses plain HTTP on a non-local host. Confirm this origin in Glosses settings before use.') };
-        }
+        const auth = authorizeEndpoint(s.customEndpoint);
+        if (!auth.ok) return { ok: false, reason: auth.reason };
         const apiKey = await getApiKey();
         if (!apiKey) {
             return { ok: false, reason: t('Custom API key is not set. Set it in Glosses settings → Custom.') };
@@ -302,8 +313,10 @@ function withTimeoutSignal(signal, ms) {
 }
 
 /**
- * Confirm (or reject) a custom endpoint's origin for an insecure-http URL.
- * Returns { ok: true } once the origin is on the allow-list (plan stage 8).
+ * Confirm a custom endpoint's origin for an insecure-http URL by adding it to
+ * the allow-list (plan stage 8). The operation is idempotent — an already
+ * confirmed origin is left as-is — and has no failure path, so it returns
+ * nothing.
  *
  * Persistence is best-effort: saveSettings() is the host's fire-and-forget
  * debounced write — it never throws, so no rollback path exists to catch a
@@ -312,14 +325,12 @@ function withTimeoutSignal(signal, ms) {
  *
  * @param {string} normalizedUrl - canonicalized endpoint URL
  * @param {string[]} allowList - current S().customEndpointAllowlist
- * @returns {Promise<{ok: boolean, reason?: string}>}
  */
-export async function confirmInsecureEndpoint(normalizedUrl, allowList) {
+export function confirmInsecureEndpoint(normalizedUrl, allowList) {
     const next = [...(Array.isArray(allowList) ? allowList : [])];
     if (!isOriginAllowed(normalizedUrl, next)) next.push(normalizedUrl);
     S().customEndpointAllowlist = next;
     saveSettings();
-    return { ok: true };
 }
 
 /**
@@ -336,12 +347,9 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     // Stage 8: authorize the endpoint URL BEFORE the API key read or fetch.
     // classifyEndpoint rejects non-http(s), credentialed, and malformed URLs;
     // a non-loopback http URL must be on the confirmed allow-list.
-    const verdict = classifyEndpoint(endpointUrl);
-    if (!verdict.ok) throw new Error(tEndpointError(verdict.error));
-    if (verdict.kind === 'insecure-http'
-        && !isOriginAllowed(verdict.normalized, S().customEndpointAllowlist || [])) {
-        throw new Error(t('Custom endpoint uses plain HTTP on a non-local host. Confirm this origin in Glosses settings before use.'));
-    }
+    const auth = authorizeEndpoint(endpointUrl);
+    if (!auth.ok) throw new Error(auth.reason);
+    const verdict = auth.verdict;
     if (verdict.kind === 'loopback-http' && !_loopbackWarned) {
         // README promises "allowed with a warning" — deliver it once per page.
         _loopbackWarned = true;

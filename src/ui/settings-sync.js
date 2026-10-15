@@ -832,15 +832,11 @@ function bindHttpConfirm() {
     // Plain listener (not the bind-scoped `on()`): the settings DOM is
     // recreated on every enable, so the element lifetime bounds the listener.
     btn.dataset.glsHttpConfirmBound = '1';
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
         const verdict = classifyEndpoint(S().customEndpoint);
         if (!verdict.ok || verdict.kind !== 'insecure-http') { refreshHttpConfirm(); return; }
-        const res = await confirmInsecureEndpoint(verdict.normalized, S().customEndpointAllowlist || []);
-        if (res.ok) {
-            try { notifyUser('success', t('Endpoint origin confirmed.'), 'gls-http-confirm'); } catch { /* non-fatal */ }
-        } else {
-            warn('Endpoint confirmation failed:', res.reason);
-        }
+        confirmInsecureEndpoint(verdict.normalized, S().customEndpointAllowlist || []);
+        try { notifyUser('success', t('Endpoint origin confirmed.'), 'gls-http-confirm'); } catch { /* non-fatal */ }
         refreshHttpConfirm();
     });
 }

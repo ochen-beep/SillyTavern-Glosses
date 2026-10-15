@@ -80,8 +80,8 @@ test('confirmInsecureEndpoint adds the origin to the allow-list, after which the
     const r0 = await checkSourceConfigured();
     assert.equal(r0.ok, false, 'blocked before confirmation');
 
-    const confirmed = await confirmInsecureEndpoint('http://api.example.com/v1/chat/completions', []);
-    assert.equal(confirmed.ok, true);
+    // confirmInsecureEndpoint is void and infallible — it persists the origin.
+    confirmInsecureEndpoint('http://api.example.com/v1/chat/completions', []);
 
     // After persistence, the endpoint is authorized.
     const origGetItem = SillyTavern.libs.localforage.getItem;
