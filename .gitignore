@@ -24,3 +24,10 @@ PROJECT_MAP.md
 .env
 .env.*
 coverage/
+# Syncthing conflict duplicates (the data dir is synced across machines;
+# these used to pollute the tree twice already).
+*.sync-conflict-*
+# Local archive backups — an .rar/.zip dropped into the repo must not publish.
+*.rar
+*.zip
+*.7z
