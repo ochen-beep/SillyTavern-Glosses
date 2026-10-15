@@ -187,12 +187,10 @@ export function bindSettingsUI() {
             const key = presetSel.value;
             if (!key) {
                 // Sentinel picked — clear the flag, don't touch other settings.
-                S().selectedPreset = '';
-                saveSettings();
+                clearPresetOnManualEdit();
                 return;
             }
             await setPreset(key);
-            updatePresetShowing();
         });
     }
 
@@ -263,11 +261,7 @@ export function bindSettingsUI() {
         { onChange() { clearPresetOnManualEdit(); updatePromptPanels(); } });
     updatePromptPanels();
 
-    on($('gls_custom_prompt'), 'input', function () {
-        S().customPrompt = this.value;
-        saveSettings();
-    });
-    if ($('gls_custom_prompt')) $('gls_custom_prompt').value = S().customPrompt;
+    bindText('gls_custom_prompt', 'customPrompt');
 
     // Language (for the 'language' prompt style)
     const tlEl = $('gls_target_language');
@@ -595,8 +589,7 @@ export function bindSettingsUI() {
         initScrollObserver();
         updatePanel();
     });
-    on($('gls_stop_words'), 'input', function () { S().stopWords = this.value; saveSettings(); });
-    if ($('gls_stop_words')) $('gls_stop_words').value = S().stopWords;
+    bindText('gls_stop_words', 'stopWords');
 
     // Sound
     bindCb('gls_sound_enabled', 'soundEnabled');
@@ -771,6 +764,14 @@ function bindSelect(id, key, { fallback, onChange } = {}) {
     if (!el) return;
     el.value = S()[key] || fallback || '';
     on(el, 'change', () => { S()[key] = el.value; saveSettings(); onChange?.(); });
+}
+
+/** Text input + persist (no transform). */
+function bindText(id, key) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = S()[key] ?? '';
+    on(el, 'input', () => { S()[key] = el.value; saveSettings(); });
 }
 
 function updateSrcPanels() {
