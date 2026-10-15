@@ -369,7 +369,7 @@ Post (context only; footnote its words/phrases/situations, not wholesale).
 // target). Set via the "Output language" dropdown; default 'ru'. This replaces
 // the old heuristic (document.documentElement.lang) which inferred it from the
 // ST UI language — see anchor-count-language spec §3.
-function getOutputLanguage() {
+export function getOutputLanguage() {
     return S().outputLanguage === 'en' ? 'English' : 'Russian';
 }
 
