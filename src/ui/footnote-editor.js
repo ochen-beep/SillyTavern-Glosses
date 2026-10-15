@@ -29,13 +29,13 @@
  *     the caller re-renders — no disposer is returned or needed.
  *   - Escape cancels the edit and the caller restores focus (plan §2.4).
  *
- * Deps: icons, core (t), parser (stripLeadingNumber), application commands.
+ * Deps: icons, core (t, beginGenerationEpoch), parser (stripLeadingNumber), application commands.
  * No renderer, no window.js — DOM refresh is the caller's job.
  */
 
-import { t } from '../core.js';
+import { t, beginGenerationEpoch } from '../core.js';
 import { stripLeadingNumber } from '../parser.js';
-import { editFootnote, beginEditEpoch } from '../application/footnote-commands.js';
+import { editFootnote } from '../application/footnote-commands.js';
 
 /** @typedef {'editing' | 'saving'} EditorPhase */
 
@@ -53,7 +53,7 @@ import { editFootnote, beginEditEpoch } from '../application/footnote-commands.j
  */
 export function mountInlineEditor(hostEl, opts) {
     const { fn, msgId, swipeIdx, digest, kind, validateContext, onSaved, onCancelled } = opts;
-    const editEpoch = beginEditEpoch();
+    const editEpoch = beginGenerationEpoch();
     /** @type {EditorPhase} */
     let phase = 'editing';
 

@@ -29,9 +29,6 @@ import {
 import { mountInlineEditor } from './footnote-editor.js';
 import { copyText } from './clipboard.js';
 
-// Re-export the editor so the action bar and any caller share one surface.
-export { mountInlineEditor };
-
 // ══════════════════════════════════════════════════════════════════════════════
 // BUTTON FACTORY + COPY FEEDBACK
 // ══════════════════════════════════════════════════════════════════════════════
