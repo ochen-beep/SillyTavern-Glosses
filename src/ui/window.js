@@ -23,7 +23,7 @@ import {
     getForcedIgnore, saveForcedIgnore, getPoolExcluded, togglePoolExcluded,
     listFootnoteSets,
 } from '../cache.js';
-import { targetedOf, reindexTargeted } from '../domain/footnote-payload.js';
+import { targetedOf, reindexTargeted, variantText } from '../domain/footnote-payload.js';
 import { isAnnotatableMsg } from '../domain/message-identity.js';
 import { removeHighlights, reinjectInto, formatFootnoteText } from '../renderer.js';
 import { indexToTargetedSymbol, stripLeadingNumber } from '../parser.js';
@@ -38,7 +38,7 @@ import {
 } from '../targeted-generation.js';
 import { playSound } from '../sound.js';
 import { iconHtml } from './icons.js';
-import { detectEmptyReason, renderEmptyStateHTML } from './empty.js';
+import { renderEmptyStateHTML } from './empty.js';
 import { buildFootnoteActions, makeActionButton } from './footnote-actions.js';
 import { uiBusyBegin, uiBusyEnd } from './busy.js';
 
@@ -125,7 +125,7 @@ async function runTargetedGeneration() {
         }
 
         // Anchor + persist through the payload store (survives restarts).
-        const rawMes = Array.isArray(message.swipes) ? (message.swipes[swipeIdx] ?? message.mes) : message.mes;
+        const rawMes = variantText(message, swipeIdx);
         const plain = extractPlainText(rawMes);
         const resolved = resolveTargetedAnchors(
             result.footnotes.map(fn => ({ anchor: fn.anchor, text: fn.text })), plain);
@@ -1195,15 +1195,15 @@ function getAllAnnotatableMsgIds() {
  * Render the panel body for a given (or focused) message. Skips re-render when
  * the data-render-key already matches — call panelInvalidate() to force.
  */
-export function renderPanel(msgId, swipeIdxHint) {
+export function renderPanel(msgId) {
     if (_tabController && _tabController.getActiveTab() !== 'footnotes') {
         _tabController.refreshActiveTab();
         return;
     }
-    renderFootnotesTab(msgId, swipeIdxHint);
+    renderFootnotesTab(msgId);
 }
 
-function renderFootnotesTab(msgId, swipeIdxHint) {
+function renderFootnotesTab(msgId) {
     if (!_floatingPanel) return;
     const body = document.getElementById('gls-panel-body');
     const navLabel = document.getElementById('gls-panel-nav-label');
@@ -1226,7 +1226,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
 
     const focusId = state.panelFocusMsgId;
     const msg = ctx.chat?.[parseInt(focusId)];
-    const swipeIdx = swipeIdxHint !== undefined ? swipeIdxHint : (msg?.swipe_id ?? 0);
+    const swipeIdx = msg?.swipe_id ?? 0;
     const swipeCount = Array.isArray(msg?.swipes) ? msg.swipes.length : 1;
     const name = msg?.name || t('Message');
 
@@ -1251,7 +1251,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
     // don't change the digest (text unchanged), so without them a targeted
     // commit would leave the Footnotes tab showing a stale list.
     const cacheKey = `footnotes:${focusId}:${swipeIdx}:${digest || 'none'}:${payload?.generatedAt ?? 0}:${targeted.length}`;
-    if (_floatingPanel.dataset.renderKey === cacheKey && swipeIdxHint === undefined) return;
+    if (_floatingPanel.dataset.renderKey === cacheKey) return;
     _floatingPanel.dataset.renderKey = cacheKey;
     body.innerHTML = '';
 
@@ -1278,11 +1278,10 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
         if (!state.configuredState.ok) reason = 'unconfigured';
         else if (state.isGenerating[focusId]) reason = 'generating';
         else if (!isAnnotatable) reason = 'empty';   // system message -> neutral, no CTA
-        else reason = detectEmptyReason({
-            enabled: true,
-            generating: false,
-            configured: state.configuredState,
-        });
+        else reason = 'empty';
+        // The dropped detectEmptyReason call was provably 'empty' here: the
+        // if-chain above already handled !configuredState.ok and the
+        // generating case, so enabled=true/generating=false/configured=ok.
         const empty = document.createElement('div');
         empty.className = 'gls-empty gls-empty--state';
         empty.innerHTML = renderEmptyStateHTML(reason, {
@@ -1372,7 +1371,7 @@ function renderFootnotesTab(msgId, swipeIdxHint) {
         const actions = document.createElement('div');
         actions.className = 'gls-panel-entry-actions';
 
-        const reRender = () => { panelInvalidate(); renderPanel(focusId, swipeIdx); };
+        const reRender = () => { panelInvalidate(); renderPanel(focusId); };
         const buttons = buildFootnoteActions({
             fn, msgId: focusId, swipeIdx, digest,
             kind: isTargeted ? 't' : 'fn',
@@ -1454,7 +1453,5 @@ export function setVisiblePost(msgId) {
     // focus/caret. The Footnotes tab picks the new focus up when reselected.
     if (!panelIsVisible()) return;
     if (_tabController && _tabController.getActiveTab() !== 'footnotes') return;
-    // No swipeIdxHint on purpose: the render-key cache already keys on
-    // swipeIdx, and passing the hint bypasses the cache on every scroll pick.
     renderPanel(msgId);
 }
