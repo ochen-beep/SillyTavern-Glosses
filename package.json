@@ -3,6 +3,7 @@
   "version": "3.7.1",
   "type": "module",
   "private": true,
+  "license": "AGPL-3.0-only",
   "scripts": {
     "test": "node scripts/run-tests.mjs && node scripts/audit-unused-imports.mjs"
   }
