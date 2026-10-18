@@ -784,14 +784,11 @@
 /* Regenerate button */
 .mes_button.gls-regen-btn { color: var(--gls-accent); }
 
+/* Busy: the same slow glow pulse the launchers get (see gls_pulse below) —
+   color/opacity/drop-shadow only, no geometry, so the .mes_buttons row
+   never shifts while a generation runs. */
 .mes_button.gls-regen-btn.gls-busy i {
-    display: inline-block;
-    animation: gls-spin 1s linear infinite;
-}
-
-@keyframes gls-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    animation: gls_pulse 2.4s ease-in-out infinite;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -3301,21 +3298,31 @@
     justify-content: center;
 }
 
-/* Generation in progress — both launcher controls pulse (generator.js toggles
-   .gls_generating on #gls_launcher + #gls_fab for the whole run). */
+/* Generation in progress — launchers and the in-post regen icon share one
+   slow glow pulse (busy.js toggles .gls_generating on #gls_launcher/#gls_fab,
+   renderer.js toggles .gls-busy on the regen icon). Color/opacity/drop-shadow
+   only — no scale, so nothing in the layout breathes. */
 .gls_launcher.gls_generating,
 .gls_fab.gls_generating {
-    animation: gls_pulse 1.4s ease-in-out infinite;
-    will-change: transform;
+    animation: gls_pulse 2.4s ease-in-out infinite;
 }
 @keyframes gls_pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.12); }
+    0%, 100% {
+        color: var(--gls-accent);
+        opacity: .7;
+        filter: drop-shadow(0 0 2px color-mix(in srgb, var(--gls-accent) 30%, transparent));
+    }
+    50% {
+        color: color-mix(in srgb, var(--gls-accent) 70%, #fff);
+        opacity: 1;
+        filter: drop-shadow(0 0 9px color-mix(in srgb, var(--gls-accent) 75%, transparent));
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .gls_launcher.gls_generating,
-    .gls_fab.gls_generating {
-        animation: none; opacity: 0.8; will-change: auto;
+    .gls_fab.gls_generating,
+    .mes_button.gls-regen-btn.gls-busy i {
+        animation: none; opacity: 0.8;
     }
 }
 
