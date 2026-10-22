@@ -24,7 +24,7 @@ import {
 import { isTranslatedView } from './domain/message-identity.js';
 import { collectExplainedAnchors, combineForbiddenAnchors } from './anchor-policy.js';
 import { findAnchorInText } from './anchor-utils.js';
-import { getChatLoreConfig, collectAutomaticLore, LORE_MODE, LORE_SCOPE } from './lorebooks.js';
+import { getChatLoreConfig, collectAutomaticLore, resolveManualLore, LORE_MODE, LORE_SCOPE, LORE_SCAN_MAX_CONTEXT } from './lorebooks.js';
 import { buildTextIndex, computeContextSelectors, findFuzzySpan } from './text-index.js';
 import { parseResponse, validateFootnotes, validateFootnotesAgainstText, normalizeFootnotes } from './parser.js';
 import { injectHighlights, setSpinner } from './renderer.js';
@@ -837,9 +837,11 @@ export async function buildContextBlocks(messageId, swipeIdx, opts = {}) {
     //   1. per-chat config (chatMetadata.gls_lorebook, lorebooks.js) when its
     //      enabled flag is on — AUTOMATIC scope ALL (dry-run scan + vectorized
     //      entries from the WORLD_INFO_ACTIVATED cache) or ATTACHED (only the
-    //      entries of books bound to this chat). ATTACHED degrades to the full
-    //      scan when the activation cache doesn't match the anchor (regen of
-    //      an older post) so the prompt keeps its background.
+    //      entries of books bound to this chat), or MANUAL (user-picked
+    //      entries via resolveManualLore). Cache miss in ATTACHED → empty:
+    //      there is NO degradation to the full scan, because that path cannot
+    //      exclude global-panel books and would break the attached-only
+    //      contract (aligned with DS Comments).
     //   2. otherwise the legacy global includeLorebook toggle → full scan.
     // isDryRun is ALWAYS true in every scan (contract ported from DS
     // Comments): a non-dry-run scan re-emits WORLD_INFO_ACTIVATED and writes
@@ -850,19 +852,17 @@ export async function buildContextBlocks(messageId, swipeIdx, opts = {}) {
     if (loreCfg.enabled || s.includeLorebook) {
         let wi = '';
         try {
-            if (loreCfg.enabled && loreCfg.mode !== LORE_MODE.MANUAL) {
+            if (loreCfg.enabled && loreCfg.mode === LORE_MODE.MANUAL) {
+                const lore = await resolveManualLore(ctx, loreCfg.selectedEntries);
+                wi = lore.text;
+            } else if (loreCfg.enabled) {
                 const { chatMessages, globalScanData } = buildLoreScanInput(ctx);
                 const scope = loreCfg.autoScope ?? LORE_SCOPE.ALL;
-                let lore = await collectAutomaticLore(ctx, { chatMessages, globalScanData, anchorMsgId: messageId, anchorSwipeIdx: swipeIdx, scope });
-                if (!lore.text && !lore.cacheMatched && scope === LORE_SCOPE.ATTACHED) {
-                    // Activation cache miss (older-post regen) — degrade to
-                    // the full scan instead of dropping the background.
-                    lore = await collectAutomaticLore(ctx, { chatMessages, globalScanData, anchorMsgId: messageId, anchorSwipeIdx: swipeIdx, scope: LORE_SCOPE.ALL });
-                }
+                const lore = await collectAutomaticLore(ctx, { chatMessages, globalScanData, anchorMsgId: messageId, anchorSwipeIdx: swipeIdx, scope });
                 wi = lore.text;
             } else {
                 const { chatMessages, globalScanData } = buildLoreScanInput(ctx);
-                const wiResult = ctx.getWorldInfoPrompt?.(chatMessages, ctx.maxContext || 4096, true, globalScanData);
+                const wiResult = ctx.getWorldInfoPrompt?.(chatMessages, LORE_SCAN_MAX_CONTEXT, true, globalScanData);
                 wi = coercePromptText(wiResult instanceof Promise ? await wiResult : wiResult);
             }
         } catch { /* WI unavailable */ }

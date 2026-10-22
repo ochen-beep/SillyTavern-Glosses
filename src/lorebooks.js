@@ -20,14 +20,13 @@
  *                       The dry-run scan is NOT used here: its
  *                       worldInfoString is origin-free, so global entries
  *                       could not be separated out.
- *   MANUAL (Phase B) — user-picked books/entries via the picker; the config
- *                       shape (manualBooks/selectedEntries) is already
- *                       normalized and persisted here.
+ *   MANUAL — user-picked books/entries via the picker (resolveManualLore).
  *
- * Degradation contract: when the activation cache does not match the anchor
- * (regen of an older post, swipes) collectAutomaticLore returns empty text —
- * the GENERATOR decides the fallback (Glosses degrades to the legacy full
- * scan, which DS Comments did not do).
+ * Cache-miss contract (aligned with DS Comments): when the activation cache
+ * does not match the anchor (regen of an older post, swipes), the lore text
+ * is EMPTY — no silent degradation to the global full scan. In ATTACHED scope
+ * this is the only way to keep global-panel books out of the prompt; in ALL
+ * scope the scan still runs (only the vectorized-cache part is skipped).
  */
 
 import { getCtx, state } from './core.js';
@@ -64,7 +63,7 @@ function parseUid(value) {
 }
 
 /** @param {{ book: string, uid: number|string }} ref */
-function loreRefKey({ book, uid }) {
+export function loreRefKey({ book, uid }) {
     let safeUid = '';
     try {
         safeUid = String(uid);
@@ -75,7 +74,7 @@ function loreRefKey({ book, uid }) {
 }
 
 /** @param {unknown} value */
-function normalizeLoreConfig(value) {
+export function normalizeLoreConfig(value) {
     const source = value && typeof value === 'object' ? value : {};
     const mode = source.mode === LORE_MODE.MANUAL
         ? LORE_MODE.MANUAL
@@ -170,7 +169,7 @@ export function saveChatLoreConfig(config, ctx = getCtx()) {
  * @param {ReturnType<typeof getCtx>} [ctx]
  * @returns {Array<{ role: 'char'|'chat'|'persona', book: string }>}
  */
-function resolveAttachedLorebookSources(ctx = getCtx()) {
+export function resolveAttachedLorebookSources(ctx = getCtx()) {
     const candidates = [
         { role: 'char', book: ctx?.characters?.[ctx?.characterId]?.data?.extensions?.world },
         { role: 'chat', book: ctx?.chatMetadata?.world_info },
@@ -193,6 +192,98 @@ function resolveAttachedLorebookSources(ctx = getCtx()) {
  */
 function resolveAttachedLorebooks(ctx = getCtx()) {
     return new Set(resolveAttachedLorebookSources(ctx).map(source => source.book));
+}
+
+/**
+ * Load one lorebook's entries for the manual picker / resolveManualLore.
+ * Ported from DS Comments: uid comes from entry.uid, falling back to the
+ * container key (object-shaped payloads).
+ *
+ * @param {ReturnType<typeof getCtx>} ctx
+ * @param {string} book
+ */
+export async function loadLorebookEntries(ctx, book) {
+    const payload = await ctx.loadWorldInfo(book);
+    const container = payload?.entries;
+    const rows = Array.isArray(container)
+        ? container.map(entry => [undefined, entry])
+        : container && typeof container === 'object'
+            ? Object.entries(container)
+            : [];
+    const entries = [];
+
+    for (const [key, entry] of rows) {
+        if (!entry || typeof entry !== 'object') continue;
+
+        const sourceUid = parseUid(entry.uid);
+        const uid = sourceUid ?? (key === undefined ? undefined : parseUid(key));
+        if (uid === undefined) continue;
+
+        const keyLabel = Array.isArray(entry.key) ? entry.key[0] : undefined;
+        const label = entry.comment || entry.name || keyLabel || `Entry ${uid}`;
+        entries.push({
+            book,
+            uid,
+            label,
+            content: typeof entry.content === 'string' ? entry.content : '',
+            vectorized: Boolean(entry.vectorized),
+        });
+    }
+
+    entries.sort((left, right) => left.uid - right.uid);
+    return entries;
+}
+
+/** @param {ReturnType<typeof getCtx>} [ctx] */
+export async function listLorebookNames(ctx = getCtx()) {
+    const names = await ctx.getWorldInfoNames();
+    return Array.isArray(names)
+        ? names.filter(name => typeof name === 'string').sort((left, right) => left.localeCompare(right))
+        : [];
+}
+
+/**
+ * MANUAL mode: resolve the user-picked entries to their current book content.
+ * Missing books/entries are reported, never silently resurrected into lore.
+ *
+ * @param {ReturnType<typeof getCtx>} ctx
+ * @param {unknown} selectedEntries
+ */
+export async function resolveManualLore(ctx, selectedEntries) {
+    const refs = normalizeLoreConfig({
+        mode: LORE_MODE.MANUAL,
+        selectedEntries,
+    }).selectedEntries;
+    const books = new Map();
+
+    await Promise.all([...new Set(refs.map(ref => ref.book))].map(async book => {
+        try {
+            const entries = await loadLorebookEntries(ctx, book);
+            books.set(book, new Map(entries.map(entry => [entry.uid, entry])));
+        } catch {
+            books.set(book, new Map());
+        }
+    }));
+
+    const contents = [];
+    const entries = [];
+    const missing = [];
+
+    for (const ref of refs) {
+        const entry = books.get(ref.book)?.get(ref.uid);
+        if (!entry) {
+            missing.push(ref);
+            continue;
+        }
+
+        entries.push({ book: entry.book, uid: entry.uid, label: entry.label });
+        const content = typeof ctx.substituteParams === 'function'
+            ? ctx.substituteParams(entry.content)
+            : entry.content;
+        if (typeof content === 'string' && content.length > 0) contents.push(content);
+    }
+
+    return { text: contents.join('\n\n'), entries, missing };
 }
 
 /**
@@ -220,13 +311,15 @@ function getAnchorMatchedActivatedEntries(ctx, { anchorMsgId, anchorSwipeIdx }) 
  * here — its worldInfoString is an origin-free blob, so global-panel entries
  * could not be separated out. Consequence: when the cache does not match the
  * anchor (manual regen of an older post, swipes), lore degrades to empty —
- * the GENERATOR falls back to the legacy full scan in that case.
+ * documented behaviour, not an error. There is deliberately NO fallback to
+ * the full scan: that path cannot exclude global-panel books, so it would
+ * silently break the attached-only contract.
  *
  * @param {ReturnType<typeof getCtx>} ctx
  * @param {{ anchorMsgId?: string, anchorSwipeIdx?: number }} input
  */
 async function collectAttachedLore(ctx, { anchorMsgId, anchorSwipeIdx }) {
-    const empty = { text: '', entries: [], missing: [], cacheMatched: false };
+    const empty = { text: '', entries: [], missing: [] };
     const attached = resolveAttachedLorebooks(ctx);
     if (!attached.size) return empty;
 
@@ -261,9 +354,21 @@ async function collectAttachedLore(ctx, { anchorMsgId, anchorSwipeIdx }) {
         text: contents.join('\n\n'),
         entries: provenance,
         missing: [],
-        cacheMatched: true,
     };
 }
+
+/**
+ * Max context handed to ST's dry-run WI scan. ST derives the scan's entry
+ * budget from this argument (world_info_budget % of it, capped by
+ * world_info_budget_cap when > 0). The footnote request goes to a Connection
+ * Profile or custom endpoint, so there is no real model context to budget
+ * against — and ctx.maxContext is the text-completion module variable, stale
+ * on chat-completion sessions, which silently truncated lore well below the
+ * user's intent. A large constant keeps the percentage from biting; the
+ * absolute cap stays the only meaningful limiter. (Fix ported from DS
+ * Comments LORE_SCAN_MAX_CONTEXT.)
+ */
+export const LORE_SCAN_MAX_CONTEXT = 100000;
 
 /**
  * AUTOMATIC ALL scope: keyword/constant entries through the dry-run scan,
@@ -288,7 +393,7 @@ export async function collectAutomaticLore(ctx, { chatMessages, globalScanData, 
         try {
             const result = await ctx.getWorldInfoPrompt(
                 chatMessages,
-                ctx.maxContext || 4096,
+                LORE_SCAN_MAX_CONTEXT,
                 true,
                 globalScanData,
             );
@@ -311,5 +416,5 @@ export async function collectAutomaticLore(ctx, { chatMessages, globalScanData, 
     }
 
     const text = [scanText, activatedText].filter(Boolean).join('\n\n');
-    return { text, entries: [], missing: [], cacheMatched: Boolean(activatedEntries) };
+    return { text, entries: [], missing: [] };
 }

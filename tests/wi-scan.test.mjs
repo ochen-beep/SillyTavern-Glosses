@@ -90,7 +90,10 @@ test('includeLorebook: dry-run scan with globalScanData; result lands in the WI 
     assert.equal(calls[0].scanData.trigger, 'quiet');
     assert.equal(calls[0].scanData.characterDescription, 'Desc text');
     assert.equal(calls[0].scanData.personaDescription, 'Persona text');
-    assert.equal(calls[0].maxContext, 16384);
+    // LORE_SCAN_MAX_CONTEXT (not ctx.maxContext): ctx.maxContext is the
+    // text-completion module variable, stale on chat-completion sessions —
+    // the scan budget must be the large constant instead.
+    assert.equal(calls[0].maxContext, 100000);
 
     const wiBlock = blocks.find(b => b.startsWith('[World info'));
     assert.ok(wiBlock, 'WI block present');

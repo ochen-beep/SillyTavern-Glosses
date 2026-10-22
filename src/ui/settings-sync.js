@@ -27,6 +27,7 @@ import {
 } from '../sound.js';
 import { uploadUserFile } from '../user-files.js';
 import { getChatLoreConfig, saveChatLoreConfig } from '../lorebooks.js';
+import { createLorebookPicker } from './lorebook-picker.js';
 import { buildColorPicker } from './color-picker.js';
 import { openCssEditor } from './custom-css.js';
 
@@ -111,8 +112,11 @@ let _settingsBound = false;
 // CHAT_CHANGED hook for the per-chat lore controls: bound once for the page
 // lifetime (the settings DOM persists across bind/unbind, and the listener is
 // intentionally NOT routed through the bind-scoped AbortController — it must
-// re-sync after every re-enable). syncLoreControls itself is DOM-only.
+// re-sync after every re-enable). The picker itself is re-created on every
+// bind (the settings DOM is rebuilt on disable→enable).
 let _loreChatHook = false;
+/** @type {ReturnType<import('./lorebook-picker.js').createLorebookPicker> | null} */
+let _lorePicker = null;
 // Stage 7: module-owned AbortController for the settings panel. bindSettingsUI
 // creates a fresh controller; every listener it attaches is aborted (removed)
 // on unbindSettingsUI. The `on()` helper routes all addEventListener calls
@@ -656,34 +660,26 @@ export function bindSettingsUI() {
     bindCb('gls_inc_persona', 'includePersona');
     bindCb('gls_inc_wi', 'includeLorebook');
 
-    // Per-chat lorebook context (chatMetadata.gls_lorebook). The controls read
-    // from chat METADATA, not from the global settings object, and re-sync on
-    // every chat change.
-    // syncLoreControls re-resolves the elements by id on EVERY call: the
-    // CHAT_CHANGED hook below is subscribed once (page-lifetime), while the
-    // settings DOM is rebuilt on disable→enable — closing over the first
-    // bind's elements would sync detached nodes forever after a re-enable.
-    function syncLoreControls() {
-        const cfg = getChatLoreConfig();
-        const cb = document.getElementById('gls_lore_enabled');
-        const sel = document.getElementById('gls_lore_mode');
-        if (cb) cb.checked = cfg.enabled;
-        if (sel) sel.value = cfg.autoScope ?? 'all';
-    }
-    const loreEnabledCb = $('gls_lore_enabled');
-    const loreModeSel = $('gls_lore_mode');
-    if (loreEnabledCb) on(loreEnabledCb, 'change', () => {
-        saveChatLoreConfig({ ...getChatLoreConfig(), enabled: loreEnabledCb.checked });
-    });
-    if (loreModeSel) on(loreModeSel, 'change', () => {
-        saveChatLoreConfig({ ...getChatLoreConfig(), autoScope: loreModeSel.value === 'attached' ? 'attached' : undefined });
-    });
-    syncLoreControls();
+    // Per-chat lorebook context (chatMetadata.gls_lorebook). The picker owns
+    // all lore controls (enable, auto/manual mode, scope, manual book/entry
+    // selection) and reads from chat METADATA, not from the global settings
+    // object. Re-created on every bind: the settings DOM is rebuilt on
+    // disable→enable (old listeners die with the DOM; destroy() unsubscribes
+    // the WORLDINFO_UPDATED hook on the shared eventSource).
+    _lorePicker?.destroy();
+    const loreRoot = document.getElementById('gls_lore_group');
+    _lorePicker = loreRoot ? createLorebookPicker({
+        root: loreRoot,
+        getCtx,
+        getConfig: () => getChatLoreConfig(),
+        onChange: (cfg) => saveChatLoreConfig(cfg),
+    }) : null;
+    void _lorePicker?.refresh();
     if (!_loreChatHook) {
         _loreChatHook = true;
         const ctx0 = getCtx();
         try {
-            ctx0.eventSource?.on(ctx0.eventTypes?.CHAT_CHANGED, () => syncLoreControls());
+            ctx0.eventSource?.on(ctx0.eventTypes?.CHAT_CHANGED, () => { void _lorePicker?.refresh(); });
         } catch { /* non-fatal: controls stay at bind-time values */ }
     }
 

@@ -303,5 +303,18 @@
     "Two lines per footnote — click a row to expand it.": "Сноска в две строки; клик по строке разворачивает её.",
     "A colossal sea beast — sailors say its arms can crush a whole fleet.": "Колоссальный морской зверь; моряки говорят, его щупальца способны сокрушить целый флот.",
     "Off = text-only popup. Close with Esc or a click outside — edit and delete stay in the floating panel.": "Выкл = только текст. Закрытие - Esc или клик мимо; правка и удаление - в плавающем окне.",
-    "Glosses": "Glosses"
+    "Glosses": "Glosses",
+    "Automatic": "Автоматически",
+    "Manual": "Вручную",
+    "Select a lorebook…": "Выберите лорбук…",
+    "Attached lorebooks: {0}": "Привязанные лорбуки: {0}",
+    "No lorebooks attached to this chat (character, chat or persona book).": "К этому чату не привязано ни одного лорбука (книга персонажа, чата или персоны).",
+    "Could not load lorebooks": "Не удалось загрузить лорбуки",
+    "Could not load entries.": "Не удалось загрузить записи.",
+    "Loading lorebooks…": "Загрузка лорбуков…",
+    "Empty book": "Пустой лорбук",
+    "unavailable": "недоступна",
+    "Vectorized entry": "Векторная запись",
+    "Entry": "Запись",
+    "Per-chat setting. When the activation cache is unavailable (regen of an older post), no lore is added rather than falling back to the global scan. Overrides the toggle above while enabled.": "Настройка чата. Когда кэш активации недоступен (регенерация старого поста), лор не добавляется — без отката к полному глобальному скану. Пока включено, перекрывает галочку выше."
 }
