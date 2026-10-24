@@ -23,6 +23,7 @@ Glosses добавляет в [SillyTavern](https://github.com/SillyTavern/Silly
    | **Meta (RU)** | стиль `meta_plus`, язык `ru` |
 
 Я советую попробовать гибридный тип сносок: 
+
 <img width="648" height="824" alt="image" src="https://github.com/user-attachments/assets/ad3baded-d3d2-496e-8866-c67a5e687199" />
 
 
