@@ -11,7 +11,7 @@ Glosses добавляет в [SillyTavern](https://github.com/SillyTavern/Silly
 
 ## Установка
 
-1. Скопируйте папку расширения в `data/default-user/extensions/third-party/` и перезапустите SillyTavern.
+1. Скопируйте папку расширения в `data/default-user/extensions/` и перезапустите SillyTavern.
 2. Откройте панель расширений → **Glosses** → включите **Enable Footnotes**.
 3. В аккордеоне **Промпт** выберите пресет:
 
@@ -27,7 +27,7 @@ Glosses добавляет в [SillyTavern](https://github.com/SillyTavern/Silly
 <img width="648" height="824" alt="image" src="https://github.com/user-attachments/assets/ad3baded-d3d2-496e-8866-c67a5e687199" />
 
 
-5. В аккордеоне **Источник генерации**:
+4. В аккордеоне **Источник генерации**:
    - **Connection Profile** (рекомендуется) — используется профиль расширения ST Connection Manager;
    - **Custom (OpenAI-compatible)** — свой endpoint и ключ. Запрос идёт прямо из браузера: endpoint должен отдавать CORS-заголовки. Ключ хранится в браузерном `localforage` — для чувствительных ключей предпочтителен Connection Profile. `http:`-endpoint вне localhost требует одноразового подтверждения origin.
 
@@ -56,7 +56,7 @@ Glosses добавляет в [SillyTavern](https://github.com/SillyTavern/Silly
 - Правки применяются живьём — превью в настройках и любой открытый попап сноски реагируют, пока вы печатаете. Закрытие редактора работу не теряет.
 - **Insert base template** даёт стартовый закомментированный план всех целевых классов (`.gls-popup`, `.gls-popup-title`, `.gls-popup-text`, …) и токенов (`--gls-popup-radius`, `--gls-surface`, …).
 - Галочка отключает слой, не удаляя текст.
-- Если строка статуса сообщает, что правила не распознаны, проверьте баланс фигурных скобок (ок, да?).
+- Если строка статуса сообщает, что правила не распознаны, проверьте баланс фигурных скобок.
 
 ### Плавающая панель
 
