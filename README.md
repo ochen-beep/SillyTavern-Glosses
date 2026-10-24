@@ -1,47 +1,39 @@
 # Glosses
 
-Литературные сноски для [SillyTavern](https://github.com/SillyTavern/SillyTavern). Расширение просит выбранную вами модель писать сноски к постам ИИ: шутки в духе Пратчетта, разбор слов для изучающих язык, академические справки о мире, реплики мета-рассказчика — или любое сочетание этого.
+Literary footnotes for [SillyTavern](https://github.com/SillyTavern/SillyTavern). A model of your choice writes footnotes for AI posts — Pratchett-style jokes, language-learning word notes, academic lore, meta-narrator asides, or any mix of these.
 
-Подробный гайд на русском: **[USER_GUIDE.md](USER_GUIDE.md)**.
+Full guide (in Russian): **[USER_GUIDE.md](USER_GUIDE.md)**.
 
-## Как это работает
+## Features
 
-Сноски пишутся отдельным запросом к модели и привязываются к точным словам поста. По умолчанию автоматическая генерация выключена: сноску можно создать кнопкой регенерации у поста, из плавающей панели или командой `/glosses_regen`. Чтобы сноски появлялись сами после каждого ответа ИИ, включите **Auto-generate on new messages** в разделе Behavior.
+- Five built-in styles, a custom prompt, or a hybrid mode (several "lenses" on one post); one-click presets.
+- Footnotes survive message edits — they re-anchor and renumber; every swipe keeps its own set.
+- Display modes: inline highlights, a numbered block under the post, a click popup, or the floating panel only.
+- Floating panel: read, edit, delete, regenerate; request footnotes for specific words; per-chat exclusions.
+- Two isolated generation sources: a Connection Manager profile or your own OpenAI-compatible endpoint. Neither touches your main chat prompts.
+- Popup skins, custom CSS, sounds, highlight styling; English and Russian UI.
+- Auto-generation is off by default — enable it in Behavior, or generate manually per message.
 
-## Возможности
+## Setup
 
-- **Стили сносок.** Пять встроенных (Pratchett, Pratchett 50%, Meta Narrative+, Academic, Language), полностью свой промпт и гибридный режим — несколько «линз» на одном посте (язык, юмор Пратчетта, канон, академическая, мета, досочинение канона) плюс линзы собственного сочинения. Есть пресеты в один клик; всё настроенное вручную остаётся как настроено.
-- **Язык сносок** — русский или английский. Максимум сносок на пост настраивается (по умолчанию 5, до 20).
-- **Сноски переживают правки.** Каждая привязана к конкретным словам: после правки поста уцелевшие перецепляются и перенумеровываются, а каждый свайп хранит свой набор сносок.
-- **Режимы отображения.** Подсветка слов в тексте, нумерованный блок под постом, всплывающая карточка по клику — или всё только в плавающей панели, ничего в чате.
-- **Плавающая панель.** Открывается кнопкой в панели Quick Replies и/или перетаскиваемой плавающей кнопкой, следует за выбранным сообщением. Три вкладки: **Footnotes** (переход к посту, копирование, правка, удаление, регенерация), **Targeted** (сноски по вашему списку — до 20 слов и фраз; черновик списка сохраняется вместе с чатом), **Exclusions** (фразы, для которых сноски не создаются — стоп-лист на этот чат, плюс пул уже объяснённых слов).
-- **Контекст для модели.** По желанию в запрос включаются последние сообщения чата, карта персонажа и ваша персона. Лорбуки настраиваются отдельно для каждого чата: автоматически (записи World Info, которые основная генерация сама подняла для этого поста — все или только из книг, привязанных к чату) или вручную (сами выбираете книги и записи).
-- **Два источника генерации.** Connection Profile из расширения Connection Manager — или свой OpenAI-совместимый endpoint, к которому браузер обращается напрямую.
-- **Изучение языков.** Стиль Language объясняет слова через перевод на изучаемый язык: 12 реальных языков и 6 вымышленных (High Valyrian, Klingon, Sindarin, Quenya, эсперанто, Toki Pona), уровень сложности по CEFR, транскрипция и подсказки по произношению. Для вымышленных языков модель просят не выдумывать слова: всё, что пришлось реконструировать, честно помечается как реконструкция.
-- **Оформление.** 25 готовых скинов попапа плюс адаптивный к теме, настройка позиции, ширины, тени, скругления, шрифтов и плотности, свой CSS с живым превью, подсветка маркеров (цвет, прозрачность, стиль: заливка, подчёркивание или пунктир), звуки уведомлений (6 встроенных или загрузите свой файл), русский и английский интерфейс, мобильная раскладка.
-- **Сноски и на своих постах.** По галочке у ваших сообщений тоже появляется кнопка регенерации сносок (создание — только вручную).
-- **Не вмешивается в основной чат.** Запросы за сносками идут изолированно — основные промпты, пресеты и другие расширения не затрагиваются. Когда встроенный переводчик (Translate) показывает перевод поста, сноски временно уступают место и возвращаются на оригинале.
+1. Copy this folder into `data/default-user/extensions/` and restart SillyTavern.
+2. Extensions panel → **Glosses** → enable **Enable Footnotes**.
+3. Pick a preset or style in **Prompt**, choose a source in **Generation Engine**.
+4. For automatic footnotes, tick **Auto-generate on new messages** (Behavior).
 
-## Установка
+## Slash commands
 
-1. Скопируйте папку расширения в `data/default-user/extensions/` и перезапустите SillyTavern.
-2. Откройте панель расширений → **Glosses** и убедитесь, что включён переключатель **Enable Footnotes** (по умолчанию он включён).
-3. В разделе **Prompt** выберите пресет или стиль, в **Generation Engine** — источник генерации.
-4. Для автоматических сносок включите **Auto-generate on new messages** в разделе Behavior.
-
-## Слэш-команды
-
-| Команда | Что делает |
+| Command | What it does |
 | --- | --- |
-| `/glosses_toggle` | Включить или выключить сноски |
-| `/glosses_regen` | Создать сноски заново для последнего ответа ИИ |
-| `/glosses_clear` | Очистить кэш сносок текущего чата |
+| `/glosses_toggle` | Turn footnotes on or off |
+| `/glosses_regen` | Regenerate footnotes for the last AI message |
+| `/glosses_clear` | Clear this chat's footnote cache |
 
-## Требования
+## Requirements
 
-- SillyTavern 1.12.10 или новее.
-- Connection Manager нужен только для источника «Connection Profile»; свой endpoint работает без него.
+- SillyTavern 1.12.10 or newer.
+- Connection Manager is needed only for the Connection Profile source.
 
-## Лицензия
+## License
 
 [GNU AGPL-3.0](LICENSE).
