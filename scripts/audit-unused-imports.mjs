@@ -12,7 +12,7 @@ for (const f of files) {
         const names = m[1].split(',').map(s => s.trim().split(/\s+as\s+/).pop()).filter(Boolean);
         for (const name of names) {
             const fileWithoutImport = src.slice(0, m.index) + src.slice(m.index + m[0].length);
-            const re = new RegExp('\\b' + name.replace(/[$]/g, '\\$&') + '\\b', 'g');
+            const re = new RegExp('\\b' + name.replace(/[\\$]/g, '\\$&') + '\\b', 'g');
             const count = (fileWithoutImport.match(re) || []).length;
             if (count === 0) { console.log(`UNUSED in ${f}: ${name}`); issues++; }
         }
