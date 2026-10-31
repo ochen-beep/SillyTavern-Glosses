@@ -193,10 +193,14 @@ export function injectHighlights(mesEl, footnotes) {
  * now yields a multi-piece marker — one .gls-marker span per crossed node —
  * where the old per-node walker silently dropped it.
  *
- * Placement is a single greedy sweep over all (footnote, occurrence) pairs
- * in document order (start asc, length desc) — the same policy the old
- * per-node code applied, now global — and returns a report so footnotes
- * that end up without a marker are observable instead of silent.
+ * Placement: the stored prefix/suffix context ranking decides WHICH
+ * occurrence represents each footnote (the one the anchor was originally
+ * placed on), then a greedy pass in best-occurrence document order resolves
+ * overlaps — per footnote the first ranked occurrence that does not overlap
+ * an already-claimed span wins (the same contract the rebind path applies;
+ * claiming is per footnote, so two footnotes on different occurrences of the
+ * same word each get their own span). Returns a report so footnotes that end
+ * up without a marker are observable instead of silent.
  */
 function wrapAnchors(mesText, sortedFns) {
     const report = { placed: 0, unmatched: [] };
@@ -216,34 +220,33 @@ function wrapAnchors(mesText, sortedFns) {
         perFn.push({ fn, key, occurrences });
     }
 
-    const flats = [];
-    for (const p of perFn) for (const span of p.occurrences) flats.push({ fn: p.fn, key: p.key, ...span });
-    flats.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
-
-    const placed = new Map(); // key → winning flat candidate
-    let end = 0;
-    for (const candidate of flats) {
-        if (placed.has(candidate.key) || candidate.start < end) continue;
-        placed.set(candidate.key, candidate);
-        end = candidate.end;
+    const claimOrder = [...perFn].sort((a, b) =>
+        (a.occurrences[0]?.start ?? Infinity) - (b.occurrences[0]?.start ?? Infinity));
+    const claimed = [];
+    const placed = new Map(); // fn → winning span
+    for (const p of claimOrder) {
+        const span = p.occurrences.find(o => !claimed.some(c => o.start < c.end && c.start < o.end));
+        if (!span) continue;
+        claimed.push(span);
+        placed.set(p.fn, span);
     }
 
     // Materialize right-to-left: splitting a node keeps its head in the
     // original node reference, so segments of spans further left (processed
     // later) keep valid (node, offset) pairs.
-    const order = [...placed.values()].sort((a, b) => b.start - a.start);
-    for (const candidate of order) {
-        const segments = segmentsFor(index, candidate.start, candidate.end);
+    const order = [...placed.entries()].sort((a, b) => b[1].start - a[1].start);
+    for (const [fn, span] of order) {
+        const segments = segmentsFor(index, span.start, span.end);
         // Superscript rides the LAST piece: ST's markdown wraps «…» / "…"
         // quotes in <q>, splitting the anchor's text nodes mid-phrase, and a
         // sup on the first piece would land before the quoted term.
         const primaryIdx = segments.length - 1;
-        segments.forEach((seg, i) => wrapSegment(seg, candidate.fn, i === primaryIdx, i, segments.length));
+        segments.forEach((seg, i) => wrapSegment(seg, fn, i === primaryIdx, i, segments.length));
     }
 
     report.placed = placed.size;
     report.unmatched = perFn
-        .filter(p => !placed.has(p.key))
+        .filter(p => !placed.has(p.fn))
         .map(p => ({ index: p.fn.index, anchor: p.fn.anchor, reason: p.occurrences.length ? 'overlap' : 'not found' }));
     if (report.unmatched.length) warn('Footnotes without markers:', report.unmatched);
     return report;
