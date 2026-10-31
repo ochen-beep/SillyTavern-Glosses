@@ -458,17 +458,32 @@ export function bindSettingsUI() {
     const dmEl = $('gls_display_mode');
     if (dmEl) {
         dmEl.value = S().displayMode;
+        // 'panel' mode force-enables the floating panel (it is the ONLY
+        // footnote surface there). That side effect must not outlive the mode:
+        // the pre-panel {enabled, hidden} pair is snapshotted on entry and
+        // restored on exit, so leaving panel mode returns the panel to the
+        // state the user's own actions left it in. Session-scope snapshot:
+        // a bind that STARTS inside panel mode (reload / re-enable) has no
+        // pre-state — the documented degradation is that the panel stays
+        // enabled on exit (the mode forced it on at boot too).
+        let _panelModePrev = null;
         on(dmEl, 'change', () => {
+            const prevMode = S().displayMode;
             S().displayMode = dmEl.value;
-            // 'panel' mode: the floating panel is the ONLY display surface, so
-            // it must exist and be visible — force the master flags on and
-            // sync the checkbox (it stays the user's off-switch afterwards).
-            if (S().displayMode === 'panel') {
+            if (S().displayMode === 'panel' && prevMode !== 'panel') {
+                _panelModePrev = { enabled: S().floatingPanelEnabled, hidden: S().floatingPanelHidden };
                 S().floatingPanelEnabled = true;
                 S().floatingPanelHidden = false;
-                const fpCbEl = $('gls_floating_panel');
-                if (fpCbEl) fpCbEl.checked = true;
+            } else if (S().displayMode !== 'panel' && prevMode === 'panel') {
+                if (_panelModePrev) {
+                    S().floatingPanelEnabled = _panelModePrev.enabled;
+                    S().floatingPanelHidden = _panelModePrev.hidden;
+                }
+                _panelModePrev = null;
             }
+            // The checkbox always mirrors the live flags, both directions.
+            const fpCbEl = $('gls_floating_panel');
+            if (fpCbEl) fpCbEl.checked = S().floatingPanelEnabled;
             // An open popup is anchored to a marker that panel mode is about
             // to strip from the DOM — close it first.
             closePopup();
