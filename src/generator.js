@@ -669,6 +669,11 @@ function getTargetFootnoteCount() {
     return Number.isFinite(n) ? Math.min(MAX_FOOTNOTES_CAP, Math.max(1, n)) : 5;
 }
 
+/** True when the model (not the numeric setting) decides the footnote count. */
+export function isAutoFootnoteCount() {
+    return S().autoFootnoteCount === true;
+}
+
 /**
  * Build the input consumed by SillyTavern's automatic lore activation
  * (getWorldInfoPrompt). Ported from DS Comments (src/generator.js).
@@ -890,12 +895,24 @@ Do not create anchors matching the forbidden list. For an oblique source form, k
 Output ONLY this JSON (no markdown fences, no prose):
 {"footnotes":[{"anchor":"verbatim source phrase","text":"¹ Label (cat.) — explanation"}]}`;
 
+// Auto-count variant: no N pressure. Everything else (verbatim anchors,
+// forbidden list, JSON-only output) is identical to the fixed contract.
+export const DIRECT_FOOTNOTE_CONTRACT_AUTO = `[ANNOTATOR CONTRACT — direct footnotes, one response]
+
+Decide yourself how many footnotes this post deserves: annotate every anchor in [Annotate this post] that a curious reader would genuinely want explained — foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Spread the footnotes across the whole post instead of clustering in the opening. Never pad the list with weak or duplicate anchors; an honest small set beats an inflated one. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor.
+
+Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
+
+Output ONLY this JSON (no markdown fences, no prose):
+{"footnotes":[{"anchor":"verbatim source phrase","text":"¹ Label (cat.) — explanation"}]}`;
+
 /** Build the direct user-turn prompt with target, contract, then reference blocks. */
 export async function buildUserPrompt(messageId, swipeIdx) {
     const parts = await buildContextBlocks(messageId, swipeIdx);
     if (!parts.length) return '';
-    const targetCount = getTargetFootnoteCount();
-    const contract = DIRECT_FOOTNOTE_CONTRACT.replace(/\{N\}/g, String(targetCount));
+    const contract = isAutoFootnoteCount()
+        ? DIRECT_FOOTNOTE_CONTRACT_AUTO
+        : DIRECT_FOOTNOTE_CONTRACT.replace(/\{N\}/g, String(getTargetFootnoteCount()));
     return [parts[0], contract, ...parts.slice(1)].join('\n\n');
 }
 
@@ -973,6 +990,7 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         const signal = ctrl.signal;
         const systemPrompt = await loadPromptStyle();
         if (!generationCoordinator.isCurrent(run)) return;   // chat switched / swiped / superseded
+        // fixed-count mode only; unused by the auto-count path
         const target = getTargetFootnoteCount();
         const userPrompt = await buildUserPrompt(messageId, swipeIdx);
         if (!generationCoordinator.isCurrent(run)) return;   // chat switched / swiped / superseded
@@ -1013,8 +1031,9 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         const plain = extractPlainText(rawMes);
         let footnotes = normalizeFootnotes(validated, validationText ?? plain) ?? validated;
         // If the model overshoots N, keep the first N in document order and
-        // renumber 1..N. Undershoot is left as-is (honest maximum).
-        if (footnotes.length > target) {
+        // renumber 1..N. Undershoot is left as-is (honest maximum). Auto-count
+        // mode keeps every validated footnote the model returned.
+        if (!isAutoFootnoteCount() && footnotes.length > target) {
             footnotes = footnotes.slice(0, target);
             footnotes = renumberFootnotes(footnotes);
         }

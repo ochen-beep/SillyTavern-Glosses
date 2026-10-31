@@ -161,6 +161,7 @@
     "C1–C2 Advanced": "C1–C2 Продвинутый",
     "Add lens": "Добавить линзу",
     "Custom lenses": "Свои линзы",
+    "Let the model choose the count": "Пусть модель выбирает количество",
     "Compact role: voice + when to footnote + label + format quirk. Supports {{OUTPUT_LANGUAGE}}.": "Компактная роль: голос + когда давать сноску + метка + формат. Поддерживает {{OUTPUT_LANGUAGE}}.",
     "Enable sound notification": "Включить звук уведомления",
     "Sound": "Звук",

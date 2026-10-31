@@ -100,6 +100,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // 2026-07-02-glosses-anchor-count-language-design.md §3.
     outputLanguage: 'ru',
     maxFootnotes: 5,
+    // When true, the numeric maxFootnotes setting is ignored: the prompt
+    // contract asks the model to decide how many honest anchors the post
+    // deserves (no count pressure, no slice-to-N at commit). The number field
+    // is disabled in settings while this is on (settings-sync).
+    autoFootnoteCount: false,
     targetLanguage: 'en',
     cefrLevel: 'auto',
     // Hybrid footnote style (6th promptStyle): which lenses are active. The
@@ -333,6 +338,10 @@ export function loadSettings() {
         state.settings.maxFootnotes = Number.isFinite(maxFn)
             ? Math.min(MAX_FOOTNOTES_CAP, Math.max(1, maxFn))
             : DEFAULT_SETTINGS.maxFootnotes;
+        settingsChanged = true;
+    }
+    if (typeof state.settings.autoFootnoteCount !== 'boolean') {
+        state.settings.autoFootnoteCount = false;
         settingsChanged = true;
     }
     const ctxDepth = parseInt(state.settings.contextDepth, 10);

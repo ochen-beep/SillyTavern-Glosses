@@ -318,6 +318,16 @@ export function bindSettingsUI() {
 
     bindNum('gls_max_footnotes', 'maxFootnotes');
 
+    // Auto footnote count: the checkbox hands count authority to the model.
+    // The numeric input is DISABLED (not hidden) so the user sees what they
+    // will return to when they untick it.
+    const maxFnCountEl = $('gls_max_footnotes');
+    function syncAutoCountInput() {
+        if (maxFnCountEl) maxFnCountEl.disabled = S().autoFootnoteCount === true;
+    }
+    bindCb('gls_auto_footnote_count', 'autoFootnoteCount', syncAutoCountInput);
+    syncAutoCountInput();
+
     // Output language (footnote text language). Replaces the old
     // document.documentElement.lang heuristic. On change, wipe ALL prompt-style
     // caches so the next build re-derives getOutputLanguage / label tables.
