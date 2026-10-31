@@ -182,7 +182,8 @@ const TARGETED_CAP = 40;
  * @param {string} msgId
  * @param {number} swipeIdx
  * @param {Array<{anchor:string, text:string, prefix?:string, suffix?:string}>} entries
- * @param {{ startDigest?: string }} [opts]
+ * @param {{ startDigest: string }} opts - live-variant digest captured when
+ *        the request was launched; a missing digest rejects the write
  * @returns {{ ok: true, targeted: Array, footnotes: Array }
  *         | { ok: false, reason: 'not-found' | 'stale' }}
  */
@@ -190,8 +191,12 @@ export function saveTargeted(msgId, swipeIdx, entries, opts = {}) {
     const msg = msgAt(msgId);
     if (!msg || !getCtx().chatId) return { ok: false, reason: 'not-found' };
     if ((msg.swipe_id ?? 0) !== (Number(swipeIdx) || 0)) return { ok: false, reason: 'stale' };
+    // startDigest is mandatory: the verified-payload read below returns null
+    // for a stale (edited, not-yet-rebound) variant, and stamping without the
+    // digest check would file a fresh empty-footnotes payload over it —
+    // silently destroying the regular footnotes. No digest → no write.
     const liveDigest = digestForVariant(msg, swipeIdx);
-    if (typeof opts.startDigest === 'string' && opts.startDigest && liveDigest !== opts.startDigest) {
+    if (!opts.startDigest || liveDigest !== opts.startDigest) {
         return { ok: false, reason: 'stale' };
     }
     const payload = readVerifiedPayload(msg, swipeIdx);
