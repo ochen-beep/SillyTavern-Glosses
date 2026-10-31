@@ -24,6 +24,11 @@ export const MOBILE_BREAKPOINT = 768;
 // cache.js fingerprint). Mirrors DS Comments' guard.
 export const MIN_POST_LENGTH = 5;
 
+// Hard ceiling for the "Max footnotes per message" setting. Single source for
+// the loadSettings clamp and generator.getTargetFootnoteCount; settings.html's
+// #gls_max_footnotes max attribute must stay in sync with it.
+export const MAX_FOOTNOTES_CAP = 100;
+
 // Chat-metadata key under ctx.chatMetadata for chat-scoped Glosses settings.
 export const META_KEY = 'gls_data';
 
@@ -320,13 +325,13 @@ export function loadSettings() {
         settingsChanged = true;
     }
     // Numeric range guards — mirror the min/max contract the inputs declare in
-    // settings.html (max footnotes 1–20, context depth 0–50). Native number
-    // validation doesn't stop typed values, so a persisted 0/25 would otherwise
+    // settings.html (max footnotes 1–100, context depth 0–50). Native number
+    // validation doesn't stop typed values, so a persisted 0/250 would otherwise
     // survive reloads and show in the UI even though the prompt builder clamps.
     const maxFn = parseInt(state.settings.maxFootnotes, 10);
-    if (!Number.isFinite(maxFn) || maxFn < 1 || maxFn > 20) {
+    if (!Number.isFinite(maxFn) || maxFn < 1 || maxFn > MAX_FOOTNOTES_CAP) {
         state.settings.maxFootnotes = Number.isFinite(maxFn)
-            ? Math.min(20, Math.max(1, maxFn))
+            ? Math.min(MAX_FOOTNOTES_CAP, Math.max(1, maxFn))
             : DEFAULT_SETTINGS.maxFootnotes;
         settingsChanged = true;
     }

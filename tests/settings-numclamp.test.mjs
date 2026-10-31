@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 // Numeric-contract tests for the settings surface + core:
 //   1. bindNum clamps typed values to the min/max the input declares in
-//      settings.html (max footnotes 1–20, context depth 0–50) and normalizes
+//      settings.html (max footnotes 1–100, context depth 0–50) and normalizes
 //      the visible field on commit (change), not mid-typing (input).
 //   2. loadSettings repairs out-of-range persisted values on load.
 //   3. core t() falls back to the ST CONTEXT translate (SillyTavern.getContext()
@@ -34,7 +34,7 @@ test('bindNum clamps typed values to the input min/max contract', () => {
     loadSettings();
     unbindSettingsUI(); // clear the idempotence guard if a prior test bound
 
-    const footnotesEl = makeNumInput(1, 20);
+    const footnotesEl = makeNumInput(1, 100);
     const depthEl = makeNumInput(0, 50);
     const origGet = globalThis.document.getElementById;
     globalThis.document.getElementById = (id) => {
@@ -48,12 +48,12 @@ test('bindNum clamps typed values to the input min/max contract', () => {
         bindSettingsUI();
         assert.equal(String(footnotesEl.value), '5', 'field initialized from settings default');
 
-        // Typed 25 → setting clamps to 20 on input, field normalizes on change.
-        footnotesEl.value = '25';
+        // Typed 150 → setting clamps to 100 on input, field normalizes on change.
+        footnotesEl.value = '150';
         footnotesEl.fire('input');
-        assert.equal(S().maxFootnotes, 20, 'above max clamps on input');
+        assert.equal(S().maxFootnotes, 100, 'above max clamps on input');
         footnotesEl.fire('change');
-        assert.equal(String(footnotesEl.value), '20', 'field shows the clamped value on commit');
+        assert.equal(String(footnotesEl.value), '100', 'field shows the clamped value on commit');
 
         // Typed 0 → clamps to 1.
         footnotesEl.value = '0';
@@ -91,9 +91,9 @@ test('bindNum clamps typed values to the input min/max contract', () => {
 });
 
 test('loadSettings repairs out-of-range persisted numerics', () => {
-    resetCtx({ extensionSettings: { Glosses: { maxFootnotes: 25, contextDepth: 999 } } });
+    resetCtx({ extensionSettings: { Glosses: { maxFootnotes: 250, contextDepth: 999 } } });
     loadSettings();
-    assert.equal(S().maxFootnotes, 20);
+    assert.equal(S().maxFootnotes, 100);
     assert.equal(S().contextDepth, 50);
 
     resetCtx({ extensionSettings: { Glosses: { maxFootnotes: 0, contextDepth: -4 } } });

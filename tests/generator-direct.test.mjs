@@ -58,6 +58,12 @@ test('context keeps target first, prior advisory before background, and combines
     assert.doesNotMatch(prompt, /candidate pool|PHASE 1|post_context/i);
 });
 
+test('footnote count contract honors the raised cap (100)', async () => {
+    setup({ settings: { maxFootnotes: 100 } });
+    const prompt = await buildUserPrompt(1, 0);
+    assert.match(prompt, /exactly 100 distinct footnotes/);
+});
+
 test('direct response is persisted once and forced anchors are rejected', async () => {
     setup({ settings: { maxFootnotes: 3, stopWords: 'astrolabe' } });
     saveForcedIgnore(['old observatory']);

@@ -14,7 +14,7 @@
 
 import {
     state, S, getCtx, getExtBase, warn, error, extractPlainText, t,
-    DEFAULT_SETTINGS,
+    DEFAULT_SETTINGS, MAX_FOOTNOTES_CAP,
 } from './core.js';
 import { FOOTNOTE_CONTRACT } from './prompt-contract.js';
 import {
@@ -666,7 +666,7 @@ function coercePromptText(value) {
 
 function getTargetFootnoteCount() {
     const n = parseInt(S().maxFootnotes, 10);
-    return Number.isFinite(n) ? Math.min(20, Math.max(1, n)) : 5;
+    return Number.isFinite(n) ? Math.min(MAX_FOOTNOTES_CAP, Math.max(1, n)) : 5;
 }
 
 /**
