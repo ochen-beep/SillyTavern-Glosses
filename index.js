@@ -149,6 +149,10 @@ const _onVisibilityChange = () => {
     flushWriters().catch(() => { /* non-critical */ });
 };
 
+// pagehide fires on every unload path with visibilityState already 'hidden';
+// the guard keeps one entry point for both signals.
+const _onPageHide = () => _onVisibilityChange();
+
 async function init(isCancelled = () => false) {
     if (isCancelled()) return;
     initIconSprite();
@@ -220,9 +224,13 @@ async function init(isCancelled = () => false) {
     // prevents data loss if the user closes the tab right after generating.
     // Registered with the stable module-scope reference so cleanup() can
     // remove it and a later enable re-binds cleanly (spec §5.4).
+    // pagehide rides the same flusher: it is the more reliable unload signal
+    // (an instant F5 can land before/without a usable visibilitychange pass,
+    // and the host's 1 s settings debounce otherwise loses the mutation).
     if (!_visibilityBound) {
         _visibilityBound = true;
         document.addEventListener('visibilitychange', _onVisibilityChange);
+        window.addEventListener('pagehide', _onPageHide);
     }
 
     registerSlashCommands();
@@ -299,5 +307,6 @@ function cleanup() {
     // flushing settings on every page-hide (spec §5.4). Reset the guard so
     // the next enable re-binds the fresh module-scope handler cleanly.
     document.removeEventListener('visibilitychange', _onVisibilityChange);
+    window.removeEventListener('pagehide', _onPageHide);
     _visibilityBound = false;
 }
