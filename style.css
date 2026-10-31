@@ -740,6 +740,13 @@
        flex/block layouts. */
     grid-column: 1 / -1;
 }
+/* Message Collapser integration: in hide mode the host hides .mes_text, and
+   this block — living on .mes_block, outside .mes_text — would otherwise stay
+   visible under a "hidden" post. Preview mode keeps the post partially shown,
+   so there the block stays visible too. */
+.message-collapser-message-collapsed:not(.message-collapser-preview) .gls-inline-fns {
+    display: none;
+}
 .gls-inline-fn {
     margin: 2px 0;
     word-break: break-word;
