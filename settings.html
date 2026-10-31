@@ -202,30 +202,86 @@
                 <div class="gls-s-subcard-title" data-i18n="Advanced lenses">Advanced lenses</div>
                 <div class="gls-s-sub-title" data-i18n="Lenses (constructor)">Lenses (constructor)</div>
                 <div class="gls-s-grid-2">
-                        <label class="gls-s-toggle-row">
-                            <input type="checkbox" id="gls_hybrid_lens_language" class="checkbox">
-                            <span data-i18n="Language">Language</span>
-                        </label>
-                        <label class="gls-s-toggle-row">
-                            <input type="checkbox" id="gls_hybrid_lens_pratchett" class="checkbox">
-                            <span data-i18n="Pratchett">Pratchett</span>
-                        </label>
-                        <label class="gls-s-toggle-row">
-                            <input type="checkbox" id="gls_hybrid_lens_canon" class="checkbox">
-                            <span data-i18n="Canon">Canon</span>
-                        </label>
-                        <label class="gls-s-toggle-row">
-                            <input type="checkbox" id="gls_hybrid_lens_academic" class="checkbox">
-                            <span data-i18n="Academic">Academic</span>
-                        </label>
-                        <label class="gls-s-toggle-row">
-                            <input type="checkbox" id="gls_hybrid_lens_meta" class="checkbox">
-                            <span data-i18n="Meta">Meta</span>
-                        </label>
-                        <label class="gls-s-toggle-row">
-                            <input type="checkbox" id="gls_hybrid_lens_expansion" class="checkbox">
-                            <span data-i18n="Canon expansion">Canon expansion</span>
-                        </label>
+                        <div class="gls-s-lens-row">
+                            <label class="gls-s-toggle-row">
+                                <input type="checkbox" id="gls_hybrid_lens_language" class="checkbox">
+                                <span data-i18n="Language">Language</span>
+                                <span class="gls-lens-override-dot" data-gls-lens-dot="language" hidden title="Overridden">●</span>
+                            </label>
+                            <span class="gls-s-lens-tools">
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-edit="language" aria-label="Edit lens"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-copy="language" aria-label="Copy lens"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+                            </span>
+                        </div>
+                        <div class="gls-s-lens-row">
+                            <label class="gls-s-toggle-row">
+                                <input type="checkbox" id="gls_hybrid_lens_pratchett" class="checkbox">
+                                <span data-i18n="Pratchett">Pratchett</span>
+                                <span class="gls-lens-override-dot" data-gls-lens-dot="pratchett" hidden title="Overridden">●</span>
+                            </label>
+                            <span class="gls-s-lens-tools">
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-edit="pratchett" aria-label="Edit lens"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-copy="pratchett" aria-label="Copy lens"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+                            </span>
+                        </div>
+                        <div class="gls-s-lens-row">
+                            <label class="gls-s-toggle-row">
+                                <input type="checkbox" id="gls_hybrid_lens_canon" class="checkbox">
+                                <span data-i18n="Canon">Canon</span>
+                                <span class="gls-lens-override-dot" data-gls-lens-dot="canon" hidden title="Overridden">●</span>
+                            </label>
+                            <span class="gls-s-lens-tools">
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-edit="canon" aria-label="Edit lens"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-copy="canon" aria-label="Copy lens"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+                            </span>
+                        </div>
+                        <div class="gls-s-lens-row">
+                            <label class="gls-s-toggle-row">
+                                <input type="checkbox" id="gls_hybrid_lens_academic" class="checkbox">
+                                <span data-i18n="Academic">Academic</span>
+                                <span class="gls-lens-override-dot" data-gls-lens-dot="academic" hidden title="Overridden">●</span>
+                            </label>
+                            <span class="gls-s-lens-tools">
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-edit="academic" aria-label="Edit lens"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-copy="academic" aria-label="Copy lens"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+                            </span>
+                        </div>
+                        <div class="gls-s-lens-row">
+                            <label class="gls-s-toggle-row">
+                                <input type="checkbox" id="gls_hybrid_lens_meta" class="checkbox">
+                                <span data-i18n="Meta">Meta</span>
+                                <span class="gls-lens-override-dot" data-gls-lens-dot="meta" hidden title="Overridden">●</span>
+                            </label>
+                            <span class="gls-s-lens-tools">
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-edit="meta" aria-label="Edit lens"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-copy="meta" aria-label="Copy lens"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+                            </span>
+                        </div>
+                        <div class="gls-s-lens-row">
+                            <label class="gls-s-toggle-row">
+                                <input type="checkbox" id="gls_hybrid_lens_expansion" class="checkbox">
+                                <span data-i18n="Canon expansion">Canon expansion</span>
+                                <span class="gls-lens-override-dot" data-gls-lens-dot="expansion" hidden title="Overridden">●</span>
+                            </label>
+                            <span class="gls-s-lens-tools">
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-edit="expansion" aria-label="Edit lens"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></button>
+                                <button type="button" class="menu_button menu_button_icon" data-gls-lens-copy="expansion" aria-label="Copy lens"><i class="fa-solid fa-copy" aria-hidden="true"></i></button>
+                            </span>
+                        </div>
+                    </div>
+                    <!-- Built-in lens override editor: opened by a row's ✎
+                         button, one instance for all six lenses. Save writes
+                         S().builtinLensOverrides[lens]; an emptied body saves
+                         as "reset". See settings-sync.js. -->
+                    <div id="gls_builtin_lens_editor" class="gls-s-sub-panel" hidden>
+                        <div class="gls-s-sub-title"><span id="gls_builtin_lens_editor_title"></span></div>
+                        <textarea id="gls_builtin_lens_input" class="text_pole gls-s-resize-v" rows="10"></textarea>
+                        <small class="gls-s-hint" data-i18n="Same tokens as the bundled template: {{OUTPUT_LANGUAGE}} everywhere; the Language lens also accepts {{TARGET_LANG_*}}, {{CEFR_*}} and {{CONLANG_NOTE}}. Saving an empty body resets to the bundled template.">Same tokens as the bundled template: {{OUTPUT_LANGUAGE}} everywhere; the Language lens also accepts {{TARGET_LANG_*}}, {{CEFR_*}} and {{CONLANG_NOTE}}. Saving an empty body resets to the bundled template.</small>
+                        <div class="gls-s-field-row">
+                            <button id="gls_builtin_lens_save" class="menu_button" type="button"><span data-i18n="Save lens">Save lens</span></button>
+                            <button id="gls_builtin_lens_reset" class="menu_button" type="button"><span data-i18n="Reset to default">Reset to default</span></button>
+                            <button id="gls_builtin_lens_cancel" class="menu_button" type="button"><span data-i18n="Cancel">Cancel</span></button>
+                        </div>
                     </div>
                     <!-- Custom hybrid lenses (user-authored roles). Each contributes
                          a "### Lens: <name>\n<role>" block to the assembled hybrid

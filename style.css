@@ -4026,6 +4026,32 @@
     padding: 6px 0;
 }
 
+/* Built-in lens rows (hybrid constructor): toggle left, ✎/⧉ tools right. */
+.gls-s-lens-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    min-width: 0;
+}
+
+.gls-s-lens-row .gls-s-toggle-row {
+    min-width: 0;
+}
+
+.gls-s-lens-tools {
+    display: inline-flex;
+    gap: 2px;
+    flex: none;
+}
+
+.gls-lens-override-dot {
+    color: var(--gls-accent, currentColor);
+    font-size: 0.7em;
+    line-height: 1;
+    margin-left: 2px;
+}
+
 .gls-s-custom-lens-row {
     display: flex;
     flex-wrap: wrap;

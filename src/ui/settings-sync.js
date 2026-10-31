@@ -10,6 +10,7 @@
 
 import {
     state, S, saveSettings, t, getApiKey, setApiKey, notifyUser, warn, getCtx,
+    getExtBase, HYBRID_BUILTIN_LENSES,
 } from '../core.js';
 import { generationCoordinator } from '../application/generation-coordinator.js';
 import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll, closePopup } from '../renderer.js';
@@ -299,6 +300,107 @@ export function bindSettingsUI() {
             updatePromptPanels();
         });
     }
+
+    // ── Built-in lens overrides (✎ edit / ⧉ copy per lens row) ──
+    const LENS_LABELS = {
+        language: 'Language', pratchett: 'Pratchett', canon: 'Canon',
+        academic: 'Academic', meta: 'Meta', expansion: 'Canon expansion',
+    };
+    let _editingLens = null;
+
+    async function fetchLensTemplate(lens) {
+        const resp = await fetch(`${getExtBase()}/prompts/lenses/${lens}.md`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} (lenses/${lens}.md)`);
+        return resp.text();
+    }
+
+    function refreshLensDots() {
+        const overrides = S().builtinLensOverrides || {};
+        document.querySelectorAll('[data-gls-lens-dot]').forEach(dot => {
+            const lens = dot.dataset.glsLensDot;
+            if (HYBRID_BUILTIN_LENSES.includes(lens)) dot.hidden = !String(overrides[lens] || '').trim();
+        });
+    }
+
+    async function openLensEditor(lens) {
+        _editingLens = lens;
+        const title = $('gls_builtin_lens_editor_title');
+        const input = $('gls_builtin_lens_input');
+        const editor = $('gls_builtin_lens_editor');
+        if (!title || !input || !editor) return;
+        title.textContent = t(LENS_LABELS[lens] || lens);
+        // The editor shows the EFFECTIVE template: the override when present,
+        // otherwise the bundled file. A failed fetch leaves the empty textarea
+        // (saving it would be a no-op reset, never data loss).
+        input.value = String(S().builtinLensOverrides?.[lens] || '')
+            || await fetchLensTemplate(lens).catch(() => '');
+        editor.hidden = false;
+        input.focus();
+    }
+
+    function closeLensEditor() {
+        _editingLens = null;
+        const editor = $('gls_builtin_lens_editor');
+        if (editor) editor.hidden = true;
+    }
+
+    function saveLensOverride() {
+        if (!_editingLens) return;
+        const input = $('gls_builtin_lens_input');
+        if (!input) return;
+        const text = String(input.value ?? '');
+        if (!S().builtinLensOverrides || typeof S().builtinLensOverrides !== 'object') {
+            S().builtinLensOverrides = {};
+        }
+        // A whitespace-only body means "back to the bundled template" — the
+        // same delete path as the explicit Reset button (documented in the hint).
+        if (text.trim()) S().builtinLensOverrides[_editingLens] = text;
+        else delete S().builtinLensOverrides[_editingLens];
+        _invalidateLanguageCache();
+        saveSettings();
+        refreshLensDots();
+        closeLensEditor();
+    }
+
+    function resetLensOverride() {
+        if (!_editingLens) return;
+        delete S().builtinLensOverrides[_editingLens];
+        _invalidateLanguageCache();
+        saveSettings();
+        refreshLensDots();
+        closeLensEditor();
+    }
+
+    async function copyBuiltinLens(lens) {
+        const raw = String(S().builtinLensOverrides?.[lens] || '')
+            || await fetchLensTemplate(lens).catch(() => '');
+        if (!raw.trim()) return;
+        // Lazy import: generator.js is heavy and settings-sync must not pull
+        // it at bind time (same pattern as the CTA handlers in window.js).
+        const { bakeLensCopyText } = await import('../generator.js');
+        const lenses = S().customLenses || (S().customLenses = []);
+        lenses.push({
+            id: _newLensId(),
+            name: `${t(LENS_LABELS[lens] || lens)} (${t('copy')})`,
+            prompt: bakeLensCopyText(lens, raw),
+            active: false,
+        });
+        renderCustomLenses(document.getElementById('gls_custom_lenses_list'));
+        _invalidateLanguageCache();
+        saveSettings();
+        try { notifyUser('success', t('Lens copied to Custom lenses.'), `gls-lens-copy-${lens}`); } catch { /* non-fatal */ }
+    }
+
+    document.querySelectorAll('[data-gls-lens-edit]').forEach(btn => {
+        on(btn, 'click', () => { void openLensEditor(btn.dataset.glsLensEdit); });
+    });
+    document.querySelectorAll('[data-gls-lens-copy]').forEach(btn => {
+        on(btn, 'click', () => { void copyBuiltinLens(btn.dataset.glsLensCopy); });
+    });
+    on($('gls_builtin_lens_save'), 'click', saveLensOverride);
+    on($('gls_builtin_lens_reset'), 'click', resetLensOverride);
+    on($('gls_builtin_lens_cancel'), 'click', closeLensEditor);
+    refreshLensDots();
 
     // Custom hybrid lenses (user-authored roles). Wired together so any
     // mutation flips the hybrid cache + persists — lets the user build a
