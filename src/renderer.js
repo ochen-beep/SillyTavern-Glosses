@@ -1050,10 +1050,26 @@ export function closePopup() {
     document.removeEventListener('keydown', onPopupKeydown, true);
 }
 
+let _lastOutsideGesture = 0;
 function onOutsidePopup(e) {
     if (!_currentPopup) return;
     if (_currentPopup.contains(e.target)) return;
     if (_popupAnchor && _popupAnchor.contains?.(e.target)) return;
+    // pointerdown and click both register the same outside gesture (the
+    // listeners are registered for both); act once per gesture, or the
+    // click trailing a pointerdown that just cancelled the edit would close
+    // the popup in the same gesture.
+    if (e.timeStamp - _lastOutsideGesture < 500) return;
+    _lastOutsideGesture = e.timeStamp;
+    // Outside click while the editor is open reads as "bare cancel", not
+    // "close": route it through the editor's own Cancel (same contract as
+    // Escape — draft discarded, reading view restored, popup stays open) so
+    // a stray click cannot silently destroy typed text. The next outside
+    // click, with editing off, closes normally.
+    if (_popupEditing) {
+        _currentPopup.querySelector('.gls-edit-cancel')?.click();
+        return;
+    }
     closePopup();
 }
 
