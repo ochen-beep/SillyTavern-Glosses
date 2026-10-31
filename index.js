@@ -21,7 +21,7 @@
  */
 
 import {
-    state, MODULE_NAME, DISPLAY_NAME, META_KEY, LF_CUSTOM_SOUND,
+    state, META_KEY, LF_CUSTOM_SOUND,
     DEFAULT_SOUND_NAME,
     loadSettings, saveSettings, flushSettings,
     getCtx, log, warn, error, t,
@@ -287,17 +287,10 @@ function cleanup() {
     closeCssEditor();
     removeCustomCssTags();
 
-    // Unwrap every marker span in the chat (restore original text nodes).
-    document.querySelectorAll('.gls-marker').forEach(span => {
-        const parent = span.parentNode;
-        if (!parent) return;
-        let txt = '';
-        for (const child of span.childNodes) {
-            if (child.nodeType === Node.TEXT_NODE) txt += child.nodeValue;
-        }
-        parent.replaceChild(document.createTextNode(txt), span);
-    });
-
+    // Full per-message teardown via the shared remover: unwrap markers,
+    // strip the under-post inline footnote blocks (a markers-only unwrap
+    // left them visible after a disable) and normalize the text nodes.
+    document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
     document.querySelectorAll('.gls-regen-btn').forEach(btn => btn.remove());
     document.getElementById('gls_settings_container')?.remove();
     _settingsPanelLoaded = false;
