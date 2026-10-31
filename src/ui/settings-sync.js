@@ -400,6 +400,12 @@ export function bindSettingsUI() {
     on($('gls_builtin_lens_save'), 'click', saveLensOverride);
     on($('gls_builtin_lens_reset'), 'click', resetLensOverride);
     on($('gls_builtin_lens_cancel'), 'click', closeLensEditor);
+    // JS-set hint: ST's data-i18n observer does not reliably translate this
+    // node (same workaround as the target-language optgroup labels above).
+    const lensHintEl = $('gls_builtin_lens_hint');
+    if (lensHintEl) {
+        lensHintEl.textContent = t('Same tokens as the bundled template: {{OUTPUT_LANGUAGE}} everywhere; the Language lens also accepts {{TARGET_LANG_*}}, {{CEFR_*}} and {{CONLANG_NOTE}}. Saving an empty body resets to the bundled template.');
+    }
     refreshLensDots();
 
     // Custom hybrid lenses (user-authored roles). Wired together so any

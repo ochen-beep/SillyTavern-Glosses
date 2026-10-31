@@ -272,11 +272,19 @@
                     <!-- Built-in lens override editor: opened by a row's ✎
                          button, one instance for all six lenses. Save writes
                          S().builtinLensOverrides[lens]; an emptied body saves
-                         as "reset". See settings-sync.js. -->
+                         as "reset". See settings-sync.js.
+                         HANDLEBARS WARNING: ST compiles this whole file as a
+                         Handlebars template — a literal {{...}} here is parsed
+                         as an expression (and `*` fails the compile, blanking
+                         the ENTIRE panel). Write literal braces as
+                         &#123;&#123;...&#125;&#125; entities, as below. -->
                     <div id="gls_builtin_lens_editor" class="gls-s-sub-panel" hidden>
                         <div class="gls-s-sub-title"><span id="gls_builtin_lens_editor_title"></span></div>
                         <textarea id="gls_builtin_lens_input" class="text_pole gls-s-resize-v" rows="10"></textarea>
-                        <small class="gls-s-hint" data-i18n="Same tokens as the bundled template: {{OUTPUT_LANGUAGE}} everywhere; the Language lens also accepts {{TARGET_LANG_*}}, {{CEFR_*}} and {{CONLANG_NOTE}}. Saving an empty body resets to the bundled template.">Same tokens as the bundled template: {{OUTPUT_LANGUAGE}} everywhere; the Language lens also accepts {{TARGET_LANG_*}}, {{CEFR_*}} and {{CONLANG_NOTE}}. Saving an empty body resets to the bundled template.</small>
+                        <!-- Text set from settings-sync via t(): ST's data-i18n
+                             observer does not reliably translate this node
+                             (same workaround as the optgroup labels above). -->
+                        <small id="gls_builtin_lens_hint" class="gls-s-hint"></small>
                         <div class="gls-s-field-row">
                             <button id="gls_builtin_lens_save" class="menu_button" type="button"><span data-i18n="Save lens">Save lens</span></button>
                             <button id="gls_builtin_lens_reset" class="menu_button" type="button"><span data-i18n="Reset to default">Reset to default</span></button>
