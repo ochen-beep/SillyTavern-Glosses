@@ -114,7 +114,8 @@ let _settingsBound = false;
 // intentionally NOT routed through the bind-scoped AbortController — it must
 // re-sync after every re-enable). The picker itself is re-created on every
 // bind (the settings DOM is rebuilt on disable→enable).
-let _loreChatHook = false;
+/** @type {(() => void) | null} CHAT_CHANGED → picker refresh; removed on unbind. */
+let _loreChatHandler = null;
 /** @type {ReturnType<import('./lorebook-picker.js').createLorebookPicker> | null} */
 let _lorePicker = null;
 // Stage 7: module-owned AbortController for the settings panel. bindSettingsUI
@@ -675,12 +676,12 @@ export function bindSettingsUI() {
         onChange: (cfg) => saveChatLoreConfig(cfg),
     }) : null;
     void _lorePicker?.refresh();
-    if (!_loreChatHook) {
-        _loreChatHook = true;
+    if (!_loreChatHandler) {
+        _loreChatHandler = () => { void _lorePicker?.refresh(); };
         const ctx0 = getCtx();
         try {
-            ctx0.eventSource?.on(ctx0.eventTypes?.CHAT_CHANGED, () => { void _lorePicker?.refresh(); });
-        } catch { /* non-fatal: controls stay at bind-time values */ }
+            ctx0.eventSource?.on(ctx0.eventTypes?.CHAT_CHANGED, _loreChatHandler);
+        } catch { _loreChatHandler = null; /* non-fatal: controls stay at bind-time values */ }
     }
 
     updateSrcPanels();
@@ -693,6 +694,18 @@ export function unbindSettingsUI() {
     // Reset the flag so a re-enable can bind a fresh controller.
     if (_settingsAbort) { _settingsAbort.abort(); _settingsAbort = null; }
     _settingsBound = false;
+    // The picker rides the shared eventSource (WORLDINFO_UPDATED) and mounts
+    // its own DOM listeners — neither may outlive the settings DOM they render
+    // into, or a disabled extension keeps refreshing into detached nodes.
+    _lorePicker?.destroy();
+    _lorePicker = null;
+    if (_loreChatHandler) {
+        try {
+            const ctx0 = getCtx();
+            ctx0?.eventSource?.removeListener?.(ctx0?.eventTypes?.CHAT_CHANGED, _loreChatHandler);
+        } catch { /* host already torn down */ }
+        _loreChatHandler = null;
+    }
 }
 
 function bindCb(id, key, onChange) {
