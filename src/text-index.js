@@ -167,8 +167,10 @@ export function findFuzzySpan(text, anchor, { maxRatio = 0.25, maxWords = 12 } =
         if (!ok || total > totalCap) continue;
         const nStart = sourceWords[p].start;
         const nEnd = sourceWords[p + needleWords.length - 1].end;
-        const first = mapped.map[nStart];
-        const last = mapped.map[nEnd - 1];
+        // Word offsets are UTF-16 indices into `normalized`; unitAt converts
+        // them to map entries (astral chars are one map unit, two code units).
+        const first = mapped.unitAt(nStart);
+        const last = mapped.unitAt(nEnd - 1);
         if (!first || !last) continue;
         const start = first.start;
         const end = last.end;

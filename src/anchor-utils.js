@@ -38,7 +38,10 @@ export function isWordChar(ch) {
  * string. Shared by the flat-text matcher (findAnchorInText), the DOM text
  * index (text-index.js), and the fuzzy resolver so every surface applies the
  * SAME normalization policy (NFC, case, quotes/dashes, whitespace collapse)
- * with UTF-16 source spans as the common currency.
+ * with UTF-16 source spans as the common currency. `unitAt` converts a
+ * UTF-16 index in `normalized` to its map entry — the two disagree once an
+ * astral char (emoji) is present, so consumers must never index `map`
+ * directly with string offsets.
  */
 export function normalizedWithMap(value) {
     const source = String(value ?? '');
@@ -65,7 +68,19 @@ export function normalizedWithMap(value) {
         }
         for (const ch of normalized) units.push({ ch, start: part.start, end: part.end });
     }
-    return { source, normalized: units.map(x => x.ch).join(''), map: units };
+    // String.indexOf speaks UTF-16 code units while `map` is indexed per
+    // normalized code point (an astral char like an emoji is one unit but
+    // two code units) — converting before every map lookup keeps anchors
+    // matchable after emoji. Returns the unit containing the UTF-16 index.
+    const unitAt = (utf16Idx) => {
+        let offset = 0;
+        for (let i = 0; i < units.length; i++) {
+            if (utf16Idx < offset + units[i].ch.length) return units[i];
+            offset += units[i].ch.length;
+        }
+        return undefined;
+    };
+    return { source, normalized: units.map(x => x.ch).join(''), map: units, unitAt };
 }
 
 /** Find the first whole-phrase exact-normalized match and return original text. */
@@ -77,8 +92,8 @@ export function findAnchorInText(text, anchor, fromIndex = 0) {
     const floor = Number.isFinite(Number(fromIndex)) ? Math.max(0, Number(fromIndex)) : 0;
     while (pos >= 0) {
         const endNorm = pos + needle.length;
-        const first = mapped.map[pos];
-        const last = mapped.map[endNorm - 1];
+        const first = mapped.unitAt(pos);
+        const last = mapped.unitAt(endNorm - 1);
         if (first && last) {
             const start = first.start;
             const end = last.end;

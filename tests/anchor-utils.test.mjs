@@ -25,3 +25,26 @@ test('findAllAnchorSpans returns all non-overlapping occurrences', () => {
         { text: 'CAT', start: 19, end: 22 },
     ]);
 });
+
+test('astral chars before an anchor do not desync the position map', () => {
+    // An emoji is one map unit but two UTF-16 code units; string indexOf
+    // speaks code units, so a per-code-point map read desyncs by one per
+    // emoji and the anchor after it silently stops matching.
+    assert.deepEqual(
+        { ...findAnchorInText('😀😀 фонарь над мостом', 'фонарь') },
+        { text: 'фонарь', start: 5, end: 11 },
+    );
+    assert.deepEqual(
+        { ...findAnchorInText('👩‍🦰 рыжая фонарь', 'фонарь') },
+        { text: 'фонарь', start: 12, end: 18 },
+    );
+    assert.deepEqual(
+        { ...findAnchorInText('𝕬𝖇𝖈 фонарь тут', 'фонарь') },
+        { text: 'фонарь', start: 7, end: 13 },
+    );
+});
+
+test('occurrences after an emoji are still found by the span sweep', () => {
+    const spans = findAllAnchorSpans('фонарь 😀 фонарь и фонарь', 'фонарь');
+    assert.deepEqual(spans.map(({ start, end }) => [start, end]), [[0, 6], [10, 16], [19, 25]]);
+});
