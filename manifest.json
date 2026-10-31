@@ -10,7 +10,7 @@
     "version": "3.7.1",
     "home_page": "",
     "auto_update": false,
-    "minimum_client_version": "1.12.10",
+    "minimum_client_version": "1.18.0",
     "i18n": {
         "ru-ru": "i18n/ru-ru.json"
     },

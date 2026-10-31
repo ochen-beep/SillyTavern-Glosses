@@ -31,7 +31,7 @@ Full guide (in Russian): **[USER_GUIDE.md](USER_GUIDE.md)**.
 
 ## Requirements
 
-- SillyTavern 1.12.10 or newer.
+- SillyTavern 1.18.0 or newer.
 - Connection Manager is needed only for the Connection Profile source.
 
 ## License

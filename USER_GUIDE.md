@@ -88,6 +88,6 @@ Glosses добавляет в [SillyTavern](https://github.com/SillyTavern/Silly
 
 ## Ограничения
 
-- SillyTavern клиент `1.12.10+`; Connection Manager нужен только для источника Connection Profile.
+- SillyTavern клиент `1.18.0+`; Connection Manager нужен только для источника Connection Profile.
 - Гарантий «честности» для вымышленных языков (High Valyrian, Klingon и т.п.) нет — промпт просит честную аттестацию, но нейросеть может додумать всякое. 
 - Очистка данных (Clean) удаляет кэш сносок чата и загруженный звук, но не трогает API-ключ и позицию плавающей кнопки, они хранятся в браузере. 
