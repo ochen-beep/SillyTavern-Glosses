@@ -14,7 +14,7 @@
 
 import {
     state, S, getCtx, getExtBase, warn, error, extractPlainText, t,
-    DEFAULT_SETTINGS, MAX_FOOTNOTES_CAP,
+    DEFAULT_SETTINGS, MAX_FOOTNOTES_CAP, HYBRID_BUILTIN_LENSES,
 } from './core.js';
 import { FOOTNOTE_CONTRACT } from './prompt-contract.js';
 import {
@@ -532,11 +532,22 @@ function interpolateLangPrompt(template) {
         .replace(/\{\{OUTPUT_LANGUAGE\}\}/g, outputLang);
 }
 
+/**
+ * Snapshot a built-in lens's raw template for "copy to custom lenses".
+ * The language lens's {{TARGET_LANG_*}}/{{CEFR_*}}/{{CONLANG_NOTE}} tokens are
+ * BAKED with the current settings — the custom-lens build path never runs the
+ * language interpolation — while {{OUTPUT_LANGUAGE}} stays raw because the
+ * custom path substitutes it at generation time (generator _buildHybridPrompt).
+ */
+export function bakeLensCopyText(lensId, rawTemplate) {
+    const raw = String(rawTemplate ?? '');
+    return lensId === 'language' ? interpolateLangPrompt(raw) : raw;
+}
+
 // ── Hybrid prompt assembly ──────────────────────────────────────────────────
 // The envelope (prompts/hybrid.md) carries the COMMON rules ONCE; each active
 // lens contributes only its role. Custom lenses (user-authored) travel inline.
 // One footnote per anchor: the model picks the single best-fitting ACTIVE LENS.
-const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion'];
 
 /**
  * Resolve the active lens flags using DEFAULT_SETTINGS as the single source
@@ -571,8 +582,13 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
     const anyBuiltin = HYBRID_BUILTIN_LENSES.some(k => active[k]);
     if (!anyBuiltin && !customActive.length) active.language = true;
 
+    const overrides = s.builtinLensOverrides || {};
+    // An overridden lens is marked in the cache signature (`name*`) so ADDING
+    // or REMOVING an override produces a new key; EDITING an override's text
+    // relies on settings-sync's _invalidateLanguageCache (same contract as
+    // custom-lens text edits).
     const sig = [
-        ...HYBRID_BUILTIN_LENSES.filter(k => active[k]),
+        ...HYBRID_BUILTIN_LENSES.filter(k => active[k]).map(k => String(overrides[k] || '').trim() ? `${k}*` : k),
         ...customActive.map(c => c.id || c.name),
     ].join(',');
     const key = `hybrid:${sig}:${langCacheKey()}`;
@@ -598,9 +614,15 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
     for (const lens of HYBRID_BUILTIN_LENSES) {
         if (!active[lens]) continue;
         try {
-            const snipResp = await fetch(`${getExtBase()}/prompts/lenses/${lens}.md`);
-            if (!snipResp.ok) throw new Error(`HTTP ${snipResp.status} (lenses/${lens}.md)`);
-            let snip = await snipResp.text();
+            // User override wins over the bundled template. The language
+            // lens's tokens interpolate identically for overrides and disk
+            // templates (see interpolateLangPrompt below).
+            let snip = String(overrides[lens] || '').trim();
+            if (!snip) {
+                const snipResp = await fetch(`${getExtBase()}/prompts/lenses/${lens}.md`);
+                if (!snipResp.ok) throw new Error(`HTTP ${snipResp.status} (lenses/${lens}.md)`);
+                snip = await snipResp.text();
+            }
             // Language lens needs {{TARGET_LANG_*}} + {{CEFR_*}} + {{CONLANG_NOTE}}
             // interpolated BEFORE {{OUTPUT_LANGUAGE}} is applied. interpolateLangPrompt
             // handles OUTPUT_LANGUAGE too, so it's a single pass for that lens.

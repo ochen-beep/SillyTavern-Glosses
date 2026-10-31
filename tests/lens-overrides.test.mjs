@@ -14,7 +14,8 @@ import './helpers/stub-runtime.mjs';
 import { resetCtx } from './helpers/stub-runtime.mjs';
 import { loadSettings, state } from '../src/core.js';
 import {
-    buildUserPrompt, generateFootnotes, _testSetApiOverride, _testClearApiOverride,
+    buildUserPrompt, generateFootnotes, assembleStyle, bakeLensCopyText,
+    _testSetApiOverride, _testClearApiOverride,
 } from '../src/generator.js';
 import { listFootnoteSets } from '../src/cache.js';
 
@@ -67,4 +68,50 @@ test('auto count mode keeps every footnote the model returns (no slice to N)', a
     const sets = listFootnoteSets();
     assert.equal(sets.length, 1);
     assert.equal(sets[0].footnotes.length, 7, 'all 7 model footnotes persist despite maxFootnotes=3');
+});
+
+// Fetch stub keyed by URL suffix (hybrid envelope + lens files).
+function stubPromptFetch(routes) {
+    const orig = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+        const path = String(url);
+        for (const [suffix, body] of Object.entries(routes)) {
+            if (path.endsWith(suffix)) return { ok: true, status: 200, text: async () => body };
+        }
+        return { ok: false, status: 404, text: async () => '' };
+    };
+    return () => { globalThis.fetch = orig; };
+}
+
+test('loadSettings coerces builtinLensOverrides (string values, known lens ids only)', () => {
+    setup({ builtinLensOverrides: { language: 'Custom text', pratchett: 42, bogus: 'x' } });
+    assert.deepEqual(state.settings.builtinLensOverrides, { language: 'Custom text' });
+});
+
+test('override replaces the bundled lens template; other lenses still load from disk', async () => {
+    setup({
+        promptStyle: 'hybrid',
+        hybridLenses: { language: true, pratchett: true, canon: false, academic: false, meta: false, expansion: false },
+        builtinLensOverrides: { language: 'OVERRIDE-BODY {{TARGET_LANG_NAME}}' },
+    });
+    const restore = stubPromptFetch({
+        'prompts/hybrid.md': 'ENV{{LENSES}}ENV',
+        'prompts/lenses/language.md': 'DISK-LANGUAGE-SHOULD-NOT-APPEAR',
+        'prompts/lenses/pratchett.md': 'DISK-PRATCHETT',
+    });
+    try {
+        const style = await assembleStyle();
+        assert.match(style, /OVERRIDE-BODY English/, 'override wins and language tokens interpolate');
+        assert.doesNotMatch(style, /DISK-LANGUAGE-SHOULD-NOT-APPEAR/);
+        assert.match(style, /DISK-PRATCHETT/, 'untouched lens is still served from disk');
+    } finally {
+        restore();
+    }
+});
+
+test('bakeLensCopyText bakes language tokens; other lenses keep {{OUTPUT_LANGUAGE}} raw', () => {
+    setup({ targetLanguage: 'ja', cefrLevel: 'b1b2' });
+    assert.match(bakeLensCopyText('language', 'Study {{TARGET_LANG_NAME}} at {{CEFR_LEVEL}}'), /Study Japanese at b1b2/);
+    assert.equal(bakeLensCopyText('pratchett', 'Voice {{OUTPUT_LANGUAGE}}'), 'Voice {{OUTPUT_LANGUAGE}}',
+        'custom-lens build path substitutes OUTPUT_LANGUAGE itself at generation time');
 });

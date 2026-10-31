@@ -29,6 +29,12 @@ export const MIN_POST_LENGTH = 5;
 // #gls_max_footnotes max attribute must stay in sync with it.
 export const MAX_FOOTNOTES_CAP = 100;
 
+// The six built-in hybrid lens ids (prompts/lenses/<id>.md). Single source:
+// loadSettings coerces builtinLensOverrides against this list, generator.js
+// assembles lens blocks from it, and the settings.html lens-row markup must
+// stay in sync with it.
+export const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion'];
+
 // Chat-metadata key under ctx.chatMetadata for chat-scoped Glosses settings.
 export const META_KEY = 'gls_data';
 
@@ -127,6 +133,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // to footnote + label + format quirk) — interpolated with {{OUTPUT_LANGUAGE}}
     // only (no lang/CEFR tokens). See spec / generator.js hybrid branch.
     customLenses: [],
+    // User rewrites of the BUILT-IN hybrid lens templates (lens id → raw
+    // template, same token surface as the bundled prompts/lenses/<id>.md).
+    // '' / missing key = the bundled file is used. Written only by the lens
+    // editor (settings-sync); Reset deletes the key.
+    builtinLensOverrides: {},
     displayMode: 'both',
     highlightColor: '#ffe066',
     highlightOpacity: 40,
@@ -382,6 +393,22 @@ export function loadSettings() {
         // Drop entries with no id AND no name — unselectable junk from a
         // hand-edit or a partial save.
         .filter(c => c.id || c.name);
+    // Built-in lens overrides — keep only string bodies for known lens ids;
+    // an empty/whitespace body means "use the bundled template".
+    if (!state.settings.builtinLensOverrides || typeof state.settings.builtinLensOverrides !== 'object') {
+        state.settings.builtinLensOverrides = {};
+        settingsChanged = true;
+    } else {
+        const knownLenses = new Set(HYBRID_BUILTIN_LENSES);
+        const clean = {};
+        for (const [k, v] of Object.entries(state.settings.builtinLensOverrides)) {
+            if (knownLenses.has(k) && typeof v === 'string' && v.trim()) clean[k] = v;
+        }
+        if (Object.keys(clean).length !== Object.keys(state.settings.builtinLensOverrides).length) {
+            settingsChanged = true;
+        }
+        state.settings.builtinLensOverrides = clean;
+    }
     // Popup custom CSS layer — coerce junk from hand-edited settings: the CSS
     // must be a string and the toggle a boolean (mirrors the launcherMode
     // guard above; a repaired value persists via settingsChanged).
