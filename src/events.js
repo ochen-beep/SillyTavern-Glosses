@@ -119,11 +119,41 @@ export function unbindEvents() {
     Object.keys(_eventHandlers).forEach(k => delete _eventHandlers[k]);
     _eventsBound = false;
     if (_editedRaf) { cancelAnimationFrame(_editedRaf); _editedRaf = 0; }
+    if (_restoreMO) { _restoreMO.disconnect(); _restoreMO = null; }
 }
 
 function onAppReady() {
     installMarkerDelegation();
     restoreHighlightsAll();
+    ensureRestoreObserver();
+}
+
+// B#1 (QA 2026-11-03): restoreHighlightsAll runs on APP_INITIALIZED and
+// CHAT_CHANGED(+0 ms); when the chat body renders LATER than both moments
+// (heavy chats, slow hosts), the pass sees zero .mes nodes and nothing
+// re-runs it — CHARACTER_MESSAGE_RENDERED does not fire when a saved chat
+// is reopened. A cheap #chat childList observer closes the gap: every .mes
+// that APPEARS is routed to restoreMessage (idempotent — addRegenButton /
+// injectIfCached / observeForLazyInject all guard against double work).
+// Streaming text updates are characterData mutations, not childList, so a
+// streaming post costs nothing here.
+let _restoreMO = null;
+
+/** Observe #chat for late-rendered .mes nodes (idempotent; Node-safe). */
+function ensureRestoreObserver() {
+    if (_restoreMO || typeof MutationObserver === 'undefined') return;
+    const chatEl = document.getElementById('chat');
+    if (!chatEl) return;
+    _restoreMO = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+            for (const node of m.addedNodes || []) {
+                if (node.nodeType !== Node.ELEMENT_NODE) continue;
+                if (node.matches?.('.mes[mesid]')) restoreMessage(node);
+                node.querySelectorAll?.('.mes[mesid]').forEach(restoreMessage);
+            }
+        }
+    });
+    _restoreMO.observe(chatEl, { childList: true, subtree: true });
 }
 
 // Owned handle for the deferred post-chat-switch restore, so cleanup()
@@ -146,6 +176,7 @@ function onChatChanged() {
     invalidateAiMsgCache();
     resetLazyInjector();
     installMarkerDelegation();
+    ensureRestoreObserver();
     if (_postChatSwitchTimer) clearTimeout(_postChatSwitchTimer);
     _postChatSwitchTimer = setTimeout(() => {
         _postChatSwitchTimer = null;
