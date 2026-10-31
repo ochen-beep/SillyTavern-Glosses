@@ -72,8 +72,14 @@ async function waitForConnectionManager(maxAttempts = 15, delayMs = 300) {
 export async function getProfiles() {
     if (!(await waitForConnectionManager())) return [];
     try {
+        // Glosses speaks chat completions: its request is a messages array,
+        // which a text-completion profile would receive as a raw `prompt`
+        // (stringified garbage on the backend). Offer only Chat Completion
+        // profiles; a stale stored selection is still guarded at generate time.
+        const apiMap = getCtx()?.CONNECT_API_MAP || null;
+        const isChatCompletion = (p) => (apiMap ? apiMap[p.api]?.selected === 'openai' : p.api === 'openai');
         return _getCMProfiles()
-            .filter(p => p.id || p.name)
+            .filter(p => (p.id || p.name) && isChatCompletion(p))
             .map(p => ({
                 id:   p.id || p.name,
                 name: p.name || p.id || 'Unknown Profile',
@@ -200,6 +206,13 @@ export async function generateWithProfile(sel, systemPrompt, userPrompt, signal)
     }
     if (!profile) {
         throw new Error(t('Connection profile not found: "{0}". It may have been deleted — reselect a profile in Glosses settings.', sel));
+    }
+    // Stale-selection guard: a profile saved before the dropdown filtered to
+    // Chat Completion would otherwise send the messages array as a raw
+    // text-completion prompt.
+    const apiSelected = ctx.CONNECT_API_MAP?.[String(profile.api || '')]?.selected;
+    if (apiSelected && apiSelected !== 'openai') {
+        throw new Error(t('Profile "{0}" uses a Text Completion API — Glosses needs a Chat Completion profile.', profile.name));
     }
 
     const messages = [
