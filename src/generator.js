@@ -1052,7 +1052,11 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         // targeted paths reset it, so one failure kept the badge up forever and
         // hid the empty-state Generate CTA behind 'unconfigured'.
         state.configuredState = { ok: true, reason: '' };
-        injectHighlights(mesEl, footnotes);
+        // The entry snapshot can go stale across the awaits: a host re-render
+        // may replace the .mes node while text and digest stay equal. Re-resolve
+        // so markers land in the live DOM, not a detached orphan.
+        const liveMesEl = document.querySelector(`.mes[mesid="${messageId}"]`) || mesEl;
+        injectHighlights(liveMesEl, footnotes);
         playSound();
         state.panelFocusMsgId = String(messageId);
         panelInvalidate();
