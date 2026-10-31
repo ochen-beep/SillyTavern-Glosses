@@ -137,3 +137,37 @@ test('launcher mode select initializes from settings and writes changes back', (
         unbindSettingsUI();
     }
 });
+
+test('marker size select initializes from settings and republishes highlight styles', () => {
+    freshSettingsContext();
+    S().markerFontSize = '0.85em';
+    const listeners = {};
+    const select = {
+        value: '',
+        addEventListener: (type, fn) => { (listeners[type] ??= []).push(fn); },
+    };
+    let saves = 0;
+    globalThis._stCtx.saveSettingsDebounced = () => { saves++; };
+    // applyHighlightStyles (the change callback) publishes vars on
+    // document.documentElement and rides applyCustomCss — both need a minimal
+    // element surface under the no-DOM stub.
+    const elStub = () => ({ style: { setProperty() {}, removeProperty() {} }, classList: { add() {}, remove() {}, toggle() {} } });
+    globalThis.document.documentElement = elStub();
+    const origById = document.getElementById;
+    document.getElementById = (id) => {
+        if (id === 'gls_settings_container') return {};
+        return id === 'gls_marker_size' ? select : null;
+    };
+    try {
+        bindSettingsUI();
+        assert.equal(select.value, '0.85em', 'select initialized from settings on bind');
+        select.value = '0.70em';
+        for (const fn of listeners.change ?? []) fn();
+        assert.equal(S().markerFontSize, '0.70em', 'change writes settings.markerFontSize');
+        assert.ok(saves > 0, 'change persists settings');
+    } finally {
+        globalThis.document.documentElement = undefined;
+        document.getElementById = origById;
+        unbindSettingsUI();
+    }
+});

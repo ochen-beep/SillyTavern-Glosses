@@ -469,7 +469,7 @@ export function bindSettingsUI() {
         publish: applyHighlightStyles,
     });
 
-    on($('gls_marker_size'), 'change', function () { S().markerFontSize = this.value; applyHighlightStyles(); saveSettings(); });
+    bindSelect('gls_marker_size', 'markerFontSize', { fallback: '0.75em', onChange: applyHighlightStyles });
 
     // Compact panel rows: clamp each footnote body to two lines, click a row
     // to expand. The class rides #gls-panel-body, so a toggle restyles the
