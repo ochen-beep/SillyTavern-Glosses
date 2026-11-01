@@ -1,0 +1,165 @@
+/* ══════════════════════════════════════════════════════════
+   INLINE HIGHLIGHTS
+   ══════════════════════════════════════════════════════════ */
+
+.gls-marker {
+    cursor: pointer;
+    border-radius: 2px;
+    padding: 0 1px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    /* Allow long anchors (especially clause-level ones from hybrid/pratchett50,
+       e.g. "села на Железный трон, лезвия врезаясь в её платье") to wrap like
+       ordinary text. break-word covers a single very long token with no spaces
+       (rare, but possible for compound terms); normal wrapping handles the
+       common multi-word case once the element is in inline flow. */
+    overflow-wrap: break-word;
+    word-break: break-word;
+    /* NOTE: do NOT add `contain: paint` here. On an inline element it turns
+       the marker into an atomic inline (inline-block-like) box, so the anchor
+       + superscript become a single non-wrapping unit. On a narrow mobile
+       viewport a clause-level anchor then overflows horizontally and shoves
+       the whole message sideways. `contain: style` alone is useless for our
+       custom-prop isolation goal, and `layout`/`paint` are harmful on inline,
+       so we omit `contain` entirely and rely on the cheap local repaint of a
+       small hover/background change. */
+}
+
+/* Scoped by the gls-hl-* class alone (carried by #chat via applyHighlightStyles,
+   and by the settings-side live preview wrapper) so both surfaces render the
+   marker identically from one rule set. */
+.gls-hl-background .gls-marker {
+    background-color: color-mix(in srgb, var(--gls-hl-color) calc(var(--gls-hl-opacity) * 100%), transparent);
+}
+.gls-hl-underline .gls-marker { border-bottom: 2px solid var(--gls-hl-color); }
+
+.gls-hl-dotted .gls-marker { border-bottom: 2px dotted var(--gls-hl-color); }
+
+/* A multi-piece anchor (a phrase crossing ST's <q> quote wrap or another
+   inline element) materializes as several adjacent .gls-marker boxes. Each
+   box carries its own padding and rounded corners, so without this the joint
+   reads as two separate chips instead of one highlight. The renderer tags the
+   pieces with seam classes (markerSeamClasses in renderer.js): the shared
+   edge of every piece flattens, leaving rounded corners on the band's outer
+   ends only. Single-piece markers get no seam classes and keep the pill look. */
+.gls-marker.gls-marker-seam-r {
+    padding-right: 0;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.gls-marker.gls-marker-seam-l {
+    padding-left: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+/* ST paints <q> text with --SmartThemeQuoteColor (.mes_text q). A marker piece
+   covering the quoted half of an anchor would then render in quote color
+   while its continuation pieces outside <q> render in the body color — one
+   anchor visually split in two. Pin highlighted text to the message body
+   color so every marker reads as a single unit wherever it lands; the
+   superscript keeps its accent color (its own rule wins for .gls-sup). */
+#chat .mes_text q .gls-marker {
+    color: var(--SmartThemeBodyColor, inherit);
+}
+
+.gls-sup {
+    font-size: var(--gls-marker-size);
+    vertical-align: super;
+    margin-left: 1px;
+    color: var(--gls-accent);
+    font-weight: 700;
+    line-height: 0;
+    pointer-events: none;
+}
+
+/* Inline footnote block (displayMode: inline / both) — spec §4.2.
+   Appended as the LAST CHILD of .mes_block (inside the message column, but
+   outside .mes_text so ST's markdown/stream renderers don't wipe it on
+   re-render / swipe). .mes itself is a flex ROW in every supported ST version,
+   so hosting the block there — the pre-3.3 placement — made it a side column
+   next to the text; hosting it in .mes_block puts it in normal block flow
+   UNDER the text, the same pattern ST uses for .mes_reasoning_details.
+   removeHighlights strips it before re-inject; see renderer.js#renderInlineBlock.
+   Opaque card: the block carries its own var(--gls-bg) (forced solid by
+   theme-sync.js) plus a padding + rounded border, so it never sits see-through
+   on the chat background on transparent themes. No horizontal margin +
+   max-width:100% + box-sizing:border-box so the block can never widen its
+   .mes and shove the message text sideways on a narrow viewport (the children
+   <p> already wrap via word-break on .gls-inline-fn). */
+.gls-inline-fns {
+    margin: var(--gls-sp-2) 0;
+    padding: var(--gls-sp-2);
+    background: var(--gls-bg);
+    border: 1px solid var(--gls-line);
+    border-radius: var(--gls-radius);
+    font-family: var(--gls-font-family);
+    font-size: var(--gls-font-size);
+    line-height: 1.45;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: break-word;
+    /* Grid chat themes (".mes_block{display:contents}") promote this block to
+       a grid item of .mes — span all columns so it lands full-width BELOW the
+       text instead of an auto-placed cell beside the avatar. Ignored in
+       flex/block layouts. */
+    grid-column: 1 / -1;
+}
+/* Message Collapser integration: in hide mode the host hides .mes_text, and
+   this block — living on .mes_block, outside .mes_text — would otherwise stay
+   visible under a "hidden" post. Preview mode keeps the post partially shown,
+   so there the block stays visible too. */
+.message-collapser-message-collapsed:not(.message-collapser-preview) .gls-inline-fns {
+    display: none;
+}
+.gls-inline-fn {
+    margin: 2px 0;
+    word-break: break-word;
+    /* Invisible until a background appears (the flash below); rounds that
+       background so it reads as a pill highlight, not a raw box. */
+    border-radius: 4px;
+}
+.gls-inline-fn-idx {
+    color: var(--gls-accent);
+    font-weight: 700;
+    margin-right: 4px;
+    vertical-align: super;
+    font-size: var(--gls-marker-size);
+}
+
+/* Marker tap in inline mode (no popup) scrolls the block to the tapped row
+   and lands on this flash, so the number-less marker resolves to its text.
+   Reuses the marker highlight color/opacity so the cue stays on-palette;
+   renderer.js restarts the animation (reflow trick) on repeated taps. */
+.gls-inline-fn.gls-fn-flash {
+    animation: gls-fn-flash 1.6s ease-out 1;
+}
+@keyframes gls-fn-flash {
+    from {
+        background-color: color-mix(in srgb, var(--gls-hl-color) calc(var(--gls-hl-opacity) * 100%), transparent);
+    }
+    to { background-color: transparent; }
+}
+
+/* Panel header crosshair ("Jump to the post") flashes the whole post so the
+   eye catches where the panel's content lives. Outline pulse (not background)
+   so the cue reads over any message theme; window.js restarts the animation
+   via the reflow trick on repeated clicks. */
+.mes.gls-mes-flash {
+    animation: gls-mes-flash 1.6s ease-out 1;
+}
+@keyframes gls-mes-flash {
+    0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--gls-hl-color) 90%, transparent); }
+    100% { box-shadow: 0 0 0 3px transparent; }
+}
+
+/* Regenerate button */
+.mes_button.gls-regen-btn { color: var(--gls-accent); }
+
+/* Busy: the same slow glow pulse the launchers get (see gls_pulse below) —
+   color/opacity/drop-shadow only, no geometry, so the .mes_buttons row
+   never shifts while a generation runs. */
+.mes_button.gls-regen-btn.gls-busy i {
+    animation: gls_pulse 2.4s ease-in-out infinite;
+}
+

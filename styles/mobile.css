@@ -1,0 +1,25 @@
+/* ══════════════════════════════════════════════════════════
+   MOBILE / TOUCH
+   ══════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .gls-popup { max-width: 96vw; }
+    /* Belt-and-suspenders against horizontal overflow on phones: long
+       clause-level anchors and the under-post footnote block must never
+       widen their .mes past the viewport (which shoves the message text
+       sideways). The base rules already wrap and clamp width; these rules
+       just neutralise any inherited horizontal padding/margin a theme might
+       inject on .mes children. */
+    .gls-marker { max-width: 100%; }
+    .gls-inline-fns { margin-left: 0; margin-right: 0; max-width: 100%; }
+    /* iOS Safari zooms the whole page when a text field with an effective
+       font-size below 16px is focused. Glosses' fields inherit the panel/
+       popup font pairs (≈0.78–0.9em) — pin 16px on every Glosses-owned text
+       surface so opening the editor, the targets textarea or the settings
+       fields doesn't zoom. */
+    #gls-panel textarea,
+    .gls-popup .gls-panel-edit-input,
+    .gls-s input.text_pole,
+    .gls-s textarea.text_pole { font-size: 16px; }
+}
+

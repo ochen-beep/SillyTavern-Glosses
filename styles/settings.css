@@ -1,0 +1,509 @@
+/* ══════════════════════════════════════════════════════════
+   SETTINGS PANEL
+   ══════════════════════════════════════════════════════════ */
+
+.gls-s {
+    padding: 4px 0 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Keep the settings flow task-oriented without coupling bindings to source
+   order: generation, behavior, prompt, context, display, then sound. */
+.gls-s-section--generation { order: 1; }
+.gls-s-section--behavior { order: 2; }
+.gls-s-section--prompt { order: 3; }
+.gls-s-section--context { order: 4; }
+.gls-s-section--display { order: 5; }
+.gls-s-section--sound { order: 6; }
+
+.gls-s-toprow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: var(--gls-sp-3);
+    padding-bottom: var(--gls-sp-3);
+    border-bottom: 1px solid var(--gls-border);
+    flex-wrap: wrap;
+}
+
+.gls-s-master { font-weight: 600; }
+.gls-s-label-bold { font-weight: 600; }
+
+/* Accordion. Closed headers are quiet (neutral, no tint); an open section
+   gets the accent tint + a 3px accent bar via inset box-shadow (no layout
+   shift) so users can see at a glance what's expanded — the old design looked
+   identical open and closed apart from the chevron flip. */
+.gls-s-section {
+    margin: 0 0 var(--gls-sp-2);
+    border: 1px solid var(--gls-border);
+    border-radius: var(--gls-radius);
+    overflow: hidden;
+}
+
+.gls-s-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 14px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    font-size: 0.95em;
+    font-weight: 600;
+    text-align: left;
+    transition: background 0.15s;
+}
+
+.gls-s-section-header[aria-expanded="true"] {
+    background: var(--gls-accent-dim);
+    box-shadow: inset 3px 0 0 var(--gls-accent);
+}
+
+/* :hover rules live in the @media (hover: hover) block at the end of this
+   file — gated so touch devices never get a stuck hover state. */
+
+.gls-s-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--gls-text);
+    min-width: 0;
+}
+
+.gls-s-section-icon {
+    color: var(--gls-accent);
+    font-size: 0.9em;
+    width: 1.15em;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.gls-s-chevron {
+    font-size: 0.85em;
+    color: var(--gls-text-3);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+    margin-left: var(--gls-sp-2);
+}
+
+.gls-s-section-body {
+    padding: var(--gls-sp-3) var(--gls-sp-4) var(--gls-sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gls-sp-3);
+}
+
+.gls-s-section-body[hidden] { display: none; }
+.gls-s-section-body:not([hidden]) { display: flex; }
+
+.gls-s-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.gls-s-field-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.9em;
+    color: var(--gls-text-2);
+}
+
+.gls-s-select { width: 100%; }
+
+.gls-s-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gls-sp-3);
+}
+
+@media (max-width: 480px) {
+    .gls-s-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* Sub-panels: neutral surface (soft text tint) instead of the accent-tinted
+   border — the old orange frame on every nested block added noise, not
+   structure. Border stays UI-chrome colored like the outer cards. */
+.gls-s-sub-panel {
+    padding: var(--gls-sp-3);
+    border: 1px solid var(--gls-border);
+    border-radius: var(--gls-radius-sm);
+    background: color-mix(in srgb, var(--gls-text) 4%, transparent);
+    flex-direction: column;
+    gap: var(--gls-sp-2);
+}
+
+.gls-s-sub-panel[hidden] { display: none; }
+.gls-s-sub-panel:not([hidden]) { display: flex; }
+.gls-s-field-group[hidden] { display: none; }
+.gls-s-field-group:not([hidden]) { display: flex; }
+
+.gls-s-sub-title {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--gls-text-2);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.gls-s-field-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Toggle rows: the whole label is the click target (checkbox + text), padded
+   to a ≥28px row so touch users don't hunt for a 13px box (WCAG 2.5.8 floor
+   is 24px; ST's global checkbox restyle keeps the box itself small). */
+.gls-s-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gls-sp-2);
+    cursor: pointer;
+    padding: var(--gls-sp-1) 0;
+    min-height: 28px;
+    box-sizing: border-box;
+}
+
+.gls-s-toggle-row--indent { padding-left: var(--gls-sp-3); }
+
+/* Behavioral toggles (iOS row pattern, mock-up spec): the caption stays on
+   the left, the checkbox parks at the row's right edge. Selection lists
+   (lenses, context includes, custom-lens rows) keep the default
+   checkbox-left layout — the side encodes the row's kind. The DOM order is
+   input-first, so the span is visually reordered ahead of the box and the
+   auto margin eats the space BETWEEN them. */
+.gls-s-toggle-row--switch > span { order: -1; }
+.gls-s-toggle-row--switch > .checkbox { margin-left: auto; }
+
+.gls-s-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gls-sp-2);
+    padding-top: var(--gls-sp-1);
+}
+
+.gls-s-hint {
+    display: block;
+    font-size: 0.85em;
+    color: var(--gls-text-3);
+    line-height: 1.4;
+    margin-top: 2px;
+}
+
+.gls-s-val {
+    font-size: 0.85em;
+    color: var(--gls-text-2);
+    font-variant-numeric: tabular-nums;
+    min-width: 2.8em;
+    text-align: right;
+    /* No auto margin: both live value labels (highlight opacity, sound
+       volume) now sit inside flex field-rows BEFORE a growing slider — an
+       auto margin would eat the free space and freeze the slider at its
+       intrinsic width. */
+}
+
+/* Highlight-color trigger button: round swatch of the current color + its
+   hex code. Opens the HSV picker popover (built by src/ui/color-picker.js,
+   appended next to this row by settings-sync). */
+.gls-color-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px 3px 4px;
+    border: 1px solid var(--gls-border);
+    border-radius: 4px;
+    cursor: pointer;
+    background: none;
+    color: var(--gls-text-2);
+    font-size: 0.85em;
+    flex: 0 0 auto;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.gls-color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--gls-line);
+    /* background set from JS = S().highlightColor */
+}
+.gls-color-hex {
+    font-family: ui-monospace, 'Cascadia Code', Consolas, Menlo, monospace;
+    letter-spacing: 0.02em;
+}
+
+/* ── HSV picker popover ── */
+/* Anchor for the absolutely-positioned picker popover. */
+.gls-s-field-row--anchor { position: relative; }
+.gls-color-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: var(--gls-sp-3);
+    width: 196px;
+    box-sizing: border-box;
+    background: var(--gls-surface);
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-radius-lg);
+    box-shadow: var(--gls-shadow-lift);
+    color: var(--gls-text);
+}
+/* display:flex above would override the hidden attribute's display:none. */
+.gls-color-pop[hidden] { display: none; }
+
+/* Hue ring: wrap carries size/hit area/keyboard focus; the inner .gls-hue-ring
+   is the ONLY masked node (the conic rainbow donut), so the swatch and the
+   handle siblings render fully. Hue 0 (red) sits at 12 o'clock, clockwise —
+   the same convention the picker's atan2 math uses. */
+.gls-hue-ring-wrap {
+    position: relative;
+    width: 148px;
+    height: 148px;
+    margin: 0 auto;
+    touch-action: none;
+    cursor: crosshair;
+}
+.gls-hue-ring-wrap:focus-visible { outline: 2px solid var(--gls-accent); outline-offset: 4px; }
+.gls-hue-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 19px), #000 calc(100% - 18px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 19px), #000 calc(100% - 18px));
+    pointer-events: none;
+}
+.gls-hue-swatch {
+    position: absolute;
+    inset: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--gls-line);
+    pointer-events: none;
+}
+.gls-hue-handle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.4);
+    transform: translate(-50%, -50%);
+}
+
+/* Saturation / value rows: label + gradient-backed range slider. */
+.gls-hue-row { display: flex; align-items: center; gap: 8px; }
+.gls-hue-label {
+    flex: 0 0 auto;
+    font-size: 0.8em;
+    color: var(--gls-text-2);
+    white-space: nowrap;
+}
+.gls-hue-row input[type="range"] {
+    flex: 1 1 auto;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 10px;
+    border-radius: 5px;
+    /* background (gradient) set from JS via the same hsvToHex the picker uses */
+    cursor: pointer;
+    margin: 0;
+}
+.gls-hue-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    margin-top: -3px;
+}
+.gls-hue-row input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.gls-hue-row input[type="range"]::-moz-range-track { background: transparent; }
+
+.gls-color-hex-out {
+    text-align: center;
+    font-family: ui-monospace, 'Cascadia Code', Consolas, Menlo, monospace;
+    font-size: 0.85em;
+    color: var(--gls-text-2);
+    user-select: none;
+}
+
+.gls-s-num {
+    width: 90px !important;
+    flex: 0 0 auto !important;
+}
+
+/* Range sliders (highlight opacity, sound volume): themed accent + explicit
+   grab cursor. accent-color themes the native track/thumb in every engine
+   without custom track CSS. */
+.gls-s-range {
+    accent-color: var(--gls-accent);
+    cursor: pointer;
+}
+
+/* Live highlight preview chip: shows exactly what a marked word will look
+   like — background mixes the chosen color at the chosen opacity over the
+   panel surface, mirroring the chat rule #chat.gls-hl-background .gls-marker.
+   Both vars are written to :root by applyHighlightStyles (renderer.js), so
+   dragging the picker or the slider re-renders this chip live, no JS needed. */
+.gls-hl-preview {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--gls-hl-color) calc(var(--gls-hl-opacity) * 100%), var(--gls-bg));
+    border: 1px solid var(--gls-line);
+    font-size: 0.85em;
+    color: var(--gls-text-2);
+    white-space: nowrap;
+    flex: 0 0 auto;
+    user-select: none;
+}
+
+/* ── Settings-side live previews (Display section) ──
+   Both previews read the same :root custom properties the real surfaces use
+   (written by applyHighlightStyles / theme-sync), so color/opacity/font/width
+   sliders re-render them with zero JS. Only class-driven state (highlight
+   style, header on/off, displayMode's sup) needs the syncDisplayPreviews()
+   swap in settings-sync.js. */
+
+/* Marker snapshot: a strip over the (opaque) chat surface with a real
+   .gls-marker + .gls-sup inside — shows style × color × opacity × marker
+   size exactly as the chat renders it. Text hugs the RIGHT edge on purpose:
+   the HSV popover opens below-left of the color button (~196px wide) and
+   would cover the strip's left zone, so the marked word — the last word of
+   the sample sentence — stays in view while a color is being dragged. */
+.gls-chat-preview {
+    padding: var(--gls-sp-2) var(--gls-sp-3);
+    border-radius: var(--gls-radius);
+    background: var(--gls-bg);
+    border: 1px solid var(--gls-line);
+    color: var(--gls-text);
+    font-size: 0.9em;
+    line-height: 1.6;
+    text-align: right;
+    user-select: none;
+}
+.gls-chat-preview .gls-marker { cursor: default; }
+/* displayMode 'inline' renders markers without the superscript index —
+   mirror that in the snapshot. */
+.gls-chat-preview.gls-preview-inline .gls-sup { display: none; }
+/* displayMode 'panel' renders neither markers nor popup — dim both snapshots
+   so the style controls around them don't read as applicable. */
+.gls-preview-disabled {
+    opacity: 0.35;
+    filter: grayscale(0.6);
+}
+
+/* Popup snapshot: static twin of .gls-popup (position/z-index/animation
+   dropped), sized by the same --gls-popup-maxw the slider publishes. */
+.gls-popup-preview {
+    background: var(--gls-surface);
+    color: var(--gls-text);
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-popup-radius, var(--gls-radius-lg));
+    /* Same float shadow as the real popup — the snapshot must show the
+       separation halo users will see over the chat. */
+    box-shadow: var(--gls-shadow-float);
+    font-family: var(--gls-font-family);
+    font-size: var(--gls-font-size);
+    width: min(var(--gls-popup-maxw, 420px), 100%);
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    user-select: none;
+    pointer-events: none;
+}
+.gls-popup-preview--no-header .gls-popup-header { display: none; }
+/* Preview header buttons are static spans; FA icons stand in for the real
+   inline-SVG sprite at the same 16px box the popup buttons use. */
+.gls-popup-preview .fa-fw { font-size: 16px; }
+
+/* Caption above each snapshot. */
+.gls-s-preview-label {
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gls-text-3);
+    margin-bottom: 4px;
+}
+
+/* Sound primary row: enable toggle + volume label + slider on one flexible
+   line (wraps on narrow screens). Replaces the former inline flex styles. */
+.gls-s-sound-row {
+    display: flex;
+    align-items: center;
+    gap: var(--gls-sp-2);
+    flex-wrap: wrap;
+}
+
+.gls-s-sound-row .gls-s-toggle-row { flex: 1 1 auto; min-width: 150px; }
+.gls-s-inline-label { flex: 0 0 auto; margin: 0; }
+.gls-s-sound-row .gls-s-range { flex: 1 1 100px; min-width: 80px; }
+
+/* Secondary file-row: label + select. */
+.gls-s-file-row {
+    display: flex;
+    align-items: center;
+    gap: var(--gls-sp-2);
+    margin-top: var(--gls-sp-2);
+}
+
+.gls-s-file-row .gls-s-field-label { flex: 0 0 auto; margin: 0; }
+
+.gls-s-sound-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gls-sp-2);
+}
+
+.gls-s-upload { cursor: pointer; }
+
+/* Titled sub-card: grouped content inside a section (context blocks, the
+   Popup appearance card, the Advanced lenses card). One visual grammar for
+   all of them. [hidden] must beat display:flex — the hybrid lens card is
+   shown/hidden by updatePromptPanels via the hidden attribute. */
+.gls-s-context-group,
+.gls-s-subcard {
+    border: 1px solid var(--gls-border);
+    border-radius: var(--gls-radius-sm);
+    background: color-mix(in srgb, var(--gls-text) 4%, transparent);
+    padding: var(--gls-sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--gls-sp-2);
+}
+.gls-s-subcard[hidden] { display: none; }
+
+.gls-s-context-title,
+.gls-s-subcard-title {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--gls-text-2);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 2px;
+}
+

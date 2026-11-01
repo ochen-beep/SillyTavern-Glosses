@@ -1,0 +1,22 @@
+/* ══════════════════════════════════════════════════════════
+   ICONS (inline SVG sprite from src/ui/icons.js)
+   ══════════════════════════════════════════════════════════ */
+
+.gls-icon {
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+.gls-icon-spin { animation: gls-icon-spin 0.9s linear infinite; }
+
+@keyframes gls-icon-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gls-icon-spin { animation-duration: 2.4s; }
+}
+
