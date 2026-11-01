@@ -25,6 +25,23 @@ const { defaultPosition, clampPosition, clampFabPosition, computeRestoredPositio
 
 const VP = { width: 1920, height: 1080 };
 
+/**
+ * Concatenate every stylesheet in the root index's @import order. The CSS
+ * lives in styles/*.css behind style.css's import index (beep-hygiene root
+ * cap), so layering contracts must read the CONCATENATION — the same surface
+ * the browser applies, order included.
+ */
+async function readAllCss() {
+    const root = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+    const order = [...root.matchAll(/@import url\('styles\/([^']+)'\);/g)].map(m => m[1]);
+    assert.ok(order.length > 0, 'style.css should import the styles/ index');
+    let css = '';
+    for (const file of order) {
+        css += `\n/* ${file} */\n` + await readFile(new URL(`../styles/${file}`, import.meta.url), 'utf8');
+    }
+    return css;
+}
+
 // ── defaultPosition ──
 
 test('defaultPosition anchors to the bottom-right corner (desktop)', () => {
@@ -95,7 +112,7 @@ test('computeRestoredPosition rejects malformed payloads', () => {
 // ── Layering contract (vs style.css) ──
 
 test('.gls_fab layers above the panel, below ST chrome and the popup (FAB toggle contract)', async () => {
-    const css = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+    const css = await readAllCss();
     const rule = css.match(/\.gls_fab\s*\{([\s\S]*?)\n\}/);
     assert.ok(rule, '.gls_fab rule should exist');
     // 2999: clickable over the floating panel (2998) — the FAB is the panel's
@@ -108,14 +125,14 @@ test('.gls_fab layers above the panel, below ST chrome and the popup (FAB toggle
 });
 
 test('.gls-panel stays one layer under the FAB it toggles', async () => {
-    const css = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+    const css = await readAllCss();
     const panel = css.match(/\.gls-panel\s*\{([\s\S]*?)\n\}/);
     assert.ok(panel, '.gls-panel rule should exist');
     assert.match(panel[1], /z-index:\s*2998;/, '.gls-panel should remain at z-index 2998 (under the FAB 2999, under ST chrome 3000+)');
 });
 
 test('generating pulse rules cover both launchers with a reduced-motion fallback', async () => {
-    const css = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+    const css = await readAllCss();
     // generator.js toggles .gls_generating on #gls_launcher + #gls_fab (the DOM
     // glue itself is not unit-tested, so the class-name contract lives here).
     assert.match(css, /\.gls_launcher\.gls_generating/, 'bar launcher pulse rule should exist');
