@@ -25,7 +25,8 @@ import {
 } from '../cache.js';
 import { targetedOf, reindexTargeted, variantText } from '../domain/footnote-payload.js';
 import { isAnnotatableMsg } from '../domain/message-identity.js';
-import { removeHighlights, reinjectInto, formatFootnoteText } from '../renderer.js';
+import { removeHighlights, reinjectInto } from '../renderer.js';
+import { formatFootnoteText } from '../footnote-format.js';
 import { indexToTargetedSymbol, stripLeadingNumber } from '../parser.js';
 import { normalizeAnchorKey } from '../anchor-utils.js';
 import { renumberFootnotes } from '../application/footnote-commands.js';

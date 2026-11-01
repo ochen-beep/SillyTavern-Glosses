@@ -13,7 +13,9 @@ import {
     getExtBase, HYBRID_BUILTIN_LENSES,
 } from '../core.js';
 import { generationCoordinator } from '../application/generation-coordinator.js';
-import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll, closePopup } from '../renderer.js';
+import { removeHighlights, restoreHighlightsAll, reapplyHighlightsAll } from '../renderer.js';
+import { applyHighlightStyles } from './highlight-styles.js';
+import { closePopup } from './footnote-popup.js';
 import { getProfiles, getProfileDetails, confirmInsecureEndpoint } from '../connection.js';
 import { classifyEndpoint, isOriginAllowed } from '../infrastructure/endpoint-policy.js';
 import { updatePanel, invalidateAiMsgCache, panelInvalidate } from './window.js';

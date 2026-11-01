@@ -28,7 +28,7 @@ SillyTavern.libs.DOMPurify.sanitize = (html, opts = {}) => {
     return s;
 };
 
-import { formatFootnoteText, splitFootnoteHead } from '../src/renderer.js';
+import { formatFootnoteText, splitFootnoteHead } from '../src/footnote-format.js';
 import { sanitize, escapeHtml } from '../src/core.js';
 import { stripLeadingNumber } from '../src/parser.js';
 

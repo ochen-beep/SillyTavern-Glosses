@@ -21,8 +21,9 @@ import {
 } from './domain/footnote-payload.js';
 import {
     injectHighlights, removeHighlights, reinjectInto, restoreHighlightsAll, restoreMessage, addRegenButton,
-    installMarkerDelegation, resetLazyInjector, closePopup,
+    installMarkerDelegation, resetLazyInjector,
 } from './renderer.js';
+import { closePopup } from './ui/footnote-popup.js';
 import {
     updatePanel, setVisiblePost, invalidateAiMsgCache, panelInvalidate, clearTargetedTabState,
 } from './ui/window.js';

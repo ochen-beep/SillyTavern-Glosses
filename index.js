@@ -27,10 +27,9 @@ import {
     getCtx, log, warn, error, t,
 } from './src/core.js';
 import { deleteUserFile } from './src/user-files.js';
-import {
-    applyHighlightStyles, removeHighlights, closePopup,
-    uninstallMarkerDelegation, resetLazyInjector,
-} from './src/renderer.js';
+import { removeHighlights, uninstallMarkerDelegation, resetLazyInjector } from './src/renderer.js';
+import { applyHighlightStyles } from './src/ui/highlight-styles.js';
+import { closePopup } from './src/ui/footnote-popup.js';
 import {
     destroyPanel, updatePanel, initViewportSync, disconnectViewportSync,
     clearTargetedTabState,

@@ -369,7 +369,7 @@ test('openCssEditor builds once, opens transiently, and reuses the dialog', () =
     }
 });
 
-import { applyHighlightStyles } from '../src/renderer.js';
+import { applyHighlightStyles } from '../src/ui/highlight-styles.js';
 
 test('applyHighlightStyles republishes the custom CSS layer', () => {
     // fakeDocument() yields the document object directly ({ created, doc }),
