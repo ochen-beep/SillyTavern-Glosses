@@ -6,12 +6,12 @@ import { resetCtx, makeMessage } from './helpers/stub-runtime.mjs';
 import { loadSettings } from '../src/core.js';
 import {
     DIRECT_FOOTNOTE_CONTRACT,
-    buildContextBlocks,
     buildUserPrompt,
     generateFootnotes,
     _testClearApiOverride,
     _testSetApiOverride,
 } from '../src/generator.js';
+import { buildContextBlocks } from '../src/context-blocks.js';
 import { digestFor, getVariantFootnotes, listFootnoteSets, saveFootnotes, togglePoolExcluded, saveForcedIgnore } from '../src/cache.js';
 import { contentDigest } from '../src/domain/message-identity.js';
 

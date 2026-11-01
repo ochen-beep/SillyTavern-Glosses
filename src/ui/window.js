@@ -97,7 +97,8 @@ async function runTargetedGeneration() {
         const swipeIdx = message.swipe_id ?? 0;
         const startDigest = digestFor(messageId, swipeIdx);
         const epoch = beginGenerationEpoch();
-        const { assembleStyle, buildContextBlocks, getOutputLanguage } = await import('../generator.js');
+        const { assembleStyle, getOutputLanguage } = await import('../generator.js');
+        const { buildContextBlocks } = await import('../context-blocks.js');
         const [style, blocks] = await Promise.all([
             assembleStyle(),
             // skipForbidden: explicit user targets must not be second-guessed
