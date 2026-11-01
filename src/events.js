@@ -25,8 +25,9 @@ import {
 } from './renderer.js';
 import { closePopup } from './ui/footnote-popup.js';
 import {
-    updatePanel, setVisiblePost, invalidateAiMsgCache, panelInvalidate, clearTargetedTabState,
+    updatePanel, setVisiblePost, invalidateAiMsgCache, panelInvalidate,
 } from './ui/window.js';
+import { clearTargetedTabState } from './ui/panel-targeted-tab.js';
 import { ensureLauncher } from './ui/launcher.js';
 import { generateFootnotes } from './generator.js';
 import { checkSourceConfigured } from './connection.js';

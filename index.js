@@ -31,9 +31,10 @@ import { removeHighlights, uninstallMarkerDelegation, resetLazyInjector } from '
 import { applyHighlightStyles } from './src/ui/highlight-styles.js';
 import { closePopup } from './src/ui/footnote-popup.js';
 import {
-    destroyPanel, updatePanel, initViewportSync, disconnectViewportSync,
-    clearTargetedTabState,
+    destroyPanel, updatePanel,
 } from './src/ui/window.js';
+import { initViewportSync, disconnectViewportSync } from './src/ui/panel-layout.js';
+import { clearTargetedTabState } from './src/ui/panel-targeted-tab.js';
 import {
     bindEvents, unbindEvents, initScrollObserver, disconnectScrollObserver,
 } from './src/events.js';
