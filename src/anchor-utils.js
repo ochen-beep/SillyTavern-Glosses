@@ -7,13 +7,18 @@
 const _SINGLE_QUOTES = /[\u2018\u2019\u201A\u201B']/gu;
 const _DOUBLE_QUOTES = /[\u201C\u201D\u201E\u201F«»"]/gu;
 const _DASHES = /[\u2010\u2011\u2012\u2013\u2014\u2212-]/gu;
+// Typographic ellipsis → three ASCII dots: models routinely re-quote a post's
+// … (U+2026) as `...` in anchors, exact matching is byte-normalized, and the
+// fuzzy tier cannot rescue long anchors (word cap 12). … U+2026, ⋯ U+22EF.
+const _ELLIPSES = /[\u2026\u22EF]/gu;
 
 function normalizeChar(ch) {
     return ch
         .normalize('NFC')
         .replace(_SINGLE_QUOTES, "'")
         .replace(_DOUBLE_QUOTES, '"')
-        .replace(_DASHES, '-');
+        .replace(_DASHES, '-')
+        .replace(_ELLIPSES, '...');
 }
 
 export function normalizeAnchorKey(value) {
@@ -24,6 +29,7 @@ export function normalizeAnchorKey(value) {
         .replace(_SINGLE_QUOTES, "'")
         .replace(_DOUBLE_QUOTES, '"')
         .replace(_DASHES, '-')
+        .replace(_ELLIPSES, '...')
         .replace(/\s+/gu, ' ');
 }
 

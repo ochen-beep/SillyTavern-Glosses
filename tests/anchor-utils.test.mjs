@@ -48,3 +48,21 @@ test('occurrences after an emoji are still found by the span sweep', () => {
     const spans = findAllAnchorSpans('фонарь 😀 фонарь и фонарь', 'фонарь');
     assert.deepEqual(spans.map(({ start, end }) => [start, end]), [[0, 6], [10, 16], [19, 25]]);
 });
+
+test('typographic ellipsis in the post matches ASCII dots in the anchor (both ways)', () => {
+    // B#2 (user report 2026-11-06): the post carries … (U+2026, one char) while
+    // models routinely re-quote it as three ASCII dots — the anchor then drops
+    // as "not found" before any cap logic, and the fuzzy tier cannot rescue
+    // long anchors (word cap 12). Both directions must canonicalize.
+    const post = 'înseamnă că până duminică mândra contesă va prinde de veste, și atunci vor fi siliți să…';
+    const anchor = 'și atunci vor fi siliți să...';
+    const hit = findAnchorInText(post, anchor);
+    assert.ok(hit, 'ASCII-dot anchor must match an ellipsis post');
+    assert.equal(hit.text, 'și atunci vor fi siliți să…', 'the resolved text is the verbatim source slice');
+    // Reverse direction: anchor quotes the typographic char, post has dots.
+    const dottedPost = 'se așteaptă ca vor fi siliți să... și va fi vizibil';
+    const ellipsisAnchor = 'ca vor fi siliți să… și va';
+    assert.ok(findAnchorInText(dottedPost, ellipsisAnchor),
+        'ellipsis anchor must match an ASCII-dot post');
+    assert.equal(normalizeAnchorKey('să…'), normalizeAnchorKey('să...'), 'keys collide as the same anchor');
+});
