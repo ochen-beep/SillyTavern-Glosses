@@ -98,7 +98,10 @@ export function injectHighlights(mesEl, footnotes) {
     const mesText = mesEl.querySelector('.mes_text');
     if (!mesText || !footnotes?.length) return;
 
-    const withAnchor = footnotes.filter(f => f.anchor?.trim());
+    // Floating entries (anchor absent from the post) still render in the
+    // inline block/panel, but wrapAnchors would re-warn "not found" for them
+    // on every render — exclude them from wrapping up front.
+    const withAnchor = footnotes.filter(f => f.anchor?.trim() && !f.floating);
     if (!withAnchor.length) {
         // No anchors to highlight inside the text, but if the user picked the
         // `inline`/`both` displayMode we still emit the under-post block so

@@ -517,9 +517,12 @@ function renderFootnotesTab(msgId) {
         // twice — the panel owns the number, the text owns the prose.
         // Targeted entries show their typographic symbol instead and carry no
         // numeric prefix at all; a floating one (target not present in the
-        // post text) gets a badge since it has no marker in the chat.
+        // post text) gets a badge since it has no marker in the chat. Regular
+        // footnotes carry the same badge when flagged floating (their anchor
+        // is not in the post — B#3); legacy anchored entries without context
+        // selectors have no flag and stay badge-free.
         const main = makeEntryMain(fn, isTargeted);
-        if (isTargeted && !fn.prefix && !fn.suffix) {
+        if (!fn.prefix && !fn.suffix && (isTargeted || fn.floating)) {
             const badge = document.createElement('span');
             badge.className = 'gls-panel-floating-badge';
             badge.textContent = t('not anchored');

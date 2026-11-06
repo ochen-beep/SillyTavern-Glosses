@@ -56,10 +56,13 @@ test('direct validation is exact-only, preserves source slice, and deduplicates 
     const result = validateFootnotes({ footnotes: [
         { index: 1, anchor: 'кот', text: '¹ Cat (noun) — explanation' },
         { index: 2, anchor: 'КОТ', text: '² Cat (noun) — duplicate' },
-        { index: 3, anchor: 'Коты', text: '³ Cats (noun) — inflection must fail' },
-        { index: 4, anchor: 'скот', text: '⁴ Cattle (noun) — boundary must fail' },
+        { index: 3, anchor: 'Коты', text: '³ Cats (noun) — inflection' },
+        { index: 4, anchor: 'скот', text: '⁴ Cattle (noun) — boundary' },
     ] }, prompt);
-    assert.deepEqual(result.map(f => f.anchor), ['Кот']);
+    // The resolved dup ('КОТ') drops; the two misses stay as FLOATING entries
+    // (B#3) — the user sees them, they just have no marker.
+    assert.deepEqual(result.filter(f => !f.floating).map(f => f.anchor), ['Кот']);
+    assert.deepEqual(result.filter(f => f.floating).map(f => f.anchor), ['Коты', 'скот']);
 });
 
 test('direct validation accepts typographic exact match and ignores legacy fields', () => {
@@ -106,11 +109,13 @@ test('against-text validation can rescue anchors through the fallback resolver',
     assert.equal(result[0].anchor, 'сурьмой');
 });
 
-test('against-text validation drops anchors neither exact nor resolvable', () => {
+test('against-text validation keeps unresolvable anchors as floating entries', () => {
     const post = 'Натёрла сурьмой глаза.';
     const result = validateFootnotesAgainstText({ footnotes: [
         { anchor: 'телескоп', text: '¹ Телескоп (опт.) — прибор' },
     ] }, post, [], (anchor) => findFuzzySpan(post, anchor));
-    assert.equal(result, null);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].floating, true);
+    assert.equal(result[0].anchor, 'телескоп');
 });
 

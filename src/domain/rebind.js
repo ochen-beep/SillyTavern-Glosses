@@ -95,6 +95,7 @@ export function rebindFootnotes(footnotes, newText) {
             orphans.push({ index: fn?.index, anchor });
             continue;
         }
+        const floating = Boolean(fn?.floating);
         let occurrences = findAllAnchorSpans(text, anchor);
         let fuzzyHit = null;
         if (!occurrences.length) {
@@ -102,13 +103,17 @@ export function rebindFootnotes(footnotes, newText) {
             if (fuzzyHit) occurrences = [fuzzyHit];
         }
         if (!occurrences.length) {
-            orphans.push({ index: fn?.index, anchor });
+            // A floating entry was never anchored — a miss keeps it floating,
+            // it does not become a "lost anchor" (B#3, mirrors rebindTargeted).
+            if (floating) survivors.push({ ...fn });
+            else orphans.push({ index: fn?.index, anchor });
             continue;
         }
         const ranked = rankOccurrencesByContext(occurrences, fn, text);
         const chosen = ranked.find(span => !claimed.some(c => spansOverlap(c, span)));
         if (!chosen) {
-            orphans.push({ index: fn?.index, anchor });
+            if (floating) survivors.push({ ...fn });
+            else orphans.push({ index: fn?.index, anchor });
             continue;
         }
         claimed.push(chosen);
@@ -117,6 +122,9 @@ export function rebindFootnotes(footnotes, newText) {
             out.anchor = fuzzyHit.text;
             fuzzyRescues.push({ from: anchor, to: fuzzyHit.text, distance: fuzzyHit.distance });
         }
+        // The phrase (re)appeared in the text — the entry anchors itself and
+        // stops being floating.
+        delete out.floating;
         Object.assign(out, computeContextSelectors(text, chosen.start, chosen.end));
         survivors.push(out);
     }

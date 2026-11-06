@@ -444,9 +444,24 @@ export function validateFootnotesAgainstText(parsed, postText, forcedIgnore = []
             if (!f.text || !f.anchor) { dropped.push({ anchor: f.anchor, reason: 'empty' }); return false; }
             if (f.anchor.length > 120) { dropped.push({ anchor: f.anchor, reason: 'too long' }); return false; }
 
+            // The user's forbidden list bans the PHRASE, whether or not it is
+            // in the post — a banned phrase never becomes a footnote.
+            const modelKey = normalizeAnchorKey(f.anchor);
+            if (forbidden.has(modelKey)) { dropped.push({ anchor: f.anchor, reason: 'forced ignore' }); return false; }
+
             const hit = findAnchorInText(postText, f.anchor)
                 ?? (typeof resolveFallback === 'function' ? resolveFallback(f.anchor) : null);
-            if (!hit) { dropped.push({ anchor: f.anchor, reason: 'not found' }); return false; }
+            if (!hit) {
+                // B#3 (owner decision): an anchor the post does not contain is
+                // kept as a FLOATING footnote (no marker, "not anchored" badge
+                // in the panel) instead of being dropped — the user sees
+                // everything the model returned. Duplicates among floating
+                // entries still collapse.
+                if (seen.has(modelKey)) { dropped.push({ anchor: f.anchor, reason: 'dup' }); return false; }
+                seen.add(modelKey);
+                f.floating = true;
+                return true;
+            }
             f.anchor = hit.text;
             const key = normalizeAnchorKey(f.anchor);
             if (forbidden.has(key)) { dropped.push({ anchor: f.anchor, reason: 'forced ignore' }); return false; }

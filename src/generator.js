@@ -558,9 +558,12 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         // entries constrained to the renderer/cache footnote shape, plus the
         // context selectors (prefix/suffix around the resolved span) that let
         // re-injections prefer the occurrence each anchor was originally
-        // placed on when the anchor string occurs multiple times.
+        // placed on when the anchor string occurs multiple times. Floating
+        // entries (anchor not in the post) ride along with their flag — no
+        // selectors resolve for them.
         footnotes = footnotes.map((f) => {
             const out = { index: f.index, anchor: f.anchor, text: f.text };
+            if (f.floating) out.floating = true;
             if (validationText !== null) {
                 const hit = findAnchorInText(validationText, f.anchor);
                 if (hit) Object.assign(out, computeContextSelectors(validationText, hit.start, hit.end));
