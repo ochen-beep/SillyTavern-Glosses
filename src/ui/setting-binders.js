@@ -24,7 +24,7 @@ export function createBinders(on) {
         if (!el) return;
         el.value = S()[key] ?? 0;
         // Honor the input's own min/max contract (settings.html declares it, e.g.
-        // max footnotes 1–20, context depth 0–50). Native number validation only
+        // max footnotes 1–100, context depth 0–50). Native number validation only
         // styles/spinners — it never blocks a TYPED value, so without this clamp
         // out-of-range numbers persisted and showed in the field.
         const min = parseFloat(el.getAttribute?.('min'));
