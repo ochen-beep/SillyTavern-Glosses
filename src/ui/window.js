@@ -321,8 +321,10 @@ export function updatePanel() {
  * header of a visible panel; this module only reports visibility changes.
  * Dynamic import — floating-launcher statically imports this module, so a
  * static back-import would close a cycle (same pattern as launcher.js).
+ * Exported (F5): panel-layout calls this via its own dynamic import instead
+ * of keeping a twin helper.
  */
-function syncFabPassthrough() {
+export function syncFabPassthrough() {
     import('./floating-launcher.js')
         .then(({ syncFloatingLauncher }) => syncFloatingLauncher())
         .catch(() => { /* best-effort UI nicety */ });

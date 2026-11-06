@@ -14,8 +14,10 @@ import { whenSendFormReady } from './dom-ready.js';
 
 /** Layout moved — the FAB-over-header passthrough must be re-evaluated. */
 function _syncFabAfterLayoutChange() {
-    import('./floating-launcher.js')
-        .then(({ syncFloatingLauncher }) => syncFloatingLauncher())
+    // Dynamic import of window.js (which statically imports THIS module) —
+    // a static import would close a cycle; runtime resolution is safe.
+    import('./window.js')
+        .then(({ syncFabPassthrough }) => syncFabPassthrough())
         .catch(() => { /* best-effort UI nicety */ });
 }
 
