@@ -507,3 +507,9 @@
     margin-bottom: 2px;
 }
 
+
+/* Confirmed-origin rows (S1): label left, revoke ✕ right. */
+.gls-s-endpoint-list { display: flex; flex-direction: column; gap: 4px; }
+.gls-s-endpoint-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gls-s-endpoint-row .gls-s-hint { overflow-wrap: anywhere; }
+.gls-s-mini-btn { padding: 2px 8px; font-size: 0.85em; }

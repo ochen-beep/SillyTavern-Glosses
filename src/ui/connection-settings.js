@@ -27,6 +27,9 @@ function httpConfirmEls() {
 }
 
 export function refreshHttpConfirm() {
+    // The confirmed-origin list tracks the same source/endpoint state — one
+    // refresh path keeps both in sync.
+    renderEndpointAllowlist();
     const { group, text } = httpConfirmEls();
     if (!group || !text) return;
     if (S().source !== 'custom') { group.hidden = true; return; }
@@ -51,6 +54,7 @@ export function refreshHttpConfirm() {
 export function bindHttpConfirm() {
     const { btn } = httpConfirmEls();
     refreshHttpConfirm();
+    bindEndpointAllowlist();
     if (!btn || btn.dataset.glsHttpConfirmBound === '1') return;
     // Plain listener (not the bind-scoped `on()`): the settings DOM is
     // recreated on every enable, so the element lifetime bounds the listener.
@@ -60,6 +64,56 @@ export function bindHttpConfirm() {
         if (!verdict.ok || verdict.kind !== 'insecure-http') { refreshHttpConfirm(); return; }
         confirmInsecureEndpoint(verdict.normalized, S().customEndpointAllowlist || []);
         try { notifyUser('success', t('Endpoint origin confirmed.'), 'gls-http-confirm'); } catch { /* non-fatal */ }
+        refreshHttpConfirm();
+    });
+}
+
+// ── Confirmed-origin list (S1) ──
+// The allowlist could only grow: a confirmed insecure origin stayed trusted
+// until settings.json surgery. This list renders each confirmed origin with
+// a revoke ✕; removal re-arms the confirmation hint for the current endpoint.
+
+/** Render the confirmed-origin list (called from refreshHttpConfirm). */
+export function renderEndpointAllowlist() {
+    const group = document.getElementById('gls_endpoint_allowlist_group');
+    const list = document.getElementById('gls_endpoint_allowlist');
+    if (!group || !list) return;
+    const entries = Array.isArray(S().customEndpointAllowlist) ? S().customEndpointAllowlist : [];
+    const visible = S().source === 'custom' && entries.length > 0;
+    group.hidden = !visible;
+    list.replaceChildren();
+    if (!visible) return;
+    for (const origin of entries) {
+        const row = document.createElement('div');
+        row.className = 'gls-s-endpoint-row';
+        const label = document.createElement('span');
+        label.className = 'gls-s-hint';
+        label.textContent = origin;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'menu_button gls-s-mini-btn';
+        btn.textContent = '✕';
+        btn.title = t('Revoke this origin');
+        btn.dataset.glsRevokeOrigin = origin;
+        row.append(label, btn);
+        list.appendChild(row);
+    }
+}
+
+/** One delegated listener for the revoke buttons (element-lifetime bound). */
+export function bindEndpointAllowlist() {
+    const list = document.getElementById('gls_endpoint_allowlist');
+    if (!list || list.dataset.glsBound === '1') return;
+    list.dataset.glsBound = '1';
+    list.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-gls-revoke-origin]');
+        if (!btn) return;
+        const origin = btn.dataset.glsRevokeOrigin;
+        S().customEndpointAllowlist = (S().customEndpointAllowlist || []).filter(o => o !== origin);
+        saveSettings();
+        renderEndpointAllowlist();
+        // If the revoked origin was the current endpoint's, its confirm hint
+        // comes back on the next refresh.
         refreshHttpConfirm();
     });
 }

@@ -55,6 +55,13 @@
                     <small class="gls-s-hint" id="gls_http_confirm_text"></small>
                     <button id="gls_http_confirm_btn" class="menu_button" type="button" data-i18n="Confirm insecure endpoint">Confirm insecure endpoint</button>
                 </div>
+                <!-- S1: confirmed insecure origins can be revoked — without
+                     this list the allowlist only grew (trust until manual
+                     settings.json surgery). -->
+                <div class="gls-s-field-group" id="gls_endpoint_allowlist_group" hidden>
+                    <span class="gls-s-field-label" data-i18n="Confirmed insecure origins">Confirmed insecure origins</span>
+                    <div id="gls_endpoint_allowlist" class="gls-s-endpoint-list"></div>
+                </div>
                 <div class="gls-s-field-group">
                     <label class="gls-s-field-label" for="gls_custom_apikey">
                         <span data-i18n="API key">API key</span>
