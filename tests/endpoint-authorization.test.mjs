@@ -11,13 +11,32 @@ import assert from 'node:assert/strict';
 
 import './helpers/stub-runtime.mjs';
 import { resetCtx } from './helpers/stub-runtime.mjs';
-import { loadSettings } from '../src/core.js';
+import { loadSettings, getApiKey, setApiKey } from '../src/core.js';
 import { checkSourceConfigured, confirmInsecureEndpoint } from '../src/connection.js';
 
 function setup(settings) {
     resetCtx({ extensionSettings: { Glosses: settings } });
     loadSettings();
 }
+
+test('getApiKey memoizes the store; setApiKey seeds/invalidates without a store read', async () => {
+    const origGetItem = SillyTavern.libs.localforage.getItem;
+    let reads = 0;
+    SillyTavern.libs.localforage.getItem = async () => { reads++; return 'FROM-STORE'; };
+    try {
+        // setApiKey seeds the memo directly — no store read afterwards.
+        await setApiKey('sk-seeded');
+        assert.equal(await getApiKey(), 'sk-seeded');
+        assert.equal(await getApiKey(), 'sk-seeded');
+        assert.equal(reads, 0, 'memoized — IndexedDB untouched on the hot path');
+        // A new value invalidates and seeds in one call.
+        await setApiKey('sk-two');
+        assert.equal(await getApiKey(), 'sk-two');
+        assert.equal(reads, 0);
+    } finally {
+        SillyTavern.libs.localforage.getItem = origGetItem;
+    }
+});
 
 test('insecure-http endpoint is rejected before the API key is read', async () => {
     setup({ source: 'custom', customEndpoint: 'http://api.example.com/v1' });
