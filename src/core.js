@@ -491,17 +491,26 @@ export async function flushSettings() {
 
 // ── Custom-endpoint API key (localforage; kept out of the settings JSON) ──
 
+// P2: the key changes at most once per settings edit, but with auto-generate
+// on, checkSourceConfigured() read it from IndexedDB per rendered message
+// (and again per request). A null-undefined memo keeps IndexedDB untouched on
+// the hot path; setApiKey() invalidates (and seeds the new value directly).
+let _apiKeyMemo;   // undefined = cold; string (incl. '') = warm
+
 export async function getApiKey() {
+    if (_apiKeyMemo !== undefined) return _apiKeyMemo;
     try {
-        return (await SillyTavern.libs.localforage.getItem(LF_API_KEY)) || '';
-    } catch { return ''; }
+        _apiKeyMemo = (await SillyTavern.libs.localforage.getItem(LF_API_KEY)) || '';
+    } catch { return ''; }   // unreadable store — stay cold so the next call retries
+    return _apiKeyMemo;
 }
 
 export async function setApiKey(key) {
     try {
         if (key) await SillyTavern.libs.localforage.setItem(LF_API_KEY, key);
         else     await SillyTavern.libs.localforage.removeItem(LF_API_KEY);
-    } catch { /* non-critical */ }
+        _apiKeyMemo = key || '';
+    } catch { /* non-critical; keep the memo cold so nothing claims a stale key */ }
 }
 
 // ── Confirmation / Input modals (ST Popup, native fallback) ──
