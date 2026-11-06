@@ -365,10 +365,11 @@ function parseTextFootnoteLine(line) {
         const anchorMatch = body.match(/^(.+?)\s*[\u2013\u2014(]/u);
         if (anchorMatch) {
             anchor = anchorMatch[1].trim();
-            // Cap kept in sync with validateFootnotes' 'too long' guard. With
-            // EXACTLY N count pressure (buildUserPrompt), the model emits short
-            // discrete anchors (< 60), so this fires only on junk. See
-            // 2026-07-02-glosses-hybrid-exactly-n-design.md §4.
+            // This caps the LABEL-derived anchor of the text-fallback path
+            // (the part before the dash), not quoted clauses — labels are
+            // inherently short, so > 60 means junk. NOT in sync with the JSON
+            // validation cap (that one caps quoted anchors; PAR-1 raised it
+            // to 400). See 2026-07-02-glosses-hybrid-exactly-n-design.md §4.
             if (anchor.length > 60) anchor = '';
         }
     }
@@ -442,7 +443,9 @@ export function validateFootnotesAgainstText(parsed, postText, forcedIgnore = []
         }))
         .filter(f => {
             if (!f.text || !f.anchor) { dropped.push({ anchor: f.anchor, reason: 'empty' }); return false; }
-            if (f.anchor.length > 120) { dropped.push({ anchor: f.anchor, reason: 'too long' }); return false; }
+            // Anchor length cap: PAR-1 raised 120 → 400 (models legitimately
+            // quote long verbatim clauses; the contract asks for clauses).
+            if (f.anchor.length > 400) { dropped.push({ anchor: f.anchor, reason: 'too long' }); return false; }
 
             // The user's forbidden list bans the PHRASE, whether or not it is
             // in the post — a banned phrase never becomes a footnote.

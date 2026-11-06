@@ -119,3 +119,17 @@ test('against-text validation keeps unresolvable anchors as floating entries', (
     assert.equal(result[0].anchor, 'телескоп');
 });
 
+
+test('anchor length cap: 400 passes, 401 drops (PAR-1)', () => {
+    const long = 'к'.repeat(200) + ' ' + 'м'.repeat(197);   // 398-char verbatim phrase
+    const post = `Начало. ${long} Конец.`;
+    const ok = validateFootnotesAgainstText({ footnotes: [{ anchor: long, text: '¹ Длинная фраза.' }] }, post);
+    assert.equal(ok.length, 1, 'a long verbatim anchor passes under the 400 cap');
+    const tooLong = 'я'.repeat(401);
+    const dropped = validateFootnotesAgainstText({ footnotes: [
+        { anchor: long, text: '¹ ok.' },
+        { anchor: tooLong, text: '² too long.' },
+    ] }, post);
+    assert.equal(dropped.length, 1, '401 chars still drop');
+    assert.equal(dropped[0].anchor, long);
+});
