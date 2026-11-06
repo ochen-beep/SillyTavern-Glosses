@@ -562,6 +562,18 @@ export function bindSettingsUI() {
     on(soundFileEl, 'change', async () => {
         const file = soundFileEl.files?.[0];
         if (!file) return;
+        // S2: cap the upload — the data-URL read + base64 POST amplifies ~1.33×,
+        // and a multi-hundred-MB file is not a sound-notification payload size.
+        // The legacy-blob migration (sound.js) is NOT capped: it moves data the
+        // user already has locally.
+        const SOUND_UPLOAD_CAP_MB = 10;
+        if (file.size > SOUND_UPLOAD_CAP_MB * 1024 * 1024) {
+            try {
+                notifyUser('error', t('The sound file is too large (max {0} MB).', SOUND_UPLOAD_CAP_MB), 'gls-sound-upload');
+            } catch { /* non-fatal */ }
+            soundFileEl.value = '';
+            return;
+        }
         try {
             const dataUrl = await new Promise((resolve, reject) => {
                 const reader = new FileReader();

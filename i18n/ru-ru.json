@@ -327,5 +327,6 @@
     "Entry": "Запись",
     "Per-chat setting. When the activation cache is unavailable (regen of an older post), no lore is added rather than falling back to the global scan. Overrides the toggle above while enabled.": "Настройка чата. Когда кэш активации недоступен (регенерация старого поста), лор не добавляется — без отката к полному глобальному скану. Пока включено, перекрывает галочку выше.",
     "Confirmed insecure origins": "Подтверждённые незащищённые источники",
-    "Revoke this origin": "Отозвать этот источник"
+    "Revoke this origin": "Отозвать этот источник",
+    "The sound file is too large (max {0} MB).": "Файл звука слишком большой (максимум {0} МБ)."
 }
