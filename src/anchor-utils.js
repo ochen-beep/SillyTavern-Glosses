@@ -39,27 +39,35 @@ export function isWordChar(ch) {
     catch { return /[A-Za-z0-9_А-Яа-яЁё]/u.test(ch); }
 }
 
-/**
- * Grapheme-aware normalization with a position map back into the source
- * string. Shared by the flat-text matcher (findAnchorInText), the DOM text
- * index (text-index.js), and the fuzzy resolver so every surface applies the
- * SAME normalization policy (NFC, case, quotes/dashes, whitespace collapse)
- * with UTF-16 source spans as the common currency. `unitAt` converts a
- * UTF-16 index in `normalized` to its map entry — the two disagree once an
- * astral char (emoji) is present, so consumers must never index `map`
- * directly with string offsets.
- */
-export function normalizedWithMap(value) {
-    const source = String(value ?? '');
-    const pieces = [];
-    let segmenter;
-    try { segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' }); } catch { /* older engine */ }
-    if (segmenter) {
-        for (const part of segmenter.segment(source)) pieces.push({ text: part.segment, start: part.index, end: part.index + part.segment.length });
-    } else {
-        for (let i = 0; i < source.length; i++) pieces.push({ text: source[i], start: i, end: i + 1 });
+// P1: the grapheme Segmenter is expensive to construct and is stateless —
+// one per module suffices (previously built per call, once per anchor
+// attempt; with the 100-footnote cap that was ~100 constructions per inject).
+let _segmenter;
+function _graphemePieces(source) {
+    if (_segmenter === undefined) {
+        try { _segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' }); }
+        catch { _segmenter = null; }   // older engine — code-unit fallback
     }
+    if (_segmenter) {
+        const pieces = [];
+        for (const part of _segmenter.segment(source)) pieces.push({ text: part.segment, start: part.index, end: part.index + part.segment.length });
+        return pieces;
+    }
+    const pieces = [];
+    for (let i = 0; i < source.length; i++) pieces.push({ text: source[i], start: i, end: i + 1 });
+    return pieces;
+}
 
+// P1: the map for a given source text is pure and immutable after build, and
+// marker injection re-normalizes the SAME post once per anchor (up to 100
+// with the current cap) — a small LRU kills the per-anchor rebuild. Keys are
+// source strings (interned references, never copied); 8 posts cover an
+// active chat view amply.
+const _MAP_CACHE_MAX = 8;
+const _mapCache = new Map();
+
+function _buildNormalizedMap(source) {
+    const pieces = _graphemePieces(source);
     const units = [];
     let pendingSpace = null;
     for (const part of pieces) {
@@ -87,6 +95,31 @@ export function normalizedWithMap(value) {
         return undefined;
     };
     return { source, normalized: units.map(x => x.ch).join(''), map: units, unitAt };
+}
+
+/**
+ * Grapheme-aware normalization with a position map back into the source
+ * string. Shared by the flat-text matcher (findAnchorInText), the DOM text
+ * index (text-index.js), and the fuzzy resolver so every surface applies the
+ * SAME normalization policy (NFC, case, quotes/dashes, whitespace collapse)
+ * with UTF-16 source spans as the common currency. `unitAt` converts a
+ * UTF-16 index in `normalized` to its map entry — the two disagree once an
+ * astral char (emoji) is present, so consumers must never index `map`
+ * directly with string offsets.
+ */
+export function normalizedWithMap(value) {
+    const source = String(value ?? '');
+    const cached = _mapCache.get(source);
+    if (cached) {
+        // Map recency: delete+set moves the hit to the tail (LRU).
+        _mapCache.delete(source);
+        _mapCache.set(source, cached);
+        return cached;
+    }
+    const map = _buildNormalizedMap(source);
+    _mapCache.set(source, map);
+    if (_mapCache.size > _MAP_CACHE_MAX) _mapCache.delete(_mapCache.keys().next().value);
+    return map;
 }
 
 /** Find the first whole-phrase exact-normalized match and return original text. */
