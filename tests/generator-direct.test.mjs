@@ -6,6 +6,7 @@ import { resetCtx, makeMessage } from './helpers/stub-runtime.mjs';
 import { loadSettings } from '../src/core.js';
 import {
     DIRECT_FOOTNOTE_CONTRACT,
+    DIRECT_FOOTNOTE_CONTRACT_AUTO,
     buildUserPrompt,
     generateFootnotes,
     _testClearApiOverride,
@@ -36,6 +37,17 @@ test('direct contract describes only the footnotes payload', () => {
     assert.match(DIRECT_FOOTNOTE_CONTRACT, /exactly \{N\}/);
     assert.doesNotMatch(DIRECT_FOOTNOTE_CONTRACT, /candidate pool|PHASE 1|post_context/i);
     assert.doesNotMatch(DIRECT_FOOTNOTE_CONTRACT, /bracket notation in the "text"/);
+});
+
+// The advisory instruction must be CONDITIONAL-SAFE in both contracts: the
+// [Previously glossed anchors] block is itself conditional (avoidRepeat off /
+// empty pool), so an unconditional "prefer anchors not listed in the advisory"
+// would dangle a reference to a block that is not in the prompt.
+test('both contracts reference the advisory block conditionally', () => {
+    const re = /If a \[Previously glossed anchors\] block is provided below, prefer anchors not listed there/;
+    assert.match(DIRECT_FOOTNOTE_CONTRACT, re, 'fixed contract keeps the conditional advisory instruction');
+    assert.match(DIRECT_FOOTNOTE_CONTRACT_AUTO, re, 'auto contract explains the advisory block (it receives the same data)');
+    assert.doesNotMatch(DIRECT_FOOTNOTE_CONTRACT_AUTO, /reach \{N\}/, 'auto mode has no count to reach');
 });
 
 test('context keeps target first, prior advisory before background, and combines forbidden anchors', async () => {

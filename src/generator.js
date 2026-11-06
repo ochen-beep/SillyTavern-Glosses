@@ -393,7 +393,7 @@ export const DIRECT_FOOTNOTE_CONTRACT = `[ANNOTATOR CONTRACT — direct footnote
 
 Generate exactly {N} distinct footnotes. Return fewer only when the post genuinely cannot support that many. Never invent or borrow anchors from background blocks.
 
-Scan the entire [Annotate this post] block: foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. Prefer anchors not listed in the advisory previously-glossed block when possible, but reuse is allowed to reach {N}.
+Scan the entire [Annotate this post] block: foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible; reuse is allowed to reach {N}.
 
 Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
 
@@ -404,7 +404,7 @@ Output ONLY this JSON (no markdown fences, no prose):
 // forbidden list, JSON-only output) is identical to the fixed contract.
 export const DIRECT_FOOTNOTE_CONTRACT_AUTO = `[ANNOTATOR CONTRACT — direct footnotes, one response]
 
-Decide yourself how many footnotes this post deserves: annotate every anchor in [Annotate this post] that a curious reader would genuinely want explained — foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Spread the footnotes across the whole post instead of clustering in the opening. Never pad the list with weak or duplicate anchors; an honest small set beats an inflated one. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor.
+Decide yourself how many footnotes this post deserves: annotate every anchor in [Annotate this post] that a curious reader would genuinely want explained — foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Spread the footnotes across the whole post instead of clustering in the opening. Never pad the list with weak or duplicate anchors; an honest small set beats an inflated one. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible.
 
 Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
 
