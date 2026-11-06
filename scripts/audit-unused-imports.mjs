@@ -1,9 +1,19 @@
 // Audit script: report named imports that are never referenced in the module.
-import { readFileSync } from 'node:fs';
+// With no argv files, self-discovers index.js + src/**/*.js — `npm test` runs
+// the audit argument-free, so an explicit list would silently scan nothing.
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const files = process.argv.slice(2);
+let files = process.argv.slice(2);
+if (!files.length) {
+    const root = fileURLToPath(new URL('..', import.meta.url));
+    const walk = (dir) => readdirSync(dir, { withFileTypes: true })
+        .flatMap(e => e.isDirectory() ? walk(join(dir, e.name)) : (e.name.endsWith('.js') ? [join(dir, e.name)] : []));
+    files = [join(root, 'index.js'), ...walk(join(root, 'src'))];
+}
+
 let issues = 0;
-
 for (const f of files) {
     const src = readFileSync(f, 'utf8');
     const importRe = /import\s*\{([^}]+)\}\s*from/g;
