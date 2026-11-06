@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 // module-eval time. Replaces the old hack of rewriting parser.js's import line.
 import './helpers/stub-runtime.mjs';
 import {
-    superscriptToIndex, indexToSuperscript, extractPostTextFromPrompt,
+    superscriptToIndex, indexToSuperscript, extractPostTextFromPrompt, parseResponse,
     validateFootnotes, validateFootnotesAgainstText,
 } from '../src/parser.js';
 import { findFuzzySpan } from '../src/text-index.js';
@@ -135,17 +135,18 @@ test('anchor length cap: 400 passes, 401 drops (PAR-1)', () => {
 });
 
 test('bracket-strip removes only the group duplicating the anchor (PAR-2)', () => {
-    const post = 'Он глядел на гусарский бивуак.';
-    const result = validateFootnotesAgainstText({ footnotes: [
-        // Anchor duplicated in brackets + a legitimate bracket kept:
+    // The strip lives in parseResponse's normalize stage (not validation) —
+    // drive it through the JSON entry point.
+    const json = JSON.stringify({ footnotes: [
         { anchor: 'гусарский бивуак', text: '¹ Бивуак [гусарский бивуак] — см. [прим. переводчика] ниже.' },
-    ] }, post, []);
-    assert.equal(result.length, 1, 'unfound anchor stays floating, text intact');
-    assert.equal(result[0].text, '¹ Бивуак — см. [прим. переводчика] ниже.',
-        'only the anchor-duplicating bracket is stripped');
-    // Typographic variants of the anchor in brackets collapse too.
-    const result2 = validateFootnotesAgainstText({ footnotes: [
-        { anchor: 'бивуак', text: '¹ Бивуак [Бивуак] — лагерь.' },
-    ] }, 'На бивуаке встали.', []);
-    assert.equal(result2[0].text, '¹ Бивуак — лагерь.');
+        { anchor: 'бивуак', text: '² Бивуак [Бивуак] — лагерь.' },
+        { anchor: '', text: '³ Без якоря [скобки нетронуты] — текст.' },
+    ] });
+    const parsed = parseResponse(json);
+    assert.equal(parsed.footnotes[0].text, '¹ Бивуак — см. [прим. переводчика] ниже.',
+        'only the anchor-duplicating bracket is stripped; legit brackets survive');
+    assert.equal(parsed.footnotes[1].text, '² Бивуак — лагерь.',
+        'normalized variants (case) collapse too');
+    assert.equal(parsed.footnotes[2].text, '³ Без якоря [скобки нетронуты] — текст.',
+        'no anchor → no stripping at all');
 });
