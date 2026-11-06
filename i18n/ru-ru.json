@@ -273,7 +273,7 @@
     "Connection profile not found: \"{0}\". It may have been deleted — reselect a profile in Glosses settings.": "Профиль подключения не найден: «{0}». Возможно, он был удалён — выберите профиль в настройках Glosses заново.",
     "Profile \"{0}\": {1}": "Профиль «{0}»: {1}",
     "Profile \"{0}\" responded, but text could not be extracted.": "Профиль «{0}» ответил, но извлечь текст не удалось.",
-    "Custom endpoint timed out (60s) - the server accepted the connection but did not respond.": "Тайм-аут своего эндпоинта (60 с) — сервер принял соединение, но не ответил.",
+    "Custom endpoint timed out ({0}s) - the server accepted the connection but did not respond.": "Тайм-аут своего эндпоинта ({0} с) — сервер принял соединение, но не ответил.",
     "Custom endpoint HTTP {0}: {1}": "Свой эндпоинт, HTTP {0}: {1}",
     "Custom endpoint returned a non-JSON response (HTTP {0}). Check that the URL points to a chat-completions API.": "Свой эндпоинт вернул ответ не в формате JSON (HTTP {0}). Проверьте, что URL указывает на chat-completions API.",
     "Auto-generation paused: {0}": "Автогенерация приостановлена: {0}",

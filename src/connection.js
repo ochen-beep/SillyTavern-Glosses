@@ -15,6 +15,10 @@ let _cmReady = false;
 let _cmReadyChecked = false;
 let _loopbackWarned = false;
 
+// Local LLM backends over big lore contexts routinely run minutes per response;
+// the CM profile path has no timeout at all, so this only bounds the custom fetch.
+const REQUEST_TIMEOUT_MS = 500_000;
+
 /**
  * Read connection-manager profiles — try ctx.extensionSettings first,
  * then fall back to global extension_settings (non-standard ST builds / mobile).
@@ -413,11 +417,11 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
             method: 'POST',
             headers,
             body: JSON.stringify(body),
-            signal: withTimeoutSignal(signal, 60_000),
+            signal: withTimeoutSignal(signal, REQUEST_TIMEOUT_MS),
         });
     } catch (e) {
         if (e?.name === 'TimeoutError') {
-            throw new Error(t('Custom endpoint timed out (60s) - the server accepted the connection but did not respond.'));
+            throw new Error(t('Custom endpoint timed out ({0}s) - the server accepted the connection but did not respond.', REQUEST_TIMEOUT_MS / 1000));
         }
         throw e;
     }
