@@ -133,3 +133,19 @@ test('anchor length cap: 400 passes, 401 drops (PAR-1)', () => {
     assert.equal(dropped.length, 1, '401 chars still drop');
     assert.equal(dropped[0].anchor, long);
 });
+
+test('bracket-strip removes only the group duplicating the anchor (PAR-2)', () => {
+    const post = 'Он глядел на гусарский бивуак.';
+    const result = validateFootnotesAgainstText({ footnotes: [
+        // Anchor duplicated in brackets + a legitimate bracket kept:
+        { anchor: 'гусарский бивуак', text: '¹ Бивуак [гусарский бивуак] — см. [прим. переводчика] ниже.' },
+    ] }, post, []);
+    assert.equal(result.length, 1, 'unfound anchor stays floating, text intact');
+    assert.equal(result[0].text, '¹ Бивуак — см. [прим. переводчика] ниже.',
+        'only the anchor-duplicating bracket is stripped');
+    // Typographic variants of the anchor in brackets collapse too.
+    const result2 = validateFootnotesAgainstText({ footnotes: [
+        { anchor: 'бивуак', text: '¹ Бивуак [Бивуак] — лагерь.' },
+    ] }, 'На бивуаке встали.', []);
+    assert.equal(result2[0].text, '¹ Бивуак — лагерь.');
+});

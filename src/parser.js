@@ -261,9 +261,15 @@ export function parseResponse(raw) {
             // poison the WHOLE footnotes array instead of one bad entry.
             const anchor = String(f.anchor ?? '').trim();
             let text = String(f.text ?? '').trim();
-            // The "anchor" must stay verbatim; brackets inside text would
-            // duplicate the anchor, so strip them when present.
-            if (anchor) text = text.replace(/\s*\[[^\]]+\]/g, '');
+            // The "anchor" must stay verbatim; a bracket group duplicating the
+            // anchor is noise. PAR-2: strip ONLY groups whose normalized
+            // content equals the anchor — legitimate brackets in footnote text
+            // (IPA, "[прим.]") survive.
+            if (anchor) {
+                const anchorKey = normalizeAnchorKey(anchor);
+                text = text.replace(/\s*\[([^\]]+)\]/g, (m, inner) =>
+                    normalizeAnchorKey(inner) === anchorKey ? '' : m);
+            }
             return { index: parseInt(f.index) || 1, anchor, text };
         }).filter(f => f && f.text);
         if (footnotes.length && (!best || footnotes.length > best.footnotes.length)) {
