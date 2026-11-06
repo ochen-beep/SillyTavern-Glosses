@@ -11,8 +11,6 @@
 
 import { S, saveSettings, t, notifyUser, getExtBase, HYBRID_BUILTIN_LENSES } from '../core.js';
 
-const doc = globalThis.document;
-
 /**
  * Wire the lens UI. Called from bindSettingsUI with the live AbortController
  * wrapper and the hybrid-cache invalidation hook.
@@ -44,9 +42,9 @@ export function setupLensEditor({ on, invalidateLanguageCache }) {
     
         async function openLensEditor(lens) {
             _editingLens = lens;
-            const title = doc.getElementById('gls_builtin_lens_editor_title');
-            const input = doc.getElementById('gls_builtin_lens_input');
-            const editor = doc.getElementById('gls_builtin_lens_editor');
+            const title = document.getElementById('gls_builtin_lens_editor_title');
+            const input = document.getElementById('gls_builtin_lens_input');
+            const editor = document.getElementById('gls_builtin_lens_editor');
             if (!title || !input || !editor) return;
             title.textContent = t(LENS_LABELS[lens] || lens);
             // The editor shows the EFFECTIVE template: the override when present,
@@ -60,13 +58,13 @@ export function setupLensEditor({ on, invalidateLanguageCache }) {
     
         function closeLensEditor() {
             _editingLens = null;
-            const editor = doc.getElementById('gls_builtin_lens_editor');
+            const editor = document.getElementById('gls_builtin_lens_editor');
             if (editor) editor.hidden = true;
         }
     
         function saveLensOverride() {
             if (!_editingLens) return;
-            const input = doc.getElementById('gls_builtin_lens_input');
+            const input = document.getElementById('gls_builtin_lens_input');
             if (!input) return;
             const text = String(input.value ?? '');
             if (!S().builtinLensOverrides || typeof S().builtinLensOverrides !== 'object') {
@@ -117,12 +115,12 @@ export function setupLensEditor({ on, invalidateLanguageCache }) {
         document.querySelectorAll('[data-gls-lens-copy]').forEach(btn => {
             on(btn, 'click', () => { void copyBuiltinLens(btn.dataset.glsLensCopy); });
         });
-        on(doc.getElementById('gls_builtin_lens_save'), 'click', saveLensOverride);
-        on(doc.getElementById('gls_builtin_lens_reset'), 'click', resetLensOverride);
-        on(doc.getElementById('gls_builtin_lens_cancel'), 'click', closeLensEditor);
+        on(document.getElementById('gls_builtin_lens_save'), 'click', saveLensOverride);
+        on(document.getElementById('gls_builtin_lens_reset'), 'click', resetLensOverride);
+        on(document.getElementById('gls_builtin_lens_cancel'), 'click', closeLensEditor);
         // JS-set hint: ST's data-i18n observer does not reliably translate this
         // node (same workaround as the target-language optgroup labels above).
-        const lensHintEl = doc.getElementById('gls_builtin_lens_hint');
+        const lensHintEl = document.getElementById('gls_builtin_lens_hint');
         if (lensHintEl) {
             lensHintEl.textContent = t('Same tokens as the bundled template: {{OUTPUT_LANGUAGE}} everywhere; the Language lens also accepts {{TARGET_LANG_*}}, {{CEFR_*}} and {{CONLANG_NOTE}}. Saving an empty body resets to the bundled template.');
         }
@@ -132,10 +130,10 @@ export function setupLensEditor({ on, invalidateLanguageCache }) {
         // mutation flips the hybrid cache + persists — lets the user build a
         // universal prompt from built-in + their own lenses. See
         // _buildHybridPrompt in generator.js.
-        const customListEl = doc.getElementById('gls_custom_lenses_list');
+        const customListEl = document.getElementById('gls_custom_lenses_list');
         if (customListEl) {
             renderCustomLenses(customListEl);
-            on(doc.getElementById('gls_add_custom_lens'), 'click', () => {
+            on(document.getElementById('gls_add_custom_lens'), 'click', () => {
                 const lenses = S().customLenses || (S().customLenses = []);
                 lenses.push({ id: _newLensId(), name: t('New lens'), prompt: '', active: true });
                 renderCustomLenses(customListEl);
