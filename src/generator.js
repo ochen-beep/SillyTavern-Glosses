@@ -389,16 +389,20 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 
+// Shared tail of both contracts: forbidden-list rule + output schema (F3 —
+// one place to edit the JSON shape; previously drifted between two copies).
+const _CONTRACT_TAIL = `Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
+
+Output ONLY this JSON (no markdown fences, no prose):
+{"footnotes":[{"anchor":"verbatim source phrase","text":"¹ Label (cat.) — explanation"}]}`;
+
 export const DIRECT_FOOTNOTE_CONTRACT = `[ANNOTATOR CONTRACT — direct footnotes, one response]
 
 Generate exactly {N} distinct footnotes. Return fewer only when the post genuinely cannot support that many. Never invent or borrow anchors from background blocks.
 
 Scan the entire [Annotate this post] block: foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible; reuse is allowed to reach {N}.
 
-Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
-
-Output ONLY this JSON (no markdown fences, no prose):
-{"footnotes":[{"anchor":"verbatim source phrase","text":"¹ Label (cat.) — explanation"}]}`;
+${_CONTRACT_TAIL}`;
 
 // Auto-count variant: no N pressure. Everything else (verbatim anchors,
 // forbidden list, JSON-only output) is identical to the fixed contract.
@@ -406,10 +410,7 @@ export const DIRECT_FOOTNOTE_CONTRACT_AUTO = `[ANNOTATOR CONTRACT — direct foo
 
 Decide yourself how many footnotes this post deserves: annotate every anchor in [Annotate this post] that a curious reader would genuinely want explained — foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Spread the footnotes across the whole post instead of clustering in the opening. Never pad the list with weak or duplicate anchors; an honest small set beats an inflated one. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible.
 
-Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
-
-Output ONLY this JSON (no markdown fences, no prose):
-{"footnotes":[{"anchor":"verbatim source phrase","text":"¹ Label (cat.) — explanation"}]}`;
+${_CONTRACT_TAIL}`;
 
 function getTargetFootnoteCount() {
     const n = parseInt(S().maxFootnotes, 10);
