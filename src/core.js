@@ -525,6 +525,9 @@ const _notificationTimes = new Map();
 export function notifyUser(level, message, dedupeKey = message) {
     const now = Date.now();
     if (now - (_notificationTimes.get(dedupeKey) || 0) < 5000) return false;
+    // F4: the map otherwise grows by one entry per distinct dedupeKey, forever.
+    // Clearing costs at most one dedup window — bounded is what matters.
+    if (_notificationTimes.size > 64) _notificationTimes.clear();
     _notificationTimes.set(dedupeKey, now);
     globalThis.toastr?.[level]?.(message, DISPLAY_NAME);
     return true;
@@ -643,6 +646,14 @@ export function extractPlainText(htmlString) {
         .replace(/\[ILST:[^\]]*]/gi, '')
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, '\n');
+    // S3: DOMParser over the detached innerHTML div — elements like
+    // <img src> in a post would otherwise START loading during extraction.
+    // Node tests lack DOMParser, so the div path stays as the fallback.
+    if (typeof DOMParser !== 'undefined') {
+        try {
+            return (new DOMParser().parseFromString(raw, 'text/html').body.textContent || '').trim();
+        } catch { /* fall through to the div path */ }
+    }
     _plainTextDiv.innerHTML = raw;
     const text = (_plainTextDiv.textContent || '').trim();
     _plainTextDiv.textContent = '';
@@ -673,7 +684,7 @@ export function escapeHtml(str) {
 // bodies. The footnote mini-markdown only produces div/span/strong/em/code/
 // del/br, so legitimate output is unchanged.
 const _sanitizeCache = new Map();
-const _sanitizeMax = 64;
+const _sanitizeMax = 256;   // P4: 64 < the 100-footnote cap — full sets thrashed
 export function sanitize(html) {
     try {
         if (_sanitizeCache.has(html)) {
