@@ -10,7 +10,7 @@
  */
 
 import {
-    state, S, getCtx, t, extractPlainText,
+    state, S, getCtx, t, extractPlainText, notifyUser,
     beginGenerationEpoch, isEpochCurrent, debounce,
 } from '../core.js';
 import { getVariantPayload, digestFor, saveTargeted, getTargetedDraft, saveTargetedDraft } from '../cache.js';
@@ -19,6 +19,7 @@ import { isAnnotatableMsg } from '../domain/message-identity.js';
 import { normalizeAnchorKey } from '../anchor-utils.js';
 import {
     parseTargetLines, generateTargetedFootnotes, clearTargetedState, resolveTargetedAnchors,
+    MAX_TARGETS,
 } from '../targeted-generation.js';
 import { reinjectInto } from '../renderer.js';
 import { playSound } from '../sound.js';
@@ -35,9 +36,18 @@ export function initTargetedTabDeps(deps) { _deps = deps; }
 
 const _targetedState = { input: '', result: null, status: '', requestId: 0, generating: false };
 
-/** Debounced per-chat draft persist (the metadata writer coalesces further). */
+/** Debounced per-chat draft persist (the metadata writer coalesces further).
+ * saveTargetedDraft returns the PERSISTED string — shorter than the input when
+ * the per-chat storage cap bit, which must not pass silently. Warn once. */
+let _draftCapWarned = false;
 const saveDraftSoon = debounce(() => {
-    try { saveTargetedDraft(_targetedState.input); } catch { /* non-critical */ }
+    try {
+        const persisted = saveTargetedDraft(_targetedState.input);
+        if (!_draftCapWarned && persisted.length < _targetedState.input.length) {
+            _draftCapWarned = true;
+            notifyUser('warning', t('The target list draft is longer than per-chat storage keeps; only the first part is saved.'), 'gls-draft-cap');
+        }
+    } catch { /* non-critical */ }
 }, 400);
 
 /**
@@ -64,8 +74,10 @@ async function runTargetedGeneration() {
         return;
     }
     const requestId = ++_targetedState.requestId;
-    const parseNotice = parsed.duplicateCount || parsed.truncatedCount
-        ? t('Duplicates removed, excess truncated') : '';
+    const parseParts = [];
+    if (parsed.duplicateCount) parseParts.push(`${t('Duplicates removed')}: ${parsed.duplicateCount}`);
+    if (parsed.truncatedCount) parseParts.push(t('{0} target(s) beyond the {1}-per-run limit were ignored', parsed.truncatedCount, MAX_TARGETS));
+    const parseNotice = parseParts.join(' · ');
     _targetedState.generating = true;
     // Busy indicator goes through the shared refcount: a chat switch bumps
     // requestId and this run's finally must STILL release its reference —
@@ -145,6 +157,7 @@ async function runTargetedGeneration() {
         const floating = toSave.filter(e => !e.prefix && !e.suffix).length;
         const parts = [];
         if (parseNotice) parts.push(parseNotice);
+        if (saved.capped > 0) parts.push(`${t('skipped (variant list is full)')}: ${saved.capped}`);
         if (result.footnotes.length < result.targets.length) {
             parts.push(t('Missing') + ': ' + (result.missingTargets || []).join(', '));
         }

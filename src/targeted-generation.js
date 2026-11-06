@@ -12,7 +12,7 @@ import { normalizeAnchorKey } from './anchor-utils.js';
 import { beginGenerationEpoch, isEpochCurrent } from './core.js';
 import { rebindTargeted } from './domain/rebind.js';
 
-const MAX_TARGETS = 20;
+export const MAX_TARGETS = 20;
 const keyOf = normalizeAnchorKey;
 
 /**

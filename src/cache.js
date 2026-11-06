@@ -202,12 +202,14 @@ export function saveTargeted(msgId, swipeIdx, entries, opts = {}) {
     const payload = readVerifiedPayload(msg, swipeIdx);
     const merged = [...targetedOf(payload)];
     const byKey = new Map(merged.map(e => [normalizeAnchorKey(e?.anchor), e]));
+    let capped = 0; // new entries dropped by TARGETED_CAP — surfaced, never silent
     for (const entry of Array.isArray(entries) ? entries : []) {
         const key = normalizeAnchorKey(entry?.anchor);
         if (!key) continue;
         const existing = byKey.get(key);
         if (existing) merged[merged.indexOf(existing)] = entry; // replace in place
         else if (merged.length < TARGETED_CAP) { byKey.set(key, entry); merged.push(entry); }
+        else capped++;
     }
     const targeted = reindexTargeted(merged);
     const stamped = stampPayload(msg, swipeIdx, payload?.footnotes ?? [], {
@@ -218,7 +220,7 @@ export function saveTargeted(msgId, swipeIdx, entries, opts = {}) {
     if (!stamped) return { ok: false, reason: 'stale' }; // non-viable text — never persist
     writePayload(msg, swipeIdx, stamped);
     _chatWriter.schedule();
-    return { ok: true, targeted: stamped.targeted, footnotes: stamped.footnotes };
+    return { ok: true, targeted: stamped.targeted, footnotes: stamped.footnotes, capped };
 }
 
 /** Merge previous and fresh orphans, deduped by normalized anchor+kind, capped. */
