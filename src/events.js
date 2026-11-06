@@ -137,8 +137,13 @@ function onAppReady() {
 // is reopened. A cheap #chat childList observer closes the gap: every .mes
 // that APPEARS is routed to restoreMessage (idempotent — addRegenButton /
 // injectIfCached / observeForLazyInject all guard against double work).
-// Streaming text updates are characterData mutations, not childList, so a
-// streaming post costs nothing here.
+// subtree stays FALSE on purpose: SillyTavern appends .mes nodes as direct
+// children of #chat (the scroll observer below relies on the same fact), and
+// streaming replaces .mes_text's inner HTML — childList mutations INSIDE a
+// message — so watching the subtree would fire the callback on every
+// streaming batch for no work. .mes nodes arriving through a wrapper would
+// be missed, but ST does not wrap them (and the 0 ms restore pass covers the
+// initial mount anyway).
 let _restoreMO = null;
 
 /** Observe #chat for late-rendered .mes nodes (idempotent; Node-safe). */
@@ -155,7 +160,7 @@ function ensureRestoreObserver() {
             }
         }
     });
-    _restoreMO.observe(chatEl, { childList: true, subtree: true });
+    _restoreMO.observe(chatEl, { childList: true, subtree: false });
 }
 
 // Owned handle for the deferred post-chat-switch restore, so cleanup()
