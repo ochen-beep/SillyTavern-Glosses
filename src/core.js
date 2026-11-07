@@ -26,8 +26,14 @@ export const MIN_POST_LENGTH = 5;
 
 // Hard ceiling for the "Max footnotes per message" setting. Single source for
 // the loadSettings clamp and generator.getTargetFootnoteCount; settings.html's
-// #gls_max_footnotes max attribute must stay in sync with it.
+// #gls_max_footnotes max attribute must stay in sync (enforced by
+// tests/settings-html-contract.test.mjs).
 export const MAX_FOOTNOTES_CAP = 100;
+
+// Hard ceiling for the "Context depth" setting. Single source for the
+// loadSettings clamp; settings.html's #gls_context_depth max attribute must
+// stay in sync (enforced by the same contract test).
+export const CONTEXT_DEPTH_MAX = 50;
 
 // The six built-in hybrid lens ids (prompts/lenses/<id>.md). Single source:
 // loadSettings coerces builtinLensOverrides against this list, generator.js
@@ -341,9 +347,10 @@ export function loadSettings() {
         settingsChanged = true;
     }
     // Numeric range guards — mirror the min/max contract the inputs declare in
-    // settings.html (max footnotes 1–100, context depth 0–50). Native number
-    // validation doesn't stop typed values, so a persisted 0/250 would otherwise
-    // survive reloads and show in the UI even though the prompt builder clamps.
+    // settings.html (max footnotes 1–MAX_FOOTNOTES_CAP, context depth
+    // 0–CONTEXT_DEPTH_MAX). Native number validation doesn't stop typed
+    // values, so a persisted 0/250 would otherwise survive reloads and show
+    // in the UI even though the prompt builder clamps.
     const maxFn = parseInt(state.settings.maxFootnotes, 10);
     if (!Number.isFinite(maxFn) || maxFn < 1 || maxFn > MAX_FOOTNOTES_CAP) {
         state.settings.maxFootnotes = Number.isFinite(maxFn)
@@ -356,9 +363,9 @@ export function loadSettings() {
         settingsChanged = true;
     }
     const ctxDepth = parseInt(state.settings.contextDepth, 10);
-    if (!Number.isFinite(ctxDepth) || ctxDepth < 0 || ctxDepth > 50) {
+    if (!Number.isFinite(ctxDepth) || ctxDepth < 0 || ctxDepth > CONTEXT_DEPTH_MAX) {
         state.settings.contextDepth = Number.isFinite(ctxDepth)
-            ? Math.min(50, Math.max(0, ctxDepth))
+            ? Math.min(CONTEXT_DEPTH_MAX, Math.max(0, ctxDepth))
             : DEFAULT_SETTINGS.contextDepth;
         settingsChanged = true;
     }
