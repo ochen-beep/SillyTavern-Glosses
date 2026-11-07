@@ -84,7 +84,12 @@ function buildCharBlock(messageId) {
         if (msg?.name) ch = ctx.characters?.find(c => c.name === msg.name) ?? null;
     }
     if (!ch?.description) return '';
-    return `[Character: ${ch.name}\n${ch.description}]`;
+    // Full card, mirroring buildLoreScanInput's field set: personality and
+    // scenario are annotation background just like the description.
+    const parts = [ch.description];
+    if (ch.personality) parts.push(`Personality: ${ch.personality}`);
+    if (ch.scenario) parts.push(`Scenario: ${ch.scenario}`);
+    return `[Character: ${ch.name}\n${parts.join('\n\n')}]`;
 }
 
 function buildChatHistory(anchorMsgId) {
