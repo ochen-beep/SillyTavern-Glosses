@@ -74,6 +74,12 @@
     min-width: 0;
 }
 
+/* Lens rows need the full section width: inside the shared 2-column grid each
+   row gets ~120px, where the ✎/⧉ tools overlap the label text. */
+#gls_hybrid_panel .gls-s-grid-2 {
+    display: block;
+}
+
 .gls-s-lens-row .gls-s-toggle-row {
     min-width: 0;
 }
