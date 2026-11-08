@@ -278,6 +278,12 @@ export function panelIsVisible() {
     return !!_floatingPanel && _floatingPanel.style.display !== 'none';
 }
 
+/** Panel-layout DI: the viewport sync resolves the live panel through this
+ *  getter instead of importing the module-level variable (no import cycle). */
+export function getPanelElement() {
+    return _floatingPanel;
+}
+
 function isInChat() {
     const ctx = getCtx();
     return ctx.characterId !== undefined || ctx.groupId !== undefined;

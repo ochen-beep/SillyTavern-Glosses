@@ -38,8 +38,10 @@ export function applyPanelLayout(panel) {
     const layout = loadPanelLayout();
     const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
     if (!isMobile && layout.left !== undefined && layout.top !== undefined) {
-        panel.style.left = `${layout.left}px`;
-        panel.style.top = `${layout.top}px`;
+        // Clamp a saved position into the current viewport: the layout may have
+        // been persisted on a larger window, and a resize pass never saw it.
+        panel.style.left = `${Math.min(Math.max(0, layout.left), window.innerWidth - 60)}px`;
+        panel.style.top = `${Math.min(Math.max(0, layout.top), window.innerHeight - 60)}px`;
         panel.style.right = 'auto';
         panel.style.transform = 'none';
     }
@@ -95,12 +97,18 @@ export function measureStChrome(panel) {
     if (topBar) {
         const r = topBar.getBoundingClientRect();
         topH = r.bottom > 0 ? Math.min(r.bottom, window.innerHeight) : ST_TOPBAR_FALLBACK;
+    } else {
+        // Panel built before ST's chrome mounts (boot race): assume the standard
+        // chrome height; the #send_form ResizeObserver refines it after mount.
+        topH = ST_TOPBAR_FALLBACK;
     }
     let bottomH = 0;
     const sendForm = document.querySelector(ST_SENDFORM_SEL);
     if (sendForm) {
         const r = sendForm.getBoundingClientRect();
         bottomH = Math.max(0, Math.min(r.height, window.innerHeight)) || ST_SENDFORM_FALLBACK;
+    } else {
+        bottomH = ST_SENDFORM_FALLBACK;
     }
     // Defensive caps: on some ST mobile layouts #send_form wraps more than the
     // input bar (or #top-bar is a tall container). Unbounded insets would make
@@ -140,6 +148,10 @@ export function applyDesktopMode(panel) {
 let _viewportBound = false;
 let _viewportHandler = null;
 let _chromeResizeObserver = null;
+// Panel getter injected by the caller (window.js owns the panel instance;
+// importing it here would close a module cycle). Falls back to no-op when the
+// caller passes nothing, so the sync simply stays dormant.
+let _getPanel = null;
 // Disposer for the pending APP_READY subscription (when #send_form wasn't
 // mounted yet at attach time) — disconnectViewportSync MUST invoke it, or a
 // disable before APP_READY lets the late event attach an orphaned observer.
@@ -149,13 +161,15 @@ let _viewportReadyDispose = null;
  * Bind a debounced resize listener that toggles the panel between desktop and
  * mobile fullscreen layouts. Idempotent. Also watches #send_form with a
  * ResizeObserver so the mobile bottom inset tracks QR-bar expand/collapse.
+ * `getPanel` resolves the live #gls-panel element (null when unmounted).
  * Call disconnectViewportSync() from cleanup().
  */
-export function initViewportSync() {
+export function initViewportSync(getPanel = null) {
     if (_viewportBound) return;
     _viewportBound = true;
+    _getPanel = typeof getPanel === 'function' ? getPanel : null;
     _viewportHandler = debounce(() => {
-        const panel = _floatingPanel;
+        const panel = _getPanel?.();
         if (!panel || panel.style.display === 'none') return;
         if (isMobileViewport()) {
             applyMobileMode(panel);
@@ -173,7 +187,8 @@ export function initViewportSync() {
     if (typeof ResizeObserver !== 'undefined') {
         const attachChromeObserver = (sendForm) => {
             _chromeResizeObserver = new ResizeObserver(() => {
-                if (_floatingPanel && isMobileViewport()) measureStChrome(_floatingPanel);
+                const panel = _getPanel?.();
+                if (panel && isMobileViewport()) measureStChrome(panel);
             });
             _chromeResizeObserver.observe(sendForm);
         };

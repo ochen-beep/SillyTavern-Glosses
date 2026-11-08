@@ -31,7 +31,7 @@ import { removeHighlights, uninstallMarkerDelegation, resetLazyInjector } from '
 import { applyHighlightStyles } from './src/ui/highlight-styles.js';
 import { closePopup } from './src/ui/footnote-popup.js';
 import {
-    destroyPanel, updatePanel,
+    destroyPanel, updatePanel, getPanelElement,
 } from './src/ui/window.js';
 import { initViewportSync, disconnectViewportSync } from './src/ui/panel-layout.js';
 import { clearTargetedTabState } from './src/ui/panel-targeted-tab.js';
@@ -207,7 +207,7 @@ async function init(isCancelled = () => false) {
 
     // Live mobile↔desktop reflow on resize/rotate so the panel never gets
     // stuck in a layout that doesn't fit the viewport.
-    initViewportSync();
+    initViewportSync(getPanelElement);
     if (isCancelled()) return;
 
     if (state.settings.floatingPanelEnabled) {
