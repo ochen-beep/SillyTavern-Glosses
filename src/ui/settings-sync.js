@@ -30,9 +30,8 @@ import { getChatLoreConfig, saveChatLoreConfig } from '../lorebooks.js';
 import { createLorebookPicker } from './lorebook-picker.js';
 import { buildColorPicker } from './color-picker.js';
 import { openCssEditor } from './custom-css.js';
-import { setPreset, clearPresetOnManualEdit } from './presets.js';
-import { createBinders } from './setting-binders.js';
 import { setupLensEditor } from './lens-editor.js';
+import { createBinders } from './setting-binders.js';
 import {
     bindHttpConfirm, refreshHttpConfirm, updateProfileModelInfo,
     syncCustomApiKeyField, populateProfiles,
@@ -118,27 +117,6 @@ export function bindSettingsUI() {
         ensureLauncher();
     });
 
-    // §6.1: Presets dropdown — primary one-click configurator at the top of the
-    // Prompt section. Selecting a preset merges its fields into S() and syncs
-    // downstream controls; picking the sentinel ('') just clears selectedPreset
-    // without touching other fields. Any manual edit of a downstream control
-    // calls clearPresetOnManualEdit() (wired in those listeners below). On
-    // init we mirror S().selectedPreset into the select so a rehydrated
-    // preset selection from a loaded settings blob is reflected in the UI.
-    const presetSel = $('gls_preset');
-    if (presetSel) {
-        presetSel.value = S().selectedPreset || '';
-        on(presetSel, 'change', async () => {
-            const key = presetSel.value;
-            if (!key) {
-                // Sentinel picked — clear the flag, don't touch other settings.
-                clearPresetOnManualEdit();
-                return;
-            }
-            await setPreset(key, { invalidateLanguageCache: _invalidateLanguageCache, updatePromptPanels });
-        });
-    }
-
     // Lens UI (built-in overrides + custom rows); the binders follow the
     // same AbortController the rest of the panel uses.
     setupLensEditor({ on, invalidateLanguageCache: _invalidateLanguageCache });
@@ -205,14 +183,7 @@ export function bindSettingsUI() {
         syncCustomApiKeyField(akEl);
     }
 
-    // Prompt style
-    bindSelect('gls_prompt_style', 'promptStyle',
-        { onChange() { clearPresetOnManualEdit(); updatePromptPanels(); } });
-    updatePromptPanels();
-
-    bindText('gls_custom_prompt', 'customPrompt');
-
-    // Language (for the 'language' prompt style)
+    // Language (for the Language lens)
     const tlEl = $('gls_target_language');
     if (tlEl) {
         // Localise <optgroup> labels — data-i18n no-ops on optgroup (it
@@ -223,8 +194,9 @@ export function bindSettingsUI() {
         });
     }
     bindSelect('gls_target_language', 'targetLanguage',
-        { onChange() { clearPresetOnManualEdit(); _invalidateLanguageCache(); } });
-    bindSelect('gls_cefr_level', 'cefrLevel', { onChange() { clearPresetOnManualEdit(); _invalidateLanguageCache(); } });
+        { onChange() { _invalidateLanguageCache(); } });
+    bindSelect('gls_cefr_level', 'cefrLevel', { onChange() { _invalidateLanguageCache(); } });
+    updatePromptPanels();
 
     // Hybrid lens toggles. Each flip changes the active lens signature →
     // the hybrid cache key changes → _invalidateLanguageCache drops stale
@@ -237,7 +209,6 @@ export function bindSettingsUI() {
         el.checked = !!S().hybridLenses?.[lens];
         on(el, 'change', () => {
             S().hybridLenses[lens] = el.checked;
-            clearPresetOnManualEdit();   // §6.1: manual lens edit = manual mode
             _invalidateLanguageCache();
             saveSettings();
             updatePromptPanels();
@@ -263,7 +234,6 @@ export function bindSettingsUI() {
         olEl.value = S().outputLanguage || 'ru';
         on(olEl, 'change', () => {
             S().outputLanguage = olEl.value;
-            clearPresetOnManualEdit();   // §6.1
             // Output language affects EVERY style (base prompt, examples locale,
             // {{OUTPUT_LANGUAGE}} in .md files), so wipe the whole prompt cache,
             // not just language:/hybrid: prefixes. See
@@ -689,16 +659,10 @@ function updateSrcPanels() {
 
 
 function updatePromptPanels() {
-    const cw = document.getElementById('gls_custom_prompt_wrap');
-    if (cw) cw.hidden = S().promptStyle !== 'custom';
-    // The Language + CEFR selectors (gls_language_panel) are shown for the
-    // standalone 'language' style AND for 'hybrid' when its Language lens is on.
+    // The lens constructor is the only prompt configurator: its panel is
+    // always visible, and the language selectors follow the Language lens.
     const lp = document.getElementById('gls_language_panel');
-    const showLang = S().promptStyle === 'language'
-        || (S().promptStyle === 'hybrid' && S().hybridLenses?.language);
-    if (lp) lp.hidden = !showLang;
-    const hp = document.getElementById('gls_hybrid_panel');
-    if (hp) hp.hidden = S().promptStyle !== 'hybrid';
+    if (lp) lp.hidden = !S().hybridLenses?.language;
 }
 
 /** Reflect the active source button as pressed in the segmented picker. */

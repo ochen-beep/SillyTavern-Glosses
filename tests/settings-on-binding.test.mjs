@@ -13,7 +13,7 @@
 //   1. bindSettingsUI completes without throwing (the regression);
 //   2. every listener is registered through real addEventListener with the
 //      module AbortController's signal threaded into the options;
-//   3. the bound handlers actually work (accordion toggle, preset merge,
+//   3. the bound handlers actually work (accordion toggle, lens flip,
 //      bindNum input, master toggle);
 //   4. unbindSettingsUI aborts the signal and the fake elements drop every
 //      listener registered with it (mirroring the DOM AbortSignal contract).
@@ -150,7 +150,7 @@ function seedControls() {
     // must not latch the flag).
     fakeDoc.register('gls_settings_container');
     for (const id of [
-        'gls_enabled', 'gls_preset', 'gls_prompt_style', 'gls_output_language',
+        'gls_enabled', 'gls_output_language',
         'gls_floating_panel', 'gls_auto_generate', 'gls_gloss_user', 'gls_sound_enabled',
         'gls_context_depth', 'gls_highlight_color_btn', 'gls_highlight_opacity',
         'gls_stop_words', 'gls_sound_volume',
@@ -158,6 +158,7 @@ function seedControls() {
         'gls_panel_font_family', 'gls_panel_font_size', 'gls_panel_font_size_val',
         'gls_popup_theme', 'gls_popup_density', 'gls_popup_shadow',
         'gls_popup_corner', 'gls_popup_corner_val',
+        'gls_hybrid_lens_language', 'gls_language_panel',
     ]) fakeDoc.register(id);
     // Picker trigger internals (swatch + hex readout read .style/.textContent).
     fakeDoc.register('gls_highlight_color_swatch');
@@ -220,7 +221,7 @@ test('bindSettingsUI binds real listeners with the abort signal (regression: on(
 
         // Spot-check counts on the binding patterns.
         assert.equal(header.listeners['click'].length, 1, 'accordion header bound once');
-        assert.equal(fakeDoc.get('gls_preset').listeners['change'].length, 1, 'preset select bound');
+        assert.equal(fakeDoc.get('gls_output_language').listeners['change'].length, 1, 'language select bound');
         assert.equal(fakeDoc.get('gls_context_depth').listeners['input'].length, 1, 'bindNum input');
         assert.equal(fakeDoc.get('gls_context_depth').listeners['change'].length, 1, 'bindNum change');
         assert.equal(fakeDoc.get('gls_floating_panel').listeners['change'].length, 1, 'checkbox bound');
@@ -267,21 +268,21 @@ test('bound handlers actually work through the fake DOM', async () => {
         assert.equal(header.getAttribute('aria-expanded'), 'false');
         assert.equal(header.chevron.style.transform, '');
 
-        // Preset change merges the preset fields into S().
-        const preset = fakeDoc.get('gls_preset');
-        preset.value = 'pratchett50-ru';
-        await preset.listeners['change'][0].fn();
-        assert.equal(S().promptStyle, 'pratchett50');
-        assert.equal(S().outputLanguage, 'ru');
-        assert.equal(S().selectedPreset, 'pratchett50-ru');
+        // Hybrid lens flip: writes S(), invalidates the prompt cache, and
+        // toggles the language panel visibility (Language lens off → hidden).
+        const lens = fakeDoc.get('gls_hybrid_lens_language');
+        lens.checked = false;
+        lens.listeners['change'][0].fn();
+        assert.equal(S().hybridLenses.language, false);
+        assert.deepEqual(state.promptCache, {}, 'lens flip invalidates prompt cache');
+        assert.equal(fakeDoc.get('gls_language_panel').hidden, true);
 
         // Footnote language is a manual setting independent of prompt style.
-        state.promptCache['pratchett50:Russian'] = 'stale';
+        state.promptCache['hybrid:Russian'] = 'stale';
         const outputLanguage = fakeDoc.get('gls_output_language');
         outputLanguage.value = 'en';
         outputLanguage.listeners['change'][0].fn();
         assert.equal(S().outputLanguage, 'en');
-        assert.equal(S().selectedPreset, '', 'manual language edit enters manual mode');
         assert.deepEqual(state.promptCache, {}, 'language edit invalidates prompt cache');
 
         // bindNum input persists a numeric value.
@@ -307,7 +308,7 @@ test('unbind aborts the signal; signal-scoped listeners are removed and become n
         unbindSettingsUI();   // defensive: reset module state from a prior test
         const header = seedControls();
         bindSettingsUI();
-        const preset = fakeDoc.get('gls_preset');
+        const outputLanguage = fakeDoc.get('gls_output_language');
         const depth = fakeDoc.get('gls_context_depth');
         assert.equal(header.listeners['click'].length, 1);
 
@@ -316,13 +317,13 @@ test('unbind aborts the signal; signal-scoped listeners are removed and become n
 
         // The fake honors the AbortSignal contract: listeners die with the signal.
         assert.equal(header.listeners['click'].length, 0, 'header listener removed');
-        assert.equal(preset.listeners['change'].length, 0, 'preset listener removed');
+        assert.equal(outputLanguage.listeners['change'].length, 0, 'language listener removed');
         assert.equal(depth.listeners['input'].length, 0, 'bindNum listener removed');
 
         // Firing a removed listener is a no-op — state stays untouched.
-        preset.value = 'lang-en-ru-a2';
-        await preset.listeners['change'][0]?.fn();
-        assert.equal(S().selectedPreset, '', 'unbound preset change does not persist');
+        outputLanguage.value = 'de';
+        outputLanguage.listeners['change'][0]?.fn();
+        assert.equal(S().outputLanguage, 'ru', 'unbound language change does not persist');
     });
 });
 

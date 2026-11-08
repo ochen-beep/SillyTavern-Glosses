@@ -94,48 +94,13 @@
             <i class="fa-solid fa-chevron-down gls-s-chevron"></i>
         </button>
         <div class="gls-s-section-body" hidden>
-            <!-- §6.1: Presets — short-name bundles of promptStyle + lang (+CEFR for
-                 the Lang preset). Picked at the top of the Prompt section so the
-                 median user reaches style + language in two clicks, not seven.
-                 '(no preset / manual)' clears selectedPreset without touching other
-                 fields. -->
-            <div class="gls-s-field-group">
-                <label class="gls-s-field-label" for="gls_preset">
-                    <span data-i18n="Preset">Preset</span>
-                </label>
-                <select id="gls_preset" class="gls-s-select">
-                    <option value="" data-i18n="(no preset / manual)">(no preset / manual)</option>
-                    <option value="pratchett50-ru" data-i18n="Pratchett 50 (RU)">Pratchett 50 (RU)</option>
-                    <option value="lang-en-ru-a2" data-i18n="Lang EN → RU · A2">Lang EN → RU · A2</option>
-                    <option value="academic-lore-ru" data-i18n="Academic Lore (RU)">Academic Lore (RU)</option>
-                    <option value="meta-ru" data-i18n="Meta (RU)">Meta (RU)</option>
-                </select>
-            </div>
             <div class="gls-s-grid-2">
-                <div class="gls-s-field-group">
-                    <label class="gls-s-field-label" for="gls_prompt_style">
-                        <span data-i18n="Prompt style">Prompt style</span>
-                    </label>
-                    <select id="gls_prompt_style" class="gls-s-select">
-                        <option value="pratchett" data-i18n="Pratchett">Pratchett</option>
-                        <option value="pratchett50" data-i18n="Pratchett 50%">Pratchett 50%</option>
-                        <option value="meta_plus" data-i18n="Meta Narrative+">Meta Narrative+</option>
-                        <option value="academic" data-i18n="Academic">Academic</option>
-                        <option value="language" data-i18n="Language">Language</option>
-                        <option value="custom" data-i18n="Custom">Custom</option>
-                        <option value="hybrid" data-i18n="Hybrid">Hybrid</option>
-                    </select>
-                </div>
                 <div class="gls-s-field-group">
                     <label class="gls-s-field-label" for="gls_max_footnotes">
                         <span data-i18n="Max footnotes per message">Max footnotes per message</span>
                     </label>
                     <input id="gls_max_footnotes" type="number" min="1" max="100" class="text_pole gls-s-num">
                 </div>
-                <label class="gls-s-toggle-row">
-                    <input type="checkbox" id="gls_auto_footnote_count" class="checkbox">
-                    <span data-i18n="Let the model choose the count">Let the model choose the count</span>
-                </label>
                 <div class="gls-s-field-group">
                     <label class="gls-s-field-label" for="gls_output_language">
                         <span data-i18n="Footnote language">Footnote language</span>
@@ -145,12 +110,10 @@
                         <option value="en" data-i18n="English">English</option>
                     </select>
                 </div>
-            </div>
-            <div id="gls_custom_prompt_wrap" hidden>
-                <div class="gls-s-field-group">
-                    <label class="gls-s-field-label" for="gls_custom_prompt" data-i18n="Custom prompt">Custom prompt</label>
-                    <textarea id="gls_custom_prompt" class="text_pole gls-s-resize-v" rows="6"></textarea>
-                </div>
+                <label class="gls-s-toggle-row">
+                    <input type="checkbox" id="gls_auto_footnote_count" class="checkbox">
+                    <span data-i18n="Let the model choose the count">Let the model choose the count</span>
+                </label>
             </div>
             <div id="gls_language_panel" class="gls-s-sub-panel" hidden>
                 <div class="gls-s-sub-title" data-i18n="Language for study">Language for study</div>
@@ -197,15 +160,10 @@
                     </div>
                 </div>
             </div>
-            <!-- Hybrid style: lens constructor. target/CEFR selectors live in
-                 gls_language_panel above and are co-shown when the Language
-                 lens is on (see updatePromptPanels in settings-sync.js). -->
-            <!-- The lens toggles + custom-lens editor live in their own titled
-                 card: the header does the grouping the former "Advanced
-                 lenses" sub-accordion did, without the extra click. The panel
-                 is still shown only for promptStyle === 'hybrid'
-                 (updatePromptPanels), so the median user never meets it. -->
-            <div id="gls_hybrid_panel" class="gls-s-subcard" hidden>
+            <!-- Hybrid lens constructor: the only prompt configurator. The
+                 target/CEFR selectors live in gls_language_panel above and are
+                 co-shown while the Language lens is on (updatePromptPanels). -->
+            <div id="gls_hybrid_panel" class="gls-s-subcard">
                 <div class="gls-s-subcard-title" data-i18n="Advanced lenses">Advanced lenses</div>
                 <div class="gls-s-sub-title" data-i18n="Lenses (constructor)">Lenses (constructor)</div>
                 <div class="gls-s-grid-2">

@@ -6,7 +6,7 @@ Full guide (in Russian): **[USER_GUIDE.md](USER_GUIDE.md)**.
 
 ## Features
 
-- Five built-in styles, a custom prompt, or a hybrid mode (several "lenses" on one post); one-click presets.
+- A lens constructor: tick Pratchett-style jokes, language-learning word notes, academic lore, meta-narrator asides, canon expansion — or any mix. Edit every lens or add your own.
 - Footnotes survive message edits — they re-anchor and renumber; every swipe keeps its own set.
 - Display modes: inline highlights, a numbered block under the post, a click popup, or the floating panel only.
 - Floating panel: read, edit, delete, regenerate; request footnotes for specific words; per-chat exclusions.
@@ -18,7 +18,7 @@ Full guide (in Russian): **[USER_GUIDE.md](USER_GUIDE.md)**.
 
 1. Copy this folder into `data/default-user/extensions/` and restart SillyTavern.
 2. Extensions panel → **Glosses** → enable **Enable Footnotes**.
-3. Pick a preset or style in **Prompt**, choose a source in **Generation Engine**.
+3. Tick the lenses you want in **Prompt**, choose a source in **Generation Engine**.
 4. For automatic footnotes, tick **Auto-generate on new messages** (Behavior).
 
 ## Slash commands

@@ -99,14 +99,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
     glossUserMessages: false,
     source: '',
     selectedProfile: '',
-    promptStyle: 'pratchett50',
+    // The single-style dropdowns and presets were removed: the hybrid lens
+    // constructor covers every former style, so the prompt is always built
+    // from the active lens set. The field stays for older stored settings and
+    // is coerced to 'hybrid' on load.
+    promptStyle: 'hybrid',
     customPrompt: '',
-    // §6.1: short-name preset that bundles a few settings at once. Empty =
-    // manual mode (no preset active; the user edits each field). Set via the
-    // Presets dropdown at the top of the Prompt accordion. Selecting a
-    // preset merges its fields into S(); any manual edit of those fields
-    // clears selectedPreset back to ''.
-    selectedPreset: '',
     // Language of footnote TEXT ('ru' | 'en'). Default 'ru' per user. Replaces
     // the old heuristic (document.documentElement.lang). See
     // 2026-07-02-glosses-anchor-count-language-design.md §3.
@@ -369,8 +367,14 @@ export function loadSettings() {
             : DEFAULT_SETTINGS.contextDepth;
         settingsChanged = true;
     }
-    // Hybrid ALL became a manual configuration; retain every setting it applied.
-    if (state.settings.selectedPreset === 'hybrid-all-ru') {
+    // Single-style UI removed: every stored style value maps onto the hybrid
+    // lens constructor (its built-in lenses cover the former presets), and the
+    // preset field is retired outright.
+    if (state.settings.promptStyle !== 'hybrid') {
+        state.settings.promptStyle = 'hybrid';
+        settingsChanged = true;
+    }
+    if (state.settings.selectedPreset) {
         state.settings.selectedPreset = '';
         settingsChanged = true;
     }
