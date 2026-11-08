@@ -21,7 +21,7 @@ import {
 } from './domain/footnote-payload.js';
 import {
     injectHighlights, removeHighlights, reinjectInto, restoreHighlightsAll, restoreMessage, addRegenButton,
-    installMarkerDelegation, resetLazyInjector,
+    installMarkerDelegation, resetLazyInjector, reapplyHighlightsAll,
 } from './renderer.js';
 import { closePopup } from './ui/footnote-popup.js';
 import {
@@ -163,11 +163,12 @@ function ensureRestoreObserver() {
     _restoreMO.observe(chatEl, { childList: true, subtree: false });
 }
 
-// Owned handle for the deferred post-chat-switch restore, so cleanup()
-// (via disconnectScrollObserver) can cancel it — otherwise a disable inside
-// the 0ms window lets the callback re-arm the scroll observer on a torn-down
-// extension (same class of bug index.js fixes for its own _scrollInitTimer).
-let _postChatSwitchTimer = null;
+// Owned handles for the deferred post-chat-switch restore retries, so
+// cleanup() (via disconnectScrollObserver) can cancel them — otherwise a
+// disable inside the window lets a callback re-arm the scroll observer on a
+// torn-down extension (same class of bug index.js fixes for its own
+// _scrollInitTimer).
+let _postChatSwitchTimers = [];
 // Owned handle for the no-MESSAGE_UPDATED fallback double-rAF (onMsgEdited).
 let _editedRaf = 0;
 
@@ -184,12 +185,24 @@ function onChatChanged() {
     resetLazyInjector();
     installMarkerDelegation();
     ensureRestoreObserver();
-    if (_postChatSwitchTimer) clearTimeout(_postChatSwitchTimer);
-    _postChatSwitchTimer = setTimeout(() => {
-        _postChatSwitchTimer = null;
-        restoreHighlightsAll();
-        initScrollObserver();
-    }, 0);
+    clearPostChatSwitchTimers();
+    // Restore retries: the chat body renders AFTER CHAT_CHANGED and after the
+    // +0ms pass on heavy chats, and ST fills .mes_text asynchronously — an
+    // injection that ran at node-append time hit an empty body and the lazy
+    // observer marked the post as done anyway. The +0ms pass stays lazy
+    // (restoreHighlightsAll: visible posts inject now, the rest await the
+    // IntersectionObserver); the later passes run reapplyHighlightsAll, which
+    // injects EVERY verified payload regardless of viewport — the same full
+    // pass a display-mode switch does — so a heavy chat never needs a manual
+    // mode flip to show its cached markers. Both passes are idempotent.
+    _postChatSwitchTimers = [0, 400, 1500, 3500].map((ms) => setTimeout(() => {
+        if (ms === 0) {
+            restoreHighlightsAll();
+            initScrollObserver();
+        } else {
+            reapplyHighlightsAll();
+        }
+    }, ms));
     // Clear the transient targeted request and state synchronously BEFORE the
     // panel re-render so an old chat-change continuation cannot cancel a new
     // chat's targeted request, and the first render of the new chat never
@@ -429,7 +442,7 @@ function onMsgEdited(messageId) {
     // messageEditDone, so a double-rAF lands after the new .mes_text is up.
     // The handle is module-owned so unbindEvents can cancel it — otherwise a
     // disable inside the 2-frame window runs a rebind on a torn-down
-    // extension (same class of bug _postChatSwitchTimer fixes).
+    // extension (same class of bug the post-chat-switch timers fix).
     if (!_hasUpdatedEvent) {
         if (_editedRaf) cancelAnimationFrame(_editedRaf);
         _editedRaf = requestAnimationFrame(() => {
@@ -665,7 +678,12 @@ function pickMostVisible() {
     if (bestId !== null) setVisiblePost(bestId);
 }
 
+function clearPostChatSwitchTimers() {
+    _postChatSwitchTimers.forEach(clearTimeout);
+    _postChatSwitchTimers = [];
+}
+
 export function disconnectScrollObserver() {
-    if (_postChatSwitchTimer) { clearTimeout(_postChatSwitchTimer); _postChatSwitchTimer = null; }
+    clearPostChatSwitchTimers();
     teardownScroll();
 }
