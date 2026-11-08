@@ -488,6 +488,10 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         globalThis.toastr?.info?.(`[Glosses] ${t('The message is translated — un-translate it to regenerate footnotes.')}`);
         return;
     }
+    // Master toggle off = fully inert: the soft-disable keeps bindings alive,
+    // so every entry path (regen buttons, panel, popup, slash commands) must
+    // refuse to generate until the extension is re-enabled.
+    if (!S().enabled) return;
     if (!variantIsViable(messageId, swipeIdx)) {
         // Reject placeholder/short posts at every entry point (Issue 5).
         return;

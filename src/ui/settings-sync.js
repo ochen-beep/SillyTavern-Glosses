@@ -100,9 +100,18 @@ export function bindSettingsUI() {
 
     // Master toggle
     bindCb('gls_enabled', 'enabled', () => {
-        if (!S().enabled) document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
-        else restoreHighlightsAll();
+        if (!S().enabled) {
+            document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
+            // Regen buttons carry their own click listeners; the soft-disable
+            // must remove them or they keep generating while "off".
+            document.querySelectorAll('.gls-regen-btn').forEach(btn => btn.remove());
+        } else {
+            restoreHighlightsAll();
+        }
         applyHighlightStyles();
+        // updatePanel() tears the floating panel down when disabled and rebuilds
+        // it on re-enable (mirrors the floatingPanelEnabled reconciliation).
+        updatePanel();
         // Mount/remove the 🪶 launcher so it tracks the enabled state. Without
         // this the button lingered in #qr--bar after disabling until a chat
         // switch rebuilt the bar (ensureLauncher removes when !enabled).

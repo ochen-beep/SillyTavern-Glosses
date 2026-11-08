@@ -300,6 +300,13 @@ function isInChat() {
  * instead of it staying dark until a launcher click).
  */
 export function updatePanel() {
+    // Master toggle off = the panel must not outlive the soft-disable (the
+    // floating-panel toggle below is a separate user choice about the panel).
+    if (!S().enabled) {
+        if (_floatingPanel) destroyPanel();
+        syncFabPassthrough();
+        return;
+    }
     if (!S().floatingPanelEnabled) {
         if (_floatingPanel) destroyPanel();
         syncFabPassthrough();

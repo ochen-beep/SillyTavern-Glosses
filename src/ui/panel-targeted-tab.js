@@ -59,6 +59,9 @@ const saveDraftSoon = debounce(() => {
  */
 async function runTargetedGeneration() {
     if (_targetedState.generating) return;
+    // Master toggle off = the extension is inert (same contract as
+    // generateFootnotes' entry gate).
+    if (!S().enabled) return;
     const parsed = parseTargetLines(_targetedState.input);
     if (!parsed.targets.length) {
         _targetedState.status = t('Enter at least one target');
