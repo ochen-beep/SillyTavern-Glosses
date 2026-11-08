@@ -7,7 +7,7 @@
  * flow in src/ui/window.js, which resolves each target against the focused
  * variant's text and commits through the normal payload store.
  */
-import { parseResponse } from './parser.js';
+import { parseResponse, MAX_ANCHOR_LENGTH } from './parser.js';
 import { normalizeAnchorKey } from './anchor-utils.js';
 import { beginGenerationEpoch, isEpochCurrent } from './core.js';
 import { rebindTargeted } from './domain/rebind.js';
@@ -53,10 +53,17 @@ function footnoteText(value) {
 }
 
 export function validateTargetedResponse(parsed, targets) {
-    const byKey = new Map(targets.map(target => [keyOf(target), target]));
+    // Same anchor-length cap as the regular validation path: a longer target
+    // is invalid input, not a footnote.
+    const usable = [];
+    let invalidCount = 0;
+    for (const target of targets) {
+        if (target.length > MAX_ANCHOR_LENGTH) invalidCount++;
+        else usable.push(target);
+    }
+    const byKey = new Map(usable.map(target => [keyOf(target), target]));
     const used = new Set();
     const accepted = [];
-    let invalidCount = 0;
     const source = Array.isArray(parsed) ? parsed : parsed?.footnotes;
     for (const candidate of source || []) {
         if (!candidate || typeof candidate !== 'object') { invalidCount++; continue; }
@@ -67,7 +74,7 @@ export function validateTargetedResponse(parsed, targets) {
         used.add(key);
         accepted.push({ anchor: target, text: candidate.text });
     }
-    const footnotes = targets.filter(target => used.has(keyOf(target))).map((target, index) => {
+    const footnotes = usable.filter(target => used.has(keyOf(target))).map((target, index) => {
         const found = accepted.find(fn => keyOf(fn.anchor) === keyOf(target));
         // Body WITHOUT a numeric prefix — targeted entries are marked by a
         // symbol derived from their position at render time, never by digits.
@@ -75,7 +82,7 @@ export function validateTargetedResponse(parsed, targets) {
     });
     return {
         footnotes,
-        missingTargets: targets.filter(target => !used.has(keyOf(target))),
+        missingTargets: usable.filter(target => !used.has(keyOf(target))),
         invalidCount,
     };
 }

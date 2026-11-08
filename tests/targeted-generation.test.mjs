@@ -81,3 +81,17 @@ test('targeted result becomes stale after its generation epoch changes', async (
     assert.equal(result.stale, true);
     assert.deepEqual(result.footnotes, []);
 });
+
+test('a target beyond the 400-char anchor cap is rejected, not anchored', async () => {
+    const long = 'x'.repeat(410);
+    const result = await generateTargetedFootnotes({
+        targets: [long, 'short'].join('\n'),
+        request: async () => JSON.stringify({ footnotes: [
+            { anchor: long, text: 'too long' },
+            { anchor: 'short', text: 'Short note' },
+        ] }),
+    });
+    assert.deepEqual(result.footnotes.map(fn => fn.anchor), ['short']);
+    assert.deepEqual(result.missingTargets, []);
+    assert.equal(result.invalidCount, 2); // over-cap target + its unmatched echo candidate
+});

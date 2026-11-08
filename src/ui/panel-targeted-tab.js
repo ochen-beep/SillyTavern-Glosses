@@ -124,7 +124,11 @@ async function runTargetedGeneration() {
             return;
         }
         if (!result.footnotes.length) {
-            const parts = [parseNotice, t('Missing') + ': ' + result.targets.join(', ')].filter(Boolean);
+            // missingTargets excludes rejected (over-cap) targets, so the
+            // status never prints a 400+ character line back at the user.
+            const parts = [parseNotice];
+            if (result.missingTargets.length) parts.push(t('Missing') + ': ' + result.missingTargets.join(', '));
+            if (!parts.length) parts.push(t('Enter at least one target'));
             _targetedState.status = parts.join(' · ');
             return;
         }

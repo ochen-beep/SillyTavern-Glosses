@@ -20,6 +20,11 @@ import { findAnchorInText, normalizeAnchorKey } from './anchor-utils.js';
 const _SUP_TO_DIGIT = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
 const _DIGIT_TO_SUP = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
+/** Anchor length cap shared by the regular and targeted validation paths
+ *  (models legitimately quote long verbatim clauses; longer strings are
+ *  invalid model output or user input, not anchors). */
+export const MAX_ANCHOR_LENGTH = 400;
+
 export function superscriptToIndex(value) {
     const digits = [...String(value || '')].map(ch => _SUP_TO_DIGIT[ch] ?? '').join('');
     return parseInt(digits, 10) || NaN;
@@ -449,9 +454,9 @@ export function validateFootnotesAgainstText(parsed, postText, forcedIgnore = []
         }))
         .filter(f => {
             if (!f.text || !f.anchor) { dropped.push({ anchor: f.anchor, reason: 'empty' }); return false; }
-            // Anchor length cap: PAR-1 raised 120 → 400 (models legitimately
-            // quote long verbatim clauses; the contract asks for clauses).
-            if (f.anchor.length > 400) { dropped.push({ anchor: f.anchor, reason: 'too long' }); return false; }
+            // Anchor length cap: 120 → 400 (models legitimately quote long
+            // verbatim clauses; the contract asks for clauses).
+            if (f.anchor.length > MAX_ANCHOR_LENGTH) { dropped.push({ anchor: f.anchor, reason: 'too long' }); return false; }
 
             // The user's forbidden list bans the PHRASE, whether or not it is
             // in the post — a banned phrase never becomes a footnote.
