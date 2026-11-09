@@ -356,26 +356,28 @@
 
 .gls-panel-entry {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
     padding: 8px 10px;
     /* Skip rendering for rows scrolled outside the panel viewport. The intrinsic
        size hint keeps the scrollbar stable so rows don't pop on scroll-back.
-       Pairs with the panel-level containment above. The card layout (number +
-       text, then an action bar) is taller than the old single-row entry, hence
-       the larger intrinsic hint. */
+       Pairs with the panel-level containment above. */
     content-visibility: auto;
-    contain-intrinsic-size: auto 76px;
+    contain-intrinsic-size: auto 44px;
 }
 
 .gls-panel-entry + .gls-panel-entry {
     border-top: 1px solid var(--gls-line);
 }
 
-/* Content row: mono index + body text side by side. The index is shown once
-   here as a themed accent; the footnote text itself is rendered without its
-   leading superscript so the number isn't duplicated. */
+/* Content row: mono index + body text side by side, filling the line; the
+   icon actions park at the right edge. The index is shown once here as a
+   themed accent; the footnote text itself is rendered without its leading
+   superscript so the number isn't duplicated. */
 .gls-panel-entry-main {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     gap: 6px;
     align-items: flex-start;
@@ -495,12 +497,13 @@
     white-space: nowrap;
 }
 
-/* Action bar — always visible, text + icon. Lives below the content so the
-   text gets the full card width. */
+/* Action bar — icon-only buttons parked at the row's right edge; the labels
+   live in title/aria-label. The inline editor replaces the whole row, so the
+   flex direction here never affects it. */
 .gls-panel-entry-actions {
     display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
+    gap: 2px;
+    flex: 0 0 auto;
     align-items: center;
 }
 

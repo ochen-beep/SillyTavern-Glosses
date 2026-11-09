@@ -111,12 +111,11 @@ export function showCopied(btn, { iconSize = 12, doneClass = 'gls-panel-copy--do
 export function buildFootnoteActions(opts) {
     const variant = opts.variant === 'popup' ? 'popup' : 'panel';
     const kind = opts.kind === 't' ? 't' : 'fn';
-    // Popup header: icon-only buttons at a larger size — long labels
-    // ("Копировать/Редактировать/Удалить") at big popup fonts used to stretch
-    // the card; labels survive as title/aria-label tooltips. The panel keeps
-    // the labelled compact style (rows have room, and labels aid scanning).
-    const iconOnly = variant === 'popup';
-    const iconSize = iconOnly ? 16 : 12;
+    // Both surfaces render icon-only buttons: the popup can't fit long
+    // labels at big popup fonts, and the panel keeps each footnote to a
+    // single line (labels survive as title/aria-label tooltips).
+    const iconOnly = true;
+    const iconSize = variant === 'popup' ? 16 : 14;
     const copyCls = variant === 'popup'
         ? 'gls-popup-action-btn gls-popup-copy'
         : 'gls-panel-copy';
