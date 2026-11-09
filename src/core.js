@@ -173,13 +173,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
     //   --gls-radius-lg look; 0 = square "slab", 18+ = soft bubble.
     // - popupDensity: body padding + line-height. 'comfortable' = historic
     //   sp-3/sp-4/sp-2 paddings; 'compact' saves vertical space (mobile,
-    //   long footnotes).
-    // - popupShadow: 'strong' = the wide float halo (historic), 'soft' = a
-    //   shorter lighter pair for light themes where big shadows read dirty,
-    //   'none' = flat.
+    //   long footnotes). The former popupShadow knob is retired: the float
+    //   halo is part of the popup's look and was barely distinguishable.
     popupCornerRadius: 12,
     popupDensity: 'comfortable',
-    popupShadow: 'strong',
     // Popup skin (Level 2 — color + decoration bundles): 'adaptive' keeps the
     // theme-derived surface/edge (historic behavior); the others override the
     // popup's color tokens with a fixed palette and layered background

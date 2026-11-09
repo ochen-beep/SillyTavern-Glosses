@@ -445,8 +445,6 @@ export function bindSettingsUI() {
 
     bindSelect('gls_popup_density', 'popupDensity', { fallback: 'comfortable', onChange: applyHighlightStyles });
 
-    bindSelect('gls_popup_shadow', 'popupShadow', { fallback: 'strong', onChange: applyHighlightStyles });
-
     bindSlider('gls_popup_corner', 'gls_popup_corner_val', 'popupCornerRadius', { readout: n => `${n}px`, publish: applyHighlightStyles });
 
     // Popup custom CSS layer. The toggle republishes the <style> tags through

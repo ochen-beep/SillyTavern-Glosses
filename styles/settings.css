@@ -115,6 +115,16 @@
 
 .gls-s-select { width: 100%; }
 
+/* Knob row: label left, control right — full-width values instead of the
+   2-column grid that truncated select options. */
+.gls-s-knob-row {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--gls-sp-3);
+}
+.gls-s-knob-row .gls-s-knob-label { flex: 0 0 auto; margin: 0; }
+.gls-s-knob-row .gls-s-knob-control { flex: 1 1 auto; min-width: 0; }
+
 .gls-s-grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;

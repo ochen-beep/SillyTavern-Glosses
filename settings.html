@@ -434,53 +434,39 @@
                  aria-hidden. -->
             <div class="gls-s-subcard">
                 <div class="gls-s-subcard-title" data-i18n="Popup">Popup</div>
-                <div class="gls-s-grid-2">
-                    <div class="gls-s-field-group">
-                        <label class="gls-s-field-label" for="gls_popup_position">
-                            <span data-i18n="Popup position">Popup position</span>
-                        </label>
-                        <select id="gls_popup_position" class="gls-s-select" data-i18n="[title]Where the card opens relative to the marker" title="Where the card opens relative to the marker">
-                            <option value="auto" data-i18n="Auto (side with more space)">Auto (side with more space)</option>
-                            <option value="below" data-i18n="Below the marker">Below the marker</option>
-                            <option value="above" data-i18n="Above the marker">Above the marker</option>
-                        </select>
-                    </div>
-                    <div class="gls-s-field-group">
-                        <label class="gls-s-field-label" for="gls_popup_width">
-                            <span data-i18n="Popup max width">Popup max width</span>
-                        </label>
-                        <div class="gls-s-field-row">
-                            <input id="gls_popup_width" type="range" min="280" max="640" step="20" class="gls-s-range gls-s-grow" aria-label="Popup max width">
-                            <span id="gls_popup_width_val" class="gls-s-val">420px</span>
-                        </div>
+                <div class="gls-s-field-group gls-s-knob-row">
+                    <label class="gls-s-field-label gls-s-knob-label" for="gls_popup_position">
+                        <span data-i18n="Popup position">Popup position</span>
+                    </label>
+                    <select id="gls_popup_position" class="gls-s-select gls-s-knob-control" data-i18n="[title]Where the card opens relative to the marker" title="Where the card opens relative to the marker">
+                        <option value="auto" data-i18n="Auto (side with more space)">Auto (side with more space)</option>
+                        <option value="below" data-i18n="Below the marker">Below the marker</option>
+                        <option value="above" data-i18n="Above the marker">Above the marker</option>
+                    </select>
+                </div>
+                <div class="gls-s-field-group gls-s-knob-row">
+                    <label class="gls-s-field-label gls-s-knob-label" for="gls_popup_width">
+                        <span data-i18n="Popup max width">Popup max width</span>
+                    </label>
+                    <div class="gls-s-field-row gls-s-knob-control">
+                        <input id="gls_popup_width" type="range" min="280" max="640" step="20" class="gls-s-range gls-s-grow" aria-label="Popup max width">
+                        <span id="gls_popup_width_val" class="gls-s-val">420px</span>
                     </div>
                 </div>
-                <div class="gls-s-grid-2">
-                    <div class="gls-s-field-group">
-                        <label class="gls-s-field-label" for="gls_popup_density">
-                            <span data-i18n="Popup density">Popup density</span>
-                        </label>
-                        <select id="gls_popup_density" class="gls-s-select" data-i18n="[title]Comfortable = airy spacing, Compact = tighter line height" title="Comfortable = airy spacing, Compact = tighter line height">
-                            <option value="comfortable" data-i18n="Comfortable">Comfortable</option>
-                            <option value="compact" data-i18n="Compact">Compact</option>
-                        </select>
-                    </div>
-                    <div class="gls-s-field-group">
-                        <label class="gls-s-field-label" for="gls_popup_shadow">
-                            <span data-i18n="Popup shadow">Popup shadow</span>
-                        </label>
-                        <select id="gls_popup_shadow" class="gls-s-select" data-i18n="[title]Depth of the card's drop shadow" title="Depth of the card's drop shadow">
-                            <option value="strong" data-i18n="Expressive">Expressive</option>
-                            <option value="soft" data-i18n="Soft">Soft</option>
-                            <option value="none" data-i18n="None">None</option>
-                        </select>
-                    </div>
+                <div class="gls-s-field-group gls-s-knob-row">
+                    <label class="gls-s-field-label gls-s-knob-label" for="gls_popup_density">
+                        <span data-i18n="Popup density">Popup density</span>
+                    </label>
+                    <select id="gls_popup_density" class="gls-s-select gls-s-knob-control" data-i18n="[title]Comfortable = airy spacing, Compact = tighter line height" title="Comfortable = airy spacing, Compact = tighter line height">
+                        <option value="comfortable" data-i18n="Comfortable">Comfortable</option>
+                        <option value="compact" data-i18n="Compact">Compact</option>
+                    </select>
                 </div>
-                <div class="gls-s-field-group">
-                    <label class="gls-s-field-label" for="gls_popup_corner">
+                <div class="gls-s-field-group gls-s-knob-row">
+                    <label class="gls-s-field-label gls-s-knob-label" for="gls_popup_corner">
                         <span data-i18n="Popup corner radius">Popup corner radius</span>
                     </label>
-                    <div class="gls-s-field-row">
+                    <div class="gls-s-field-row gls-s-knob-control">
                         <input id="gls_popup_corner" type="range" min="0" max="20" step="1" class="gls-s-range gls-s-grow" aria-label="Popup corner radius">
                         <span id="gls_popup_corner_val" class="gls-s-val">12px</span>
                     </div>

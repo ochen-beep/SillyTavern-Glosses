@@ -49,16 +49,14 @@ export function applyHighlightStyles() {
     root.style.setProperty('--gls-panel-font-size', s.panelFontSize || '0.9em');
     root.style.setProperty('--gls-marker-size', s.markerFontSize || '0.75em');
     root.style.setProperty('--gls-popup-maxw', `${parseInt(s.popupMaxWidth, 10) || 420}px`);
-    // Popup geometry/depth knobs (density, shadow strength) and popup skins
-    // ride classes on :root — each level maps to a fixed CSS rule, so a bad
-    // stored value can only fall back to the unclassed default. Radius is a
-    // continuous slider, so it publishes a px var instead.
+    // Popup geometry knobs (density) and popup skins ride classes on :root —
+    // each level maps to a fixed CSS rule, so a bad stored value can only fall
+    // back to the unclassed default. Radius is a continuous slider, so it
+    // publishes a px var instead.
     const skin = SKINS.includes(s.popupTheme) ? s.popupTheme : 'adaptive';
     for (const k of SKINS) root.classList.remove(`gls-popup-skin-${k}`);
     root.classList.add(`gls-popup-skin-${skin}`);
     root.classList.toggle('gls-popup-compact', s.popupDensity === 'compact');
-    root.classList.toggle('gls-popup-shadow-soft', s.popupShadow === 'soft');
-    root.classList.toggle('gls-popup-shadow-none', s.popupShadow === 'none');
     const radius = parseInt(s.popupCornerRadius, 10);
     root.style.setProperty('--gls-popup-radius', Number.isFinite(radius) ? `${radius}px` : '12px');
     // Explicit font choice beats a skin's bundled font: skins set font-family

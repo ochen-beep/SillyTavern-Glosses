@@ -156,7 +156,7 @@ function seedControls() {
         'gls_stop_words', 'gls_sound_volume',
         'gls_font_family', 'gls_font_size', 'gls_font_size_val',
         'gls_panel_font_family', 'gls_panel_font_size', 'gls_panel_font_size_val',
-        'gls_popup_theme', 'gls_popup_density', 'gls_popup_shadow',
+        'gls_popup_theme', 'gls_popup_density',
         'gls_popup_corner', 'gls_popup_corner_val',
         'gls_hybrid_lens_language', 'gls_language_panel',
     ]) fakeDoc.register(id);
