@@ -161,6 +161,51 @@ function tryRepairJson(text) {
     return result;
 }
 
+// ── Proxy hard-wrap recovery ──
+// Some proxies (observed: gemini_chat → gemini-4-argon) hard-wrap the raw JSON
+// text at a fixed column width, inserting bare '\n' ANYWHERE — mid-word inside
+// anchors ("Тимо\nти"), mid-key ("footnotes\n":), mid-value. The insertion never
+// consumes characters (a space at the wrap point is preserved on the next line),
+// so the original text is restored by simply DELETING the inserted newlines.
+// tryRepairJson alone is not enough: it escapes the newlines, the JSON parses,
+// but the envelope key stays "footnotes\n" and every anchor is silently mangled.
+//
+// Detection signal: a newline inside a KEY. Models never emit that; only a
+// transport-level wrap does. When any key in the parsed tree contains \r/\n we
+// strip \r\n from ALL keys and ALL string values in the tree.
+
+function jsonHasSplitKey(value) {
+    if (Array.isArray(value)) return value.some(jsonHasSplitKey);
+    if (value && typeof value === 'object') {
+        return Object.entries(value).some(([k, v]) => /[\r\n]/.test(k) || jsonHasSplitKey(v));
+    }
+    return false;
+}
+
+function dewrapHardWrappedJson(value) {
+    if (Array.isArray(value)) return value.map(dewrapHardWrappedJson);
+    if (value && typeof value === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(value)) {
+            out[k.replace(/[\r\n]+/g, '')] = dewrapHardWrappedJson(v);
+        }
+        return out;
+    }
+    if (typeof value === 'string') return value.replace(/[\r\n]+/g, '');
+    return value;
+}
+
+/**
+ * JSON.parse wrapper shared by every repair tier: after a successful parse,
+ * detect proxy hard-wrap (split key) and de-wrap the whole tree. Returns null
+ * on parse failure.
+ */
+function parseMaybeDewrapped(text) {
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch { return null; }
+    return (parsed && jsonHasSplitKey(parsed)) ? dewrapHardWrappedJson(parsed) : parsed;
+}
+
 /**
  * Find the matching closing brace/bracket for the one at `start`, tracking
  * string context and escape sequences. Returns index of the matching close, or -1.
@@ -201,12 +246,9 @@ function extractObjectsFromText(text) {
         const end = findMatchingBrace(text, start);
         if (end === -1) { i = start + 1; continue; }
         const objText = text.slice(start, end + 1);
-        let obj = null;
-        try { obj = JSON.parse(objText); }
-        catch {
-            try { obj = JSON.parse(tryRepairJson(objText)); }
-            catch { /* skip this object */ }
-        }
+        // parseMaybeDewrapped never throws (null on failure) — try the raw
+        // slice first, then the repaired slice.
+        const obj = parseMaybeDewrapped(objText) ?? parseMaybeDewrapped(tryRepairJson(objText));
         if (obj && typeof obj === 'object' && !Array.isArray(obj)) objects.push(obj);
         i = end + 1;
     }
@@ -300,12 +342,11 @@ export function parseResponse(raw) {
  */
 function parseJsonWithRepair(text) {
     // ── Attempt 1: direct parse ──
-    let parsed = null;
-    try { parsed = JSON.parse(text); } catch { /* escalate */ }
+    let parsed = parseMaybeDewrapped(text);
 
     // ── Attempt 2: repair + parse ──
     if (!parsed) {
-        try { parsed = JSON.parse(tryRepairJson(text)); } catch { /* escalate */ }
+        parsed = parseMaybeDewrapped(tryRepairJson(text));
     }
 
     // A top-level object with a footnotes array is a usable response.
@@ -337,8 +378,7 @@ function parseJsonWithRepair(text) {
                 let repaired = truncated;
                 if (openBraces > 0) repaired += '}';
                 repaired += ']';
-                try { return JSON.parse(repaired); }
-                catch { return JSON.parse(tryRepairJson(repaired)); }
+                return parseMaybeDewrapped(repaired) ?? parseMaybeDewrapped(tryRepairJson(repaired));
             }
         }
     } catch { /* fall through */ }

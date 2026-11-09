@@ -145,3 +145,49 @@ test('returns null-ish on input with no recoverable JSON or text footnotes', () 
     const parsed = parseResponse('I cannot help with that.');
     assert.equal(parsed, null);
 });
+
+// ── Proxy hard-wrap recovery ──
+// Some proxies hard-wrap the raw JSON at a fixed column width, inserting bare
+// '\n' anywhere — mid-word inside anchors, mid-KEY ("footnotes\n":). The wrap
+// never consumes characters, so deleting the newlines restores the original.
+// Detection signal: a '\n' inside a key (models never emit that).
+// Real-world capture: gemini_chat proxy, model gemini-4-argon, 2026-11.
+
+test('recovers a proxy hard-wrapped payload (split key + mid-word wraps)', () => {
+    const broken = '{"footnotes\n' +
+        '":[{"anchor":"Тимоти двинул свой кожаный портфель вправо","text":"¹ Тимо\n' +
+        'ти (канон.) — студент, который в\n' +
+        ' школе травил Ханну."},{"anchor":"к\n' +
+        'лубный свитшот","text":"³ Клубный свитшот — Спортивная ко\n' +
+        'фта."}]}';
+    const parsed = parseResponse(broken);
+    assert.ok(parsed, 'hard-wrapped JSON must parse');
+    assert.equal(parsed.footnotes.length, 2);
+    // Mid-word wrap rejoined without a space…
+    assert.equal(parsed.footnotes[0].anchor, 'Тимоти двинул свой кожаный портфель вправо');
+    assert.ok(parsed.footnotes[0].text.includes('Тимоти'), 'mid-word wrap must rejoin');
+    // …while a wrap point before a real space keeps exactly one space.
+    assert.ok(parsed.footnotes[0].text.includes('в школе'), 'preserved space at wrap point');
+    assert.equal(parsed.footnotes[1].anchor, 'клубный свитшот');
+    assert.ok(parsed.footnotes[1].text.includes('кофта'));
+});
+
+test('hard-wrap recovery also fires on the split envelope key only', () => {
+    // Even when only the envelope key is split (values intact), the payload
+    // must be accepted — previously parsed fine but was rejected because the
+    // key was "footnotes\n" instead of "footnotes".
+    const broken = '{"footnotes\n":[{"anchor":"a","text":"¹ a (t) — b"}]}';
+    const parsed = parseResponse(broken);
+    assert.ok(parsed);
+    assert.equal(parsed.footnotes.length, 1);
+    assert.equal(parsed.footnotes[0].anchor, 'a');
+});
+
+test('legit bare newline inside a string is NOT de-wrapped when keys are clean', () => {
+    // Regression guard: de-wrapping must trigger only on the split-key signal.
+    // A model-emitted bare newline with intact keys keeps its newline.
+    const broken = '{"footnotes":[{"anchor":"a","text":"¹ a — b\nc continues"}]}';
+    const parsed = parseResponse(broken);
+    assert.ok(parsed);
+    assert.equal(parsed.footnotes[0].text, '¹ a — b\nc continues');
+});
