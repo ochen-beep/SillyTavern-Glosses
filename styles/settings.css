@@ -182,14 +182,8 @@
 
 .gls-s-toggle-row--indent { padding-left: var(--gls-sp-3); }
 
-/* Behavioral toggles (iOS row pattern, mock-up spec): the caption stays on
-   the left, the checkbox parks at the row's right edge. Selection lists
-   (lenses, context includes, custom-lens rows) keep the default
-   checkbox-left layout — the side encodes the row's kind. The DOM order is
-   input-first, so the span is visually reordered ahead of the box and the
-   auto margin eats the space BETWEEN them. */
-.gls-s-toggle-row--switch > span { order: -1; }
-.gls-s-toggle-row--switch > .checkbox { margin-left: auto; }
+/* All checkboxes sit before their caption: one pattern across the panel
+   (the former iOS-style right-parked switch rows split the column). */
 
 .gls-s-toggles {
     display: flex;
