@@ -39,6 +39,20 @@ test('direct contract describes only the footnotes payload', () => {
     assert.doesNotMatch(DIRECT_FOOTNOTE_CONTRACT, /bracket notation in the "text"/);
 });
 
+// The unified footnote shape (label/code/dash/translation) lives in
+// _CONTRACT_TAIL, so BOTH contracts must carry it — it feeds the popup's
+// title/body split and the mandatory-translation behavior in every style.
+test('both contracts carry the unified label/dash/translation rules', () => {
+    for (const contract of [DIRECT_FOOTNOTE_CONTRACT, DIRECT_FOOTNOTE_CONTRACT_AUTO]) {
+        assert.match(contract, /capital letter/, 'label capitalization rule');
+        assert.match(contract, /1–4 words/, 'short nominative label rule');
+        assert.match(contract, /end it with a dot/, 'category code rule');
+        assert.match(contract, /spaced em-dash/, 'title/body separator rule');
+        assert.match(contract, /MUST get a footnote/, 'mandatory translation rule');
+        assert.match(contract, /already rendered in the narration language/, 'translation boundary rule');
+    }
+});
+
 // The advisory instruction must be CONDITIONAL-SAFE in both contracts: the
 // [Previously glossed anchors] block is itself conditional (avoidRepeat off /
 // empty pool), so an unconditional "prefer anchors not listed in the advisory"

@@ -7,9 +7,6 @@
  * embed the exact superscript format the parser expects. generator.js is the
  * only consumer.
  */
-
-// .md files) because they need to vary by output language and embed the exact
-// superscript format the parser expects.
 export const PROMPT_EXAMPLES = {
     pratchett: {
         en: `### Examples (exact output format — copy this structure)
@@ -21,11 +18,11 @@ export const PROMPT_EXAMPLES = {
 ³ Cruciatus (Lat.) — An unforgivable curse causing unbearable pain. Considered poor etiquette in polite society, though unfortunately polite society usually ends right where dark wizards with bad childhoods begin.
 
 Example with non-nominative anchor (source text: "rubbed with kohl"):
-⁴ Kohl (hist.) — Traditional ancient Egyptian eye cosmetic made from ground galena. Served both a sacred-aesthetic and practical function, shielding the optic nerve from harsh sun and infection.
+⁴ Kohl (Hist.) — Traditional ancient Egyptian eye cosmetic made from ground galena. Served both a sacred-aesthetic and practical function, shielding the optic nerve from harsh sun and infection.
 Anchor in JSON: "rubbed with kohl"
 
 Example with phrase anchor (source text: "son of Horus"):
-⁵ Son of Horus (myth.) — Horus was the falcon-headed sky god, known for his vindictiveness and his talent for losing important body parts in family squabbles. Direct descent from him automatically guaranteed perfect posture, innate pomposity, and an acute need to look down on everyone else as something stuck to the sole of a sandal.
+⁵ Son of Horus (Myth.) — Horus was the falcon-headed sky god, known for his vindictiveness and his talent for losing important body parts in family squabbles. Direct descent from him automatically guaranteed perfect posture, innate pomposity, and an acute need to look down on everyone else as something stuck to the sole of a sandal.
 Anchor in JSON: "son of Horus"`,
         ru: `### Examples (exact output format — copy this structure)
 
@@ -36,11 +33,11 @@ Anchor in JSON: "son of Horus"`,
 ³ Cruciatus (лат.) — Непростительное проклятие, причиняющее невыносимую боль. В приличном обществе считается дурным тоном, но, к сожалению, приличное общество обычно заканчивается там, где начинаются тёмные маги с плохим детством.
 
 Example with non-nominative anchor (source text: "натёрла сурьмой"):
-⁴ Сурьма (историч.) — Традиционная древнеегипетская подводка для глаз, изготавливавшаяся из растёртого галенита. Выполняла как сакрально-эстетическую функцию, так и практическую, защищая зрительный нерв от палящего солнца и инфекций.
+⁴ Сурьма (Историч.) — Традиционная древнеегипетская подводка для глаз, изготавливавшаяся из растёртого галенита. Выполняла как сакрально-эстетическую функцию, так и практическую, защищая зрительный нерв от палящего солнца и инфекций.
 Anchor in JSON: "натёрла сурьмой"
 
 Example with phrase anchor (source text: "сына Гора"):
-⁵ Сын Гора (мифол.) — Гор был богом неба с головой сокола, известным своей мстительностью и талантом терять важные части тела в семейных ссорах. Прямое родство с ним автоматически гарантировало идеальную осанку, врождённый пафос и острую потребность смотреть на всех остальных как на нечто, прилипшее к подошве сандалии.
+⁵ Сын Гора (Мифол.) — Гор был богом неба с головой сокола, известным своей мстительностью и талантом терять важные части тела в семейных ссорах. Прямое родство с ним автоматически гарантировало идеальную осанку, врождённый пафос и острую потребность смотреть на всех остальных как на нечто, прилипшее к подошве сандалии.
 Anchor in JSON: "сына Гора"`,
     },
     pratchett50: {
@@ -75,78 +72,78 @@ Example with phrase anchor (source text: "son of Horus"):
 ¹ Baisse le son, tu vas réveiller les morts (фр.) — «Убавь звук, ты мертвецов разбудишь». Устойчивое разговорное преувеличение. Как известно любому практикующему некроманту, мёртвые на самом деле спят на удивление крепко, и для их пробуждения требуется как минимум жертвенный козёл, а не просто громкая музыка.
 
 **Technical term — precise definition, dry remark at the end:**
-² Наноботы (техн.) — Гипотетические устройства молекулярного масштаба, спроектированные для выполнения задач внутри организма: доставки лекарств, диагностики, восстановления тканей. Гипотетические — потому что реальные инженеры пока заняты тем, чтобы обычные принтеры работали хотя бы через раз.
+² Наноботы (Техн.) — Гипотетические устройства молекулярного масштаба, спроектированные для выполнения задач внутри организма: доставки лекарств, диагностики, восстановления тканей. Гипотетические — потому что реальные инженеры пока заняты тем, чтобы обычные принтеры работали хотя бы через раз.
 
 **Real geographical location — factual note, remark only if genuinely apt:**
-³ Café de Flore (геогр.) — Кафе на бульваре Сен-Жермен, 172, Париж, основано в 1887 году. Постоянное место Жан-Поля Сартра и Симоны де Бовуар в 1940-х; по сей день считается интеллектуальным символом Левого берега. Восемь евро за эспрессо — это не за кофе, это за право занять стул рядом с призраком экзистенциализма.
+³ Café de Flore (Геогр.) — Кафе на бульваре Сен-Жермен, 172, Париж, основано в 1887 году. Постоянное место Жан-Поля Сартра и Симоны де Бовуар в 1940-х; по сей день считается интеллектуальным символом Левого берега. Восемь евро за эспрессо — это не за кофе, это за право занять стул рядом с призраком экзистенциализма.
 
 **Historical event — what and when, Pratchett iff warranted:**
-⁴ Битва при Ватерлоо (историч.) — Сражение 18 июня 1815 года близ одноимённой деревни в Бельгии, в котором силы Седьмой коалиции под командованием герцога Веллингтона и фельдмаршала Блюхера нанесли окончательное поражение армии Наполеона. Для Наполеона это стало окончательным «нет» со стороны Европы — достаточно вежливым, чтобы не объяснять причин, и достаточно убедительным, чтобы хватило семидесяти тысяч штыков.
+⁴ Битва при Ватерлоо (Историч.) — Сражение 18 июня 1815 года близ одноимённой деревни в Бельгии, в котором силы Седьмой коалиции под командованием герцога Веллингтона и фельдмаршала Блюхера нанесли окончательное поражение армии Наполеона. Для Наполеона это стало окончательным «нет» со стороны Европы — достаточно вежливым, чтобы не объяснять причин, и достаточно убедительным, чтобы хватило семидесяти тысяч штыков.
 
 **Fictional-universe canon — factual first, irony welcome:**
-⁵ Авада Кедавра (канон.) — Одно из трёх Непростительных заклятий в легендариуме Дж. К. Роулинг; вызывает мгновенную смерть без видимых повреждений тела. Впервые появляется в «Кубке огня» (2000). Единственный задокументированный способ выжить — быть главным героем и иметь достаточно книг в серии.
+⁵ Авада Кедавра (Канон.) — Одно из трёх Непростительных заклятий в легендариуме Дж. К. Роулинг; вызывает мгновенную смерть без видимых повреждений тела. Впервые появляется в «Кубке огня» (2000). Единственный задокументированный способ выжить — быть главным героем и иметь достаточно книг в серии.
 
 **Cultural reference / jargon — full Pratchett:**
 ⁶ Cruciatus (лат.) — Непростительное проклятие, причиняющее невыносимую боль. В приличном обществе считается дурным тоном, но приличное общество обычно заканчивается именно там, где начинаются тёмные маги с плохим детством и списком обид длиннее, чем «Война и мир».
 
 Example with non-nominative anchor (source text: "натёрла сурьмой"):
-⁷ Сурьма (историч.) — Косметическая смесь на основе растёртого галенита (сульфида свинца), применявшаяся в Древнем Египте как подводка для глаз; наносилась заострённой палочкой, одновременно защищая от солнца и инфекций. То, что галенит содержит свинец, египтян не останавливало — они были реалистами.
+⁷ Сурьма (Историч.) — Косметическая смесь на основе растёртого галенита (сульфида свинца), применявшаяся в Древнем Египте как подводка для глаз; наносилась заострённой палочкой, одновременно защищая от солнца и инфекций. То, что галенит содержит свинец, египтян не останавливало — они были реалистами.
 
 Example with phrase anchor (source text: "сына Гора"):
-⁸ Сын Гора (мифол.) — Потомок Гора, египетского бога неба с головой сокола, покровителя фараонов. Прямое родство автоматически гарантировало безупречную осанку, врождённый пафос и привычку смотреть на окружающих как на нечто, прилипшее к подошве сандалии.`,
+⁸ Сын Гора (Мифол.) — Потомок Гора, египетского бога неба с головой сокола, покровителя фараонов. Прямое родство автоматически гарантировало безупречную осанку, врождённый пафос и привычку смотреть на окружающих как на нечто, прилипшее к подошве сандалии.`,
     },
     meta_plus: {
         en: `### Examples (exact output format — copy this structure)
 
-¹ Dark Cave (litcrit.) — The author spent three paragraphs describing the darkness in a cave that, as it turns out, had torches standing in it. The writer apparently believed "dark" was synonymous with "atmospheric." He was wrong.
+¹ Dark Cave (Litcrit.) — The author spent three paragraphs describing the darkness in a cave that, as it turns out, had torches standing in it. The writer apparently believed "dark" was synonymous with "atmospheric." He was wrong.
 
-² Hero Charges Into Battle (narrative.) — In Chapter 12, this same character broke his ribs falling down a three-step staircase. Now he's charging twenty armed goblins with a single poker. Apparently the ribs healed extraordinarily fast — or the author simply forgot.
+² Hero Charges Into Battle (Narrative.) — In Chapter 12, this same character broke his ribs falling down a three-step staircase. Now he's charging twenty armed goblins with a single poker. Apparently the ribs healed extraordinarily fast — or the author simply forgot.
 
-³ "Forewarned Is Forearmed" (fourthwall.) — Does the reader genuinely believe this character will ever be both forewarned and forearmed simultaneously? The author has promised three times that "next time will be worse." So far, only the prose is getting worse.
+³ "Forewarned Is Forearmed" (Fourthwall.) — Does the reader genuinely believe this character will ever be both forewarned and forearmed simultaneously? The author has promised three times that "next time will be worse." So far, only the prose is getting worse.
 
-⁴ Dungeon Civil Code (archive.) — §7.3.2 of the Dungeon Civil Code: "Any party discovering a treasure chest is required to first check for mimics, and then for more dangerous mimics. In the event of a mimic of a mimic, legal counsel is recommended — provided the mimic hasn't eaten counsel first."
+⁴ Dungeon Civil Code (Archive.) — §7.3.2 of the Dungeon Civil Code: "Any party discovering a treasure chest is required to first check for mimics, and then for more dangerous mimics. In the event of a mimic of a mimic, legal counsel is recommended — provided the mimic hasn't eaten counsel first."
 
-⁵ On the Dark Lord's Sword (gossip.) — In the taverns they whisper that the Dark Lord's sword was actually bought at a clearance sale in an arms shop for three copper pennies and sharpened by a driver who quit after the first swing. The Lord, of course, maintains it is "a ritual blade of ancient times." The driver disagrees.
+⁵ On the Dark Lord's Sword (Gossip.) — In the taverns they whisper that the Dark Lord's sword was actually bought at a clearance sale in an arms shop for three copper pennies and sharpened by a driver who quit after the first swing. The Lord, of course, maintains it is "a ritual blade of ancient times." The driver disagrees.
 
-⁶ Knocking at the Door (folklore.) — If someone knocks three times at midnight — it's spirits. Four times — it's the postman. Five times — it's spirits who have learned to count and decided to frighten you even more.
+⁶ Knocking at the Door (Folklore.) — If someone knocks three times at midnight — it's spirits. Four times — it's the postman. Five times — it's spirits who have learned to count and decided to frighten you even more.
 
-⁷ "I Am Unstoppable" (irony.) — The character announces this with the confidence of someone who has clearly never been stopped before, which statistically means his first time is about three paragraphs away.
+⁷ "I Am Unstoppable" (Irony.) — The character announces this with the confidence of someone who has clearly never been stopped before, which statistically means his first time is about three paragraphs away.
 
-⁸ The Final Stand (bathos.) — A three-page monologue about honor, destiny, and the weight of centuries of dragon blood — interrupted by a sneeze that sends him stumbling off the edge of the parapet. The narrative budget has been spent.
+⁸ The Final Stand (Bathos.) — A three-page monologue about honor, destiny, and the weight of centuries of dragon blood — interrupted by a sneeze that sends him stumbling off the edge of the parapet. The narrative budget has been spent.
 
-⁹ "Just a Scratch" (litotes.) — The character lost an arm. The text calls it "a minor inconvenience." The remaining four paragraphs describe, in forensic detail, how the arm is currently on the other side of the courtyard.
+⁹ "Just a Scratch" (Litotes.) — The character lost an arm. The text calls it "a minor inconvenience." The remaining four paragraphs describe, in forensic detail, how the arm is currently on the other side of the courtyard.
 
-¹⁰ Hero Before a Mirror (intertext.) — Hamlet held a skull. Our hero holds a hairbrush and delivers the same soliloquy to his own reflection, minus the philosophical depth but plus surprisingly specific hair care advice.
+¹⁰ Hero Before a Mirror (Intertext.) — Hamlet held a skull. Our hero holds a hairbrush and delivers the same soliloquy to his own reflection, minus the philosophical depth but plus surprisingly specific hair care advice.
 
-¹¹ "An Army of Thousands" (hyperbol.) — The text claims the army stretched "from horizon to horizon." At standard marching density, that is roughly 4.7 soldiers and one very confused goat.`,
+¹¹ "An Army of Thousands" (Hyperbol.) — The text claims the army stretched "from horizon to horizon." At standard marching density, that is roughly 4.7 soldiers and one very confused goat.`,
         ru: `### Examples (exact output format — copy this structure)
 
-¹ Тёмная пещера (литкрит.) — Автор потратил три абзаца на описание темноты в пещере, где, как выясняется, стояли факелы. Писатель, видимо, полагал, что «тёмный» — это синоним «атмосферного». Он ошибался.
+¹ Тёмная пещера (Литкрит.) — Автор потратил три абзаца на описание темноты в пещере, где, как выясняется, стояли факелы. Писатель, видимо, полагал, что «тёмный» — это синоним «атмосферного». Он ошибался.
 
-² Герой врывается в бой (нарратив.) — В главе 12 этот же персонаж сломал себе рёбра после падения с лестницы из трёх ступенек. Теперь он бросается на двадцать вооружённых гоблинов с одной кочергой. Видимо, рёбра срослись экстремально быстро — или автор просто забыл.
+² Герой врывается в бой (Нарратив.) — В главе 12 этот же персонаж сломал себе рёбра после падения с лестницы из трёх ступенек. Теперь он бросается на двадцать вооружённых гоблинов с одной кочергой. Видимо, рёбра срослись экстремально быстро — или автор просто забыл.
 
-³ «Предупреждён — значит вооружён» (четв.стена) — Интересно, читатель действительно верит, что этот персонаж когда-нибудь будет предупреждён и вооружён одновременно? Автор уже три раза обещал, что «в следующий раз будет хуже». Пока что хуже становится только прозе.
+³ «Предупреждён» (Четв.стена.) — Интересно, читатель действительно верит, что этот персонаж когда-нибудь будет предупреждён и вооружён одновременно? Автор уже три раза обещал, что «в следующий раз будет хуже». Пока что хуже становится только прозе.
 
-⁴ Гражданский кодекс Подземелья (архив.) — Статья 7.3.2 Гражданского Кодекса Подземелья: «Любая партия, обнаружившая сундук с сокровищами, обязана сначала проверить его на наличие мимиков, а затем — на наличие более опасных мимиков. В случае обнаружения мимика мимика рекомендуется обратиться к юристу, если мимик не съел юриста первым.»
+⁴ Гражданский кодекс Подземелья (Архив.) — Статья 7.3.2 Гражданского Кодекса Подземелья: «Любая партия, обнаружившая сундук с сокровищами, обязана сначала проверить его на наличие мимиков, а затем — на наличие более опасных мимиков. В случае обнаружения мимика мимика рекомендуется обратиться к юристу, если мимик не съел юриста первым.»
 
-⁵ О мече Тёмного Лорда (сплетня) — В тавернах шепчут, что меч Тёмного Лорда на самом деле был куплен на распродаже в оружейной лавке за три медяка и подточен шофёром, который уволился после первого же замаха. Лорд, впрочем, утверждает, что это «ритуальный клинок древних времён». Шофёр утверждает иначе.
+⁵ О мече Тёмного Лорда (Сплетня.) — В тавернах шепчут, что меч Тёмного Лорда на самом деле был куплен на распродаже в оружейной лавке за три медяка и подточен шофёром, который уволился после первого же замаха. Лорд, впрочем, утверждает, что это «ритуальный клинок древних времён». Шофёр утверждает иначе.
 
-⁶ Стук в дверь (примета) — Если в полночь в дверь стучат трижды — это духи. Если четыре раза — это почтальон. Если пять раз — это духи, которые научились считать и решили вас напугать ещё сильнее.
+⁶ Стук в дверь (Примета.) — Если в полночь в дверь стучат трижды — это духи. Если четыре раза — это почтальон. Если пять раз — это духи, которые научились считать и решили вас напугать ещё сильнее.
 
-⁷ «Меня не остановить» (ирония) — Персонаж произносит это с уверенностью человека, которого, судя по статистике, ещё никогда не останавливали. Что математически означает: первый раз — через абзац.
+⁷ «Меня не остановить» (Ирония.) — Персонаж произносит это с уверенностью человека, которого, судя по статистике, ещё никогда не останавливали. Что математически означает: первый раз — через абзац.
 
-⁸ Последний бой (батос) — Трёхстраничный монолог о чести, предназначении и весе веков драконьей крови — прерванный чихом, от которого он спотыкается и падает с парапета. Нарративный бюджет исчерпан.
+⁸ Последний бой (Батос.) — Трёхстраничный монолог о чести, предназначении и весе веков драконьей крови — прерванный чихом, от которого он спотыкается и падает с парапета. Нарративный бюджет исчерпан.
 
-⁹ «Царапинка» (лифтез) — Персонаж потерял руку. Текст называет это «незначительным неудобством». Остальные четыре абзаца описывают в судебно-медицинских подробностях, как рука в данный момент находится на другом конце двора.
+⁹ «Царапинка» (Литотес.) — Персонаж потерял руку. Текст называет это «незначительным неудобством». Остальные четыре абзаца описывают в судебно-медицинских подробностях, как рука в данный момент находится на другом конце двора.
 
-¹⁰ Герой перед зеркалом (интекст.) — Гамлет держал череп. Наш герой держит расчёску и произносит тот же монолог перед собственным отражением — без философской глубины, но с неожиданно подробными рекомендациями по уходу за волосами.
+¹⁰ Герой перед зеркалом (Интекст.) — Гамлет держал череп. Наш герой держит расчёску и произносит тот же монолог перед собственным отражением — без философской глубины, но с неожиданно подробными рекомендациями по уходу за волосами.
 
-¹¹ «Армия в тысячи воинов» (гиперб.) — Текст утверждает, что армия тянулась «от горизонта до горизонта». При стандартной плотности марша это примерно 4,7 солдата и один растерянный козёл.`,
+¹¹ «Армия в тысячи воинов» (Гиперб.) — Текст утверждает, что армия тянулась «от горизонта до горизонта». При стандартной плотности марша это примерно 4,7 солдата и один растерянный козёл.`,
     },
     academic: {
         en: `### Examples (exact output format — copy this structure)
 
-¹ Cruciatus (Lat., from crucio — "to torture") — In J. K. Rowling's legendarium, one of the three Unforgivable Curses; inflicts intense pain without physical damage. First mentioned in "Harry Potter and the Goblet of Fire" (2000).
+¹ Cruciatus (Lat.) — From crucio, "to torture". In J. K. Rowling's legendarium, one of the three Unforgivable Curses; inflicts intense pain without physical damage. First mentioned in "Harry Potter and the Goblet of Fire" (2000).
 
 ² Baisse le son, tu vas réveiller les morts (Fr.) — "Turn it down, you'll wake the dead." Colloquial French expression used as a hyperbolic complaint about excessive noise.
 
@@ -159,17 +156,17 @@ Example with phrase anchor (source text: "son of Horus"):
 ⁵ Son of Horus (Myth.) — Designation for a descendant of Horus, the falcon-headed sky god; inheritor of his cult and the mythological status of protector of royal authority.`,
         ru: `### Examples (exact output format — copy this structure)
 
-¹ Cruciatus (лат., от crucio — «мучить») — В легендариуме Дж. К. Роулинг одно из трёх Непростительных заклятий; вызывает интенсивную боль без физических повреждений. Впервые упоминается в «Гарри Поттере и Кубке огня» (2000).
+¹ Cruciatus (лат.) — От crucio, «мучить». В легендариуме Дж. К. Роулинг одно из трёх Непростительных заклятий; вызывает интенсивную боль без физических повреждений. Впервые упоминается в «Гарри Поттере и Кубке огня» (2000).
 
 ² Baisse le son, tu vas réveiller les morts (фр.) — «Убавь звук, ты мертвых разбудишь». Разговорное французское выражение, употребляется как гиперболическое указание на чрезмерный шум.
 
-³ Shendyt (архаич., др.-егип.) — Традиционная древнеегипетская набедренная повязка из льна; базовый элемент мужского костюма всех социальных слоёв, фиксировавшийся поясом различной степени сложности в зависимости от статуса владельца.
+³ Shendyt (Архаич., др.-егип.) — Традиционная древнеегипетская набедренная повязка из льна; базовый элемент мужского костюма всех социальных слоёв, фиксировавшийся поясом различной степени сложности в зависимости от статуса владельца.
 
 Example with non-nominative anchor (source text: "натёрла сурьмой"):
-⁴ Сурьма (историч.) — Традиционная косметическая смесь на основе галенита (сульфида свинца), использовавшаяся в Древнем Египте в качестве подводки для глаз; наносилась заострённой палочкой.
+⁴ Сурьма (Историч.) — Традиционная косметическая смесь на основе галенита (сульфида свинца), использовавшаяся в Древнем Египте в качестве подводки для глаз; наносилась заострённой палочкой.
 
 Example with phrase anchor (source text: "сына Гора"):
-⁵ Сын Гора (мифол.) — Обозначение потомка Гора, бога неба с головой сокола; наследник его культа и мифологического статуса защитника царской власти.`,
+⁵ Сын Гора (Мифол.) — Обозначение потомка Гора, бога неба с головой сокола; наследник его культа и мифологического статуса защитника царской власти.`,
     },
     language: {
         en: `### Examples
@@ -180,7 +177,7 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "напряжение",
-      "text": "¹ напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · mnemonic: from tense ( напряжённый) · collocation: under tension — под напряжением"
+      "text": "¹ Напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · mnemonic: from tense (напряжённый) · collocation: under tension — под напряжением"
     }
   ]
 }
@@ -192,7 +189,7 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "чувство",
-      "text": "¹ чувство (Eng.) — feeling · /ˈfiːlɪŋ/ · «féeling» · also: sense (чувство/смысл), emotion (эмоция) · collocation: a sense of — чувство чего-либо"
+      "text": "¹ Чувство (Eng.) — feeling · /ˈfiːlɪŋ/ · «féeling» · also: sense (чувство/смысл), emotion (эмоция) · collocation: a sense of — чувство чего-либо"
     }
   ]
 }
@@ -204,14 +201,14 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "абсолютный",
-      "text": "¹ абсолютный (Eng.) — absolute · /ˈæbsəluːt/ · «ábsolút» · from Lat. absolutus — unlimited · mnemonic: ab(olute)ly = абсолютно"
+      "text": "¹ Абсолютный (Eng.) — absolute · /ˈæbsəluːt/ · «ábsolút» · from Lat. absolutus — unlimited · mnemonic: ab(olute)ly = абсолютно"
     }
   ]
 }
 \`\`\`
 
 **Text-only fallback example:**
-¹ напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · from tense · collocation: under tension`,
+¹ Напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · from tense · collocation: under tension`,
         ru: `### Examples
 
 **Single word with instructive translation (source: "Он ощущал странное напряжение"):**
@@ -220,7 +217,7 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "напряжение",
-      "text": "¹ напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · мнемоника: от tense (напряжённый) · коллокация: under tension — под напряжением"
+      "text": "¹ Напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · мнемоника: от tense (напряжённый) · коллокация: under tension — под напряжением"
     }
   ]
 }
@@ -232,7 +229,7 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "чувство",
-      "text": "¹ чувство (англ.) — feeling · /ˈfiːlɪŋ/ · «фи́линг» · also: sense (чувство/смысл), emotion (эмоция) · коллокация: a sense of — чувство чего-либо"
+      "text": "¹ Чувство (англ.) — feeling · /ˈfiːlɪŋ/ · «фи́линг» · also: sense (чувство/смысл), emotion (эмоция) · коллокация: a sense of — чувство чего-либо"
     }
   ]
 }
@@ -244,14 +241,14 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "абсолютный",
-      "text": "¹ абсолютный (англ.) — absolute · /ˈæbsəluːt/ · «а́бсолю́т» · от лат. absolutus — неограниченный · мнемоника: ab(olute)ly = абсолютно"
+      "text": "¹ Абсолютный (англ.) — absolute · /ˈæbsəluːt/ · «а́бсолю́т» · от лат. absolutus — неограниченный · мнемоника: ab(olute)ly = абсолютно"
     }
   ]
 }
 \`\`\`
 
 **Text-only fallback example:**
-¹ напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · от tense · коллокация: under tension`,
+¹ Напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · от tense · коллокация: under tension`,
     },
     // Hybrid mixed-lens examples. Intentionally mix lenses on the SAME Post
     // text so the model learns to switch lenses per anchor — including a
@@ -260,24 +257,28 @@ Example with phrase anchor (source text: "сына Гора"):
         en: `### Examples (mixed lenses — copy this switching behaviour)
 
 Post (context only; footnote its words/phrases/situations, not wholesale).
-"She whispered 'valar morghulis' and sat on the Iron Throne, the blade edges biting through her gown."
+"She whispered 'valar morghulis' and sat on the Iron Throne, the blade edges biting through her gown. The hall held its breath."
 
-¹ valar morghulis ({{TARGET_LANG_LABEL}}) — valar morghulis · /ˈvalar ˈmorɡulis/ · «váh-lar mor-gúh-liss» · mnemonic: valar (all men) + morghulis (must die) · collocation: valar dohaeris — "all men must serve" (the traditional response).
+¹ Valar morghulis ({{TARGET_LANG_LABEL}}) — valar morghulis · /ˈvalar ˈmorɡulis/ · «váh-lar mor-gúh-liss» · mnemonic: valar (all men) + morghulis (must die) · collocation: valar dohaeris — "all men must serve" (the traditional response).
 
-² Iron Throne (canon.) — Seat of the House of the Dragon in King's Landing, forged by Aegon the Conqueror from the swords of defeated enemies. Per canon, its blades cut whoever sits on it — a deliberate reminder that power should never be comfortable.
+² Iron Throne (Canon.) — Seat of the House of the Dragon in King's Landing, forged by Aegon the Conqueror from the swords of defeated enemies. Per canon, its blades cut whoever sits on it — a deliberate reminder that power should never be comfortable.
 
-³ sat on the Iron Throne, the blade edges biting through her gown (Pratchett.) — A coronation: traditionally the moment a monarch settles into power. Here, power settles into her — with some interest. The throne, famously made of swords, takes the job of "ruling uncomfortably" rather literally; one might suggest it is overachieving.
-⁴ whispered 'valar morghulis' (narrative.) — A character mutters a ominous foreign phrase and then immediately does the most predictable thing possible. The author believes untranslated menace substitutes for character motivation. It does not. Somewhere, a footnote generator is being underpaid to point this out.`,
+³ Coronation (Pratchett.) — Traditionally the moment a monarch settles into power. Here, power settles into her — with some interest. The throne, famously made of swords, takes the job of "ruling uncomfortably" rather literally; one might suggest it is overachieving.
+Anchor in JSON: "sat on the Iron Throne, the blade edges biting through her gown"
+⁴ Held breath (Narrative.) — The hall holds its breath for a woman who just traded a kill-phrase for a chair made of swords. The author believes untranslated menace substitutes for character motivation. It does not. Somewhere, a footnote generator is being underpaid to point this out.
+Anchor in JSON: "The hall held its breath"`,
         ru: `### Examples (mixed lenses — copy this switching behaviour)
 
 Post (context only; footnote its words/phrases/situations, not wholesale).
-«Она прошептала „valar morghulis" и села на Железный трон, лезвия врезаясь в её платье.»
+«Она прошептала „valar morghulis" и села на Железный трон, лезвия врезаясь в её платье. Зал затаил дыхание.»
 
-¹ valar morghulis ({{TARGET_LANG_LABEL}}) — valar morghulis · /ˈvalar ˈmorɡulis/ · «ва́лар мор-гу́лис» · мнемоника: valar (все люди) + morghulis (должны умереть) · коллокация: valar dohaeris — «все люди должны служить» (традиционный ответ).
+¹ Valar morghulis ({{TARGET_LANG_LABEL}}) — valar morghulis · /ˈvalar ˈmorɡulis/ · «ва́лар мор-гу́лис» · мнемоника: valar (все люди) + morghulis (должны умереть) · коллокация: valar dohaeris — «все люди должны служить» (традиционный ответ).
 
-² Железный трон (канон.) — Резной трон Дома Дракона в Королевской Гавани, выкован Эйгоном Завоевателем из мечей поверженных врагов. По канону, его лезвия режут всякого сидящего — намеренное напоминание о том, что власть не должна быть удобной.
+² Железный трон (Канон.) — Резной трон Дома Дракона в Королевской Гавани, выкован Эйгоном Завоевателем из мечей поверженных врагов. По канону, его лезвия режут всякого сидящего — намеренное напоминание о том, что власть не должна быть удобной.
 
-³ села на Железный трон, лезвия врезаясь в её платье (пратчетт.) — Коронация: традиционно момент, когда монарх входит во власть. Здесь власть входит в неё — причём с интересом. Трон, как известно, сделан из мечей, и работу «править неудобно» понимает весьма буквально; можно сказать, перевыполняет план.
-⁴ прошептала «valar morghulis» (нарратив.) — Персонаж бормочет зловещую иностранную фразу, а затем немедленно делает самое предсказуемое, что можно придумать. Автор полагает, что непереведённая угроза заменяет мотивацию персонажа. Это не так. Где-то генератор сносок недополучает за то, что указывает на это.`,
+³ Коронация (Пратчетт.) — Традиционно момент, когда монарх входит во власть. Здесь власть входит в неё — причём с интересом. Трон, как известно, сделан из мечей, и работу «править неудобно» понимает весьма буквально; можно сказать, перевыполняет план.
+Anchor in JSON: "села на Железный трон, лезвия врезаясь в её платье"
+⁴ Затаившееся дыхание (Нарратив.) — Зал затаивает дыхание для женщины, которая только что обменяла убийственную фразу на трон из мечей. Автор полагает, что непереведённая угроза заменяет мотивацию персонажа. Это не так. Где-то генератор сносок недополучает за то, что указывает на это.
+Anchor in JSON: "Зал затаил дыхание"`,
     },
 };

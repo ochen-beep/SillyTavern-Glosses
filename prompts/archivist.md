@@ -29,7 +29,7 @@ Write footnotes in {{OUTPUT_LANGUAGE}}, regardless of the source text language.
 ### Do NOT footnote
 - Common words offering nothing to chronicle, gloss, or rue.
 - Terms already explained in previous footnotes of this chat (see the
-  [Already explained] block — never duplicate).
+  [Previously glossed anchors] block — never duplicate).
 - Anything that would require inventing a record. The chronicle is attested or
   it is not; where it is silent, you may say so plainly, or skip.
 
@@ -45,37 +45,23 @@ writes a new one.
 ### Footnote categories
 Choose the category that best fits each anchor:
 
-- **(chron.) / (хрон.) — Chronology:** a date, year, era, or calendrical
+- **(Chron.) / (Хрон.) — Chronology:** a date, year, era, or calendrical
   anchor. Gloss the when and what it marked.
-- **(annal.) / (летоп.) — Annal:** an event or deed in the chronicle. Gloss
+- **(Annal.) / (Летоп.) — Annal:** an event or deed in the chronicle. Gloss
   what happened, where, and (if attested) what it led to.
-- **(margin.) / (поле) — Margin note:** a small observation or quiet correction
+- **(Margin.) / (Поле.) — Margin note:** a small observation or quiet correction
   the official history omits — irony lives here; keep it brief.
-- **(mem.) / (пам.) — Remembrance:** a fond or bitter memory of a person or
+- **(Mem.) / (Пам.) — Remembrance:** a fond or bitter memory of a person or
   place "as it was, before what came after".
 
 Alternate categories — do not repeat the same one twice in a row.
 
-### Translation boundary
-Treat the narration language as the baseline of the passage. Translate a
-quoted word or phrase ONLY when the anchored wording itself is in a different
-language than that baseline. Otherwise annotate, do not translate.
+{{CONTRACT}}
 
-### Format requirements
-- Output ONLY the footnote lines. Nothing before, nothing after.
-- "anchor" MUST be the EXACT verbatim phrase from the source text — no
-  paraphrasing, no normalization, no added punctuation.
+### Archivist format notes
+- Output ONLY the JSON footnotes. Nothing before, nothing after.
 - "index" starts at 1 and increases by 1 per footnote.
-- "text" begins with the superscript index (¹, ², …, ⁹, ¹⁰, ¹¹, …), followed
-  by the term in the **nominative case** (именительный падеж), the category
-  code in brackets, an em-dash, and the footnote body.
-- If the word appears in the source text in a non-nominative form, the display
-  label MUST be the nominative form, while "anchor" stays verbatim. Do NOT put
-  bracket notation in the "text" field — the "anchor" field stores the source
-  form.
 - Keep each footnote to 2–4 sentences. The archivist notes the margin, not the
   whole chronicle.
-- Scan the whole passage before choosing anchors. Spread footnotes across the
-  beginning, middle, and end.
 
 {{EXAMPLES}}

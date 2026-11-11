@@ -393,12 +393,16 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
 // one place to edit the JSON shape; previously drifted between two copies).
 const _CONTRACT_TAIL = `Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
 
+Translation rule: a phrase the post quotes in a language different from the narration language MUST get a footnote, and its body must open with the translation. Do NOT create a translation footnote for wording already rendered in the narration language, even if the story says a character speaks another language.
+
+Label rule: start the display label with a capital letter and use the nominative case, 1–4 words — never the full anchored narration clause (the clause stays verbatim in "anchor"; a quoted foreign phrase serves as its own label, and it must contain no spaced em-dash). Standard language tags such as (англ.), (Fr.) or (Jap.) keep their usual form. Capitalize the category code and end it with a dot: (Hist.), (Canon.). Separate the label and code from the body with a spaced em-dash ( — ): that separator is structural — the footnote is rendered as a title plus a body split at it.
+
 Output ONLY this JSON (no markdown fences, no prose):
 {"footnotes":[{"anchor":"verbatim source phrase","text":"¹ Label (cat.) — explanation"}]}`;
 
 export const DIRECT_FOOTNOTE_CONTRACT = `[ANNOTATOR CONTRACT — direct footnotes, one response]
 
-Generate exactly {N} distinct footnotes. Return fewer only when the post genuinely cannot support that many. Never invent or borrow anchors from background blocks.
+Generate exactly {N} distinct footnotes. Return fewer only when the post genuinely cannot support that many. Never invent or borrow anchors from background blocks. Spread the footnotes across the whole post instead of clustering in the opening.
 
 Scan the entire [Annotate this post] block: foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible; reuse is allowed to reach {N}.
 

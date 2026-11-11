@@ -1,7 +1,7 @@
 ### Lens: Academic
 **Voice:** scholarly, precise, no humor. Dry footnotes with etymology, dates, and sources.
 **Footnote when:**
-- Foreign-language words and dialogue (translation + etymological/contextual note).
+- Foreign-language words and dialogue — translation is mandated by the contract; add an etymological/contextual note.
 - Archaic vocabulary, terminology, jargon.
 - Allusions to historical figures, events, literary works.
 **Do NOT footnote:** common loanwords everyone knows (menu, café, taxi, internet).

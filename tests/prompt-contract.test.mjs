@@ -51,6 +51,22 @@ test('FOOTNOTE_CONTRACT contains the spread-footnotes rule', () => {
     assert.match(FOOTNOTE_CONTRACT, /beginning, middle, and end/);
 });
 
+test('FOOTNOTE_CONTRACT contains the mandatory-translation rule', () => {
+    assert.match(FOOTNOTE_CONTRACT, /different from the narration language/);
+    assert.match(FOOTNOTE_CONTRACT, /MUST get a footnote/);
+    assert.match(FOOTNOTE_CONTRACT, /already rendered in the narration language/);
+});
+
+test('FOOTNOTE_CONTRACT contains the capital-label rule', () => {
+    assert.match(FOOTNOTE_CONTRACT, /capital letter/);
+    assert.match(FOOTNOTE_CONTRACT, /1–4 words/);
+});
+
+test('FOOTNOTE_CONTRACT contains the spaced-em-dash separator rule', () => {
+    assert.match(FOOTNOTE_CONTRACT, /spaced em-dash/);
+    assert.match(FOOTNOTE_CONTRACT, /structural/);
+});
+
 // ── 2. No duplication left in the style files ──
 
 test('style files no longer contain a "### Format requirements" section', () => {
@@ -79,6 +95,22 @@ test('style files no longer duplicate the nominative/bracket rules', () => {
     }
 });
 
+test('style files (incl. archivist) no longer duplicate the translation boundary', () => {
+    for (const f of [...STYLE_FILES, 'archivist.md']) {
+        const src = readFileSync(join(promptsDir, f), 'utf8');
+        assert.ok(!src.includes('### Translation boundary'),
+            `${f} must not re-state the translation boundary (it lives in the contract)`);
+    }
+});
+
+test('hybrid.md carries the lens envelope only (no format/translation rules)', () => {
+    const src = readFileSync(join(promptsDir, 'hybrid.md'), 'utf8');
+    assert.ok(!src.includes('### Common format'),
+        'hybrid.md must not re-state the common format rules (they live in the contracts)');
+    assert.ok(!src.includes('Translation boundary'),
+        'hybrid.md must not re-state the translation boundary (it lives in the contracts)');
+});
+
 // ── 3. {{CONTRACT}} marker placement ──
 
 test('every style file carries the {{CONTRACT}} marker', () => {
@@ -94,8 +126,9 @@ test('language.md and hybrid.md are untouched (no marker needed)', () => {
         const p = join(promptsDir, f);
         assert.ok(existsSync(p), `${f} must still exist`);
         const src = readFileSync(p, 'utf8');
-        // These keep their own format rules — they must NOT have the marker.
-        assert.ok(!src.includes('{{CONTRACT}}'), `${f} must keep its own format rules`);
+        // language.md keeps its own IPA/CEFR format section; hybrid.md is the
+        // lens envelope only — neither carries the contract marker.
+        assert.ok(!src.includes('{{CONTRACT}}'), `${f} must not carry the contract marker`);
     }
 });
 

@@ -33,6 +33,18 @@ test('target prompt makes submitted targets authoritative', () => {
     assert.doesNotMatch(prompt, /candidate pool/i);
 });
 
+// The targeted flow has no other contract carrier: hybrid.md no longer holds
+// format rules, so the inline contract must teach the unified label shape and
+// the mandatory translation itself.
+test('target prompt carries the unified label/dash/translation rules', () => {
+    const prompt = buildTargetedPrompt({ targets: ['term'], outputLanguage: 'English' });
+    assert.match(prompt, /capital letter/);
+    assert.match(prompt, /1–4 words/);
+    assert.match(prompt, /end it with a dot/);
+    assert.match(prompt, /spaced em-dash/);
+    assert.match(prompt, /open with its translation/);
+});
+
 test('targeted generation uses request and does not persist', async () => {
     let calls = 0;
     const result = await generateTargetedFootnotes({

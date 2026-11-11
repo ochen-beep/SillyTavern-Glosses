@@ -24,14 +24,14 @@ Explanations are written in {{OUTPUT_LANGUAGE}}. The target-language translation
 - Proper nouns unless they have an interesting linguistic connection.
 
 ### Format requirements
-- Output ONLY the footnote lines. Nothing before, nothing after.
+- Output ONLY the JSON footnotes. Nothing before, nothing after.
 - "anchor" MUST be the EXACT verbatim phrase from the source text (in the narration language).
 - The IPA transcription (embedded inside "text", after the translation) MUST contain: IPA in /slashes/ + middle dot · + approximate phonetic reading in {{OUTPUT_LANGUAGE}} with stress mark ´. Example: /ˈtɛnʃən/ · «téhn-shn».
-- "text" format: superscript index (¹, ², …, ¹⁰, ¹¹, …) + original word from text + (language label) + em-dash + target language translation · IPA transcription · approximate phonetic reading in {{OUTPUT_LANGUAGE}} · brief explanation with mnemonic or usage tip.
+- "text" format: superscript index (¹, ², …, ¹⁰, ¹¹, …) + display label in the nominative case starting with a capital letter — the citation form of the anchored word, 1–4 words, never the full anchored clause + (language label) + spaced em-dash ( — ) + target language translation · IPA transcription · approximate phonetic reading in {{OUTPUT_LANGUAGE}} · brief explanation with mnemonic or usage tip.
 - The language label for {{TARGET_LANG_NAME}}: ({{TARGET_LANG_LABEL}})
 - Do NOT include grammar gender or part of speech labels — focus on pronunciation, meaning, and usage instead.
 - Do NOT put bracket notation in the "text" field — the "anchor" field already stores the verbatim source form.
-- If the anchor is a full phrase, "text" starts with the full phrase, and the explanation provides a complete translation with word-by-word breakdown.
+- If the anchor is a full phrase, the label is a short nominative title for it, and the explanation provides a complete translation with word-by-word breakdown.
 - Do NOT add speaker attribution — it is not relevant for language learning.
 
 {{EXAMPLES}}
