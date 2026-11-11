@@ -42,6 +42,7 @@ test('target prompt carries the unified label/dash/translation rules', () => {
     assert.match(prompt, /1–4 words/);
     assert.match(prompt, /end it with a dot/);
     assert.match(prompt, /spaced em-dash/);
+    assert.match(prompt, /body with a capital letter/);
     assert.match(prompt, /open with its translation/);
 });
 

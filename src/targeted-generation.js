@@ -92,7 +92,7 @@ export function buildTargetedPrompt({ targets, style = '', outputLanguage = '', 
     return `[Targeted footnotes]\nGenerate exactly one footnote for each submitted target, in the same order.\n` +
         `Targets are authoritative and need not occur in the chat post. Do not add, merge, or rename targets.\n` +
         `Return only JSON: {"footnotes":[{"anchor":"submitted target","text":"Label (cat.) — explanation"}]}\n` +
-        `Start each Label with a capital letter: nominative case, 1–4 words, never the full target clause (a quoted foreign phrase serves as its own label); capitalize the category code and end it with a dot. Separate label and code from the body with a spaced em-dash ( — ) — the footnote renders as a title plus a body split at it. If a target quotes a foreign-language phrase, the body must open with its translation.\n` +
+        `Start each Label with a capital letter: nominative case, 1–4 words, never the full target clause (a quoted foreign phrase serves as its own label); capitalize the category code and end it with a dot. Separate label and code from the body with a spaced em-dash ( — ) — the footnote renders as a title plus a body split at it, so start the body with a capital letter as a standalone sentence. If a target quotes a foreign-language phrase, the body must open with its translation.\n` +
         (outputLanguage ? `[Output language: ${outputLanguage}]\n` : '') +
         (style ? `[Style]\n${style}\n` : '') +
         (context ? `[Reference context]\n${context}\n` : '') + `[Submitted targets]\n${list}`;

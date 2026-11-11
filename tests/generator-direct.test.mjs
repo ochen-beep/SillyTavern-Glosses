@@ -48,6 +48,8 @@ test('both contracts carry the unified label/dash/translation rules', () => {
         assert.match(contract, /1–4 words/, 'short nominative label rule');
         assert.match(contract, /end it with a dot/, 'category code rule');
         assert.match(contract, /spaced em-dash/, 'title/body separator rule');
+        assert.match(contract, /body (starts|with) a capital letter/, 'body-first-letter rule');
+        assert.match(contract, /standalone/, 'body reads as a standalone sentence');
         assert.match(contract, /MUST get a footnote/, 'mandatory translation rule');
         assert.match(contract, /already rendered in the narration language/, 'translation boundary rule');
     }

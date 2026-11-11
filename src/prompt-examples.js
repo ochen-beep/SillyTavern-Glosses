@@ -177,7 +177,7 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "напряжение",
-      "text": "¹ Напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · mnemonic: from tense (напряжённый) · collocation: under tension — под напряжением"
+      "text": "¹ Напряжение (Eng.) — Tension · /ˈtɛnʃən/ · «téhn-shn» · mnemonic: from tense (напряжённый) · collocation: under tension — под напряжением"
     }
   ]
 }
@@ -189,7 +189,7 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "чувство",
-      "text": "¹ Чувство (Eng.) — feeling · /ˈfiːlɪŋ/ · «féeling» · also: sense (чувство/смысл), emotion (эмоция) · collocation: a sense of — чувство чего-либо"
+      "text": "¹ Чувство (Eng.) — Feeling · /ˈfiːlɪŋ/ · «féeling» · also: sense (чувство/смысл), emotion (эмоция) · collocation: a sense of — чувство чего-либо"
     }
   ]
 }
@@ -201,14 +201,14 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "абсолютный",
-      "text": "¹ Абсолютный (Eng.) — absolute · /ˈæbsəluːt/ · «ábsolút» · from Lat. absolutus — unlimited · mnemonic: ab(olute)ly = абсолютно"
+      "text": "¹ Абсолютный (Eng.) — Absolute · /ˈæbsəluːt/ · «ábsolút» · from Lat. absolutus — unlimited · mnemonic: ab(olute)ly = абсолютно"
     }
   ]
 }
 \`\`\`
 
 **Text-only fallback example:**
-¹ Напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · from tense · collocation: under tension`,
+¹ Напряжение (Eng.) — Tension · /ˈtɛnʃən/ · «téhn-shn» · from tense · collocation: under tension`,
         ru: `### Examples
 
 **Single word with instructive translation (source: "Он ощущал странное напряжение"):**
@@ -217,7 +217,7 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "напряжение",
-      "text": "¹ Напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · мнемоника: от tense (напряжённый) · коллокация: under tension — под напряжением"
+      "text": "¹ Напряжение (англ.) — Tension · /ˈtɛnʃən/ · «те́ншн» · мнемоника: от tense (напряжённый) · коллокация: under tension — под напряжением"
     }
   ]
 }
@@ -229,7 +229,7 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "чувство",
-      "text": "¹ Чувство (англ.) — feeling · /ˈfiːlɪŋ/ · «фи́линг» · also: sense (чувство/смысл), emotion (эмоция) · коллокация: a sense of — чувство чего-либо"
+      "text": "¹ Чувство (англ.) — Feeling · /ˈfiːlɪŋ/ · «фи́линг» · also: sense (чувство/смысл), emotion (эмоция) · коллокация: a sense of — чувство чего-либо"
     }
   ]
 }
@@ -241,14 +241,14 @@ Example with phrase anchor (source text: "сына Гора"):
   "footnotes": [
     {
       "anchor": "абсолютный",
-      "text": "¹ Абсолютный (англ.) — absolute · /ˈæbsəluːt/ · «а́бсолю́т» · от лат. absolutus — неограниченный · мнемоника: ab(olute)ly = абсолютно"
+      "text": "¹ Абсолютный (англ.) — Absolute · /ˈæbsəluːt/ · «а́бсолю́т» · от лат. absolutus — неограниченный · мнемоника: ab(olute)ly = абсолютно"
     }
   ]
 }
 \`\`\`
 
 **Text-only fallback example:**
-¹ Напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · от tense · коллокация: under tension`,
+¹ Напряжение (англ.) — Tension · /ˈtɛnʃən/ · «те́ншн» · от tense · коллокация: under tension`,
     },
     // Hybrid mixed-lens examples. Intentionally mix lenses on the SAME Post
     // text so the model learns to switch lenses per anchor — including a
@@ -259,7 +259,7 @@ Example with phrase anchor (source text: "сына Гора"):
 Post (context only; footnote its words/phrases/situations, not wholesale).
 "She whispered 'valar morghulis' and sat on the Iron Throne, the blade edges biting through her gown. The hall held its breath."
 
-¹ Valar morghulis ({{TARGET_LANG_LABEL}}) — valar morghulis · /ˈvalar ˈmorɡulis/ · «váh-lar mor-gúh-liss» · mnemonic: valar (all men) + morghulis (must die) · collocation: valar dohaeris — "all men must serve" (the traditional response).
+¹ Valar morghulis ({{TARGET_LANG_LABEL}}) — Valar morghulis · /ˈvalar ˈmorɡulis/ · «váh-lar mor-gúh-liss» · mnemonic: valar (all men) + morghulis (must die) · collocation: valar dohaeris — "all men must serve" (the traditional response).
 
 ² Iron Throne (Canon.) — Seat of the House of the Dragon in King's Landing, forged by Aegon the Conqueror from the swords of defeated enemies. Per canon, its blades cut whoever sits on it — a deliberate reminder that power should never be comfortable.
 
@@ -272,7 +272,7 @@ Anchor in JSON: "The hall held its breath"`,
 Post (context only; footnote its words/phrases/situations, not wholesale).
 «Она прошептала „valar morghulis" и села на Железный трон, лезвия врезаясь в её платье. Зал затаил дыхание.»
 
-¹ Valar morghulis ({{TARGET_LANG_LABEL}}) — valar morghulis · /ˈvalar ˈmorɡulis/ · «ва́лар мор-гу́лис» · мнемоника: valar (все люди) + morghulis (должны умереть) · коллокация: valar dohaeris — «все люди должны служить» (традиционный ответ).
+¹ Valar morghulis ({{TARGET_LANG_LABEL}}) — Valar morghulis · /ˈvalar ˈmorɡulis/ · «ва́лар мор-гу́лис» · мнемоника: valar (все люди) + morghulis (должны умереть) · коллокация: valar dohaeris — «все люди должны служить» (традиционный ответ).
 
 ² Железный трон (Канон.) — Резной трон Дома Дракона в Королевской Гавани, выкован Эйгоном Завоевателем из мечей поверженных врагов. По канону, его лезвия режут всякого сидящего — намеренное напоминание о том, что власть не должна быть удобной.
 

@@ -67,6 +67,11 @@ test('FOOTNOTE_CONTRACT contains the spaced-em-dash separator rule', () => {
     assert.match(FOOTNOTE_CONTRACT, /structural/);
 });
 
+test('FOOTNOTE_CONTRACT contains the body-capital-letter rule', () => {
+    assert.match(FOOTNOTE_CONTRACT, /body starts with a capital letter/);
+    assert.match(FOOTNOTE_CONTRACT, /standalone sentence/);
+});
+
 // ── 2. No duplication left in the style files ──
 
 test('style files no longer contain a "### Format requirements" section', () => {
