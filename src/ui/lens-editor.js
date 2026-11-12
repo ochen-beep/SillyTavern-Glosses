@@ -349,7 +349,7 @@ export function setupLensEditor({ on, invalidateLanguageCache }) {
             });
             const desc = document.createElement('span');
             desc.className = 'gls-lens-macro-desc';
-            desc.textContent = m.desc;
+            desc.textContent = t(m.desc);
             row.append(code, desc);
             body.appendChild(row);
         }
