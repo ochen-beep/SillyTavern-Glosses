@@ -156,6 +156,67 @@
 .gls-s-field-group[hidden] { display: none; }
 .gls-s-field-group:not([hidden]) { display: flex; }
 
+/* ── Lens modal (native ST dialog content): textarea + macro hint accordion.
+   The dialog chrome itself is ST's; only the wrapper needs layout. ── */
+.gls-lens-modal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gls-sp-2);
+    min-width: min(520px, 92vw);
+}
+.gls-lens-modal-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.gls-lens-modal-title {
+    font-weight: 600;
+    font-size: 1em;
+}
+.gls-lens-modal-saved {
+    font-size: 0.8em;
+    color: var(--gls-accent);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.gls-lens-modal-saved.is-visible { opacity: 1; }
+.gls-lens-modal-ta {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 280px;
+    font-family: var(--monoFontFamily, Consolas, monospace);
+    font-size: 0.85em;
+    line-height: 1.5;
+    resize: vertical;
+}
+.gls-lens-insert { align-self: flex-start; }
+.gls-lens-macro summary {
+    cursor: pointer;
+    font-size: 0.9em;
+    color: var(--gls-text-2);
+    padding: 2px 0;
+}
+.gls-lens-macro-row {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 3px 0;
+    font-size: 0.85em;
+}
+.gls-lens-macro-row code {
+    cursor: copy;
+    color: var(--gls-accent);
+    white-space: nowrap;
+    flex: none;
+}
+.gls-lens-macro-desc { color: var(--gls-text-3); line-height: 1.45; }
+.gls-lens-macro-note {
+    font-size: 0.8em;
+    color: var(--gls-text-3);
+    margin-top: 6px;
+    line-height: 1.45;
+}
+
 .gls-s-sub-title {
     font-size: 0.85em;
     font-weight: 600;
