@@ -79,12 +79,13 @@ export function createBinders(on) {
         on(el, 'change', () => { S()[key] = el.value; saveSettings(); onChange?.(); });
     }
     
-    /** Text input + persist (no transform). */
-    function bindText(id, key) {
+    /** Text input + persist (no transform). `onChange` runs after the save
+     *  (same contract as bindSelect) for live-surface refresh hooks. */
+    function bindText(id, key, { onChange } = {}) {
         const el = document.getElementById(id);
         if (!el) return;
         el.value = S()[key] ?? '';
-        on(el, 'input', () => { S()[key] = el.value; saveSettings(); });
+        on(el, 'input', () => { S()[key] = el.value; saveSettings(); onChange?.(); });
     }
     return { bindCb, bindNum, bindSlider, bindSelect, bindText };
 }

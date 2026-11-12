@@ -145,6 +145,9 @@
                                 <option value="eo">🟢 Esperanto</option>
                                 <option value="tok">🔵 Toki Pona</option>
                             </optgroup>
+                            <optgroup label="Other" data-gls-i18n-optgroup="Other">
+                                <option value="custom" data-i18n="✏️ Custom…">✏️ Custom…</option>
+                            </optgroup>
                         </select>
                     </div>
                     <div class="gls-s-field-group">
@@ -157,6 +160,42 @@
                             <option value="b1b2" data-i18n="B1–B2 Intermediate">B1–B2 Intermediate</option>
                             <option value="c1c2" data-i18n="C1–C2 Advanced">C1–C2 Advanced</option>
                         </select>
+                    </div>
+                </div>
+                <div id="gls_custom_language_fields" class="gls-s-grid-2" hidden>
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_custom_target_name">
+                            <span data-i18n="Language name (in English)">Language name (in English)</span>
+                        </label>
+                        <input type="text" id="gls_custom_target_name" class="text_pole" placeholder="Ukrainian">
+                    </div>
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_custom_target_label">
+                            <span data-i18n="Footnote label">Footnote label</span>
+                        </label>
+                        <input type="text" id="gls_custom_target_label" class="text_pole" placeholder="укр.">
+                    </div>
+                </div>
+                <div class="gls-s-grid-2">
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" for="gls_language_direction">
+                            <span data-i18n="Direction">Direction</span>
+                        </label>
+                        <select id="gls_language_direction" class="gls-s-select">
+                            <option value="forward" data-i18n="Narration → study language">Narration → study language</option>
+                            <option value="reverse" data-i18n="Study language → narration">Study language → narration</option>
+                        </select>
+                    </div>
+                    <div class="gls-s-field-group">
+                        <label class="gls-s-field-label" data-i18n="Extras">Extras</label>
+                        <label class="gls-s-toggle-row">
+                            <input type="checkbox" id="gls_language_grammar" class="checkbox">
+                            <span data-i18n="Grammar notes (gender, part of speech)">Grammar notes (gender, part of speech)</span>
+                        </label>
+                        <label class="gls-s-toggle-row">
+                            <input type="checkbox" id="gls_language_usage" class="checkbox">
+                            <span data-i18n="Usage example">Usage example</span>
+                        </label>
                     </div>
                 </div>
             </div>

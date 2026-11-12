@@ -194,8 +194,15 @@ export function bindSettingsUI() {
         });
     }
     bindSelect('gls_target_language', 'targetLanguage',
-        { onChange() { _invalidateLanguageCache(); } });
+        { onChange() { _invalidateLanguageCache(); syncCustomLanguageFields(); } });
     bindSelect('gls_cefr_level', 'cefrLevel', { onChange() { _invalidateLanguageCache(); } });
+    bindSelect('gls_language_direction', 'languageDirection',
+        { fallback: 'forward', onChange() { _invalidateLanguageCache(); } });
+    bindCb('gls_language_grammar', 'languageGrammarNotes', () => _invalidateLanguageCache());
+    bindCb('gls_language_usage', 'languageUsageExample', () => _invalidateLanguageCache());
+    bindText('gls_custom_target_name', 'customTargetName', { onChange: _invalidateLanguageCache });
+    bindText('gls_custom_target_label', 'customTargetLabel', { onChange: _invalidateLanguageCache });
+    syncCustomLanguageFields();
     updatePromptPanels();
 
     // Hybrid lens toggles. Each flip changes the active lens signature →
@@ -661,6 +668,13 @@ function updatePromptPanels() {
     // always visible, and the language selectors follow the Language lens.
     const lp = document.getElementById('gls_language_panel');
     if (lp) lp.hidden = !S().hybridLenses?.language;
+    syncCustomLanguageFields();
+}
+
+/** Show the custom-language name/label fields only for the custom target. */
+function syncCustomLanguageFields() {
+    const wrap = document.getElementById('gls_custom_language_fields');
+    if (wrap) wrap.hidden = (S().targetLanguage || 'en') !== 'custom';
 }
 
 /** Reflect the active source button as pressed in the segmented picker. */

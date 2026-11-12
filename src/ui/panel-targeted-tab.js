@@ -98,6 +98,12 @@ async function runTargetedGeneration() {
         state.configuredState = cfg;
         if (!cfg.ok) throw new Error(cfg.reason);
 
+        // Custom target language needs a name before any prompt is built
+        // (same gate as generateFootnotes).
+        const { customLanguageIssue } = await import('../generator.js');
+        const langIssue = customLanguageIssue();
+        if (langIssue) throw new Error(t(langIssue));
+
         const swipeIdx = message.swipe_id ?? 0;
         const startDigest = digestFor(messageId, swipeIdx);
         const epoch = beginGenerationEpoch();

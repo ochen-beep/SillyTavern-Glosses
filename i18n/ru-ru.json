@@ -319,5 +319,16 @@
     "Per-chat setting. When the activation cache is unavailable (regen of an older post), no lore is added rather than falling back to the global scan. Overrides the toggle above while enabled.": "Настройка чата. Когда кэш активации недоступен (регенерация старого поста), лор не добавляется — без отката к полному глобальному скану. Пока включено, перекрывает галочку выше.",
     "Confirmed insecure origins": "Подтверждённые незащищённые источники",
     "Revoke this origin": "Отозвать этот источник",
-    "The sound file is too large (max {0} MB).": "Файл звука слишком большой (максимум {0} МБ)."
+    "The sound file is too large (max {0} MB).": "Файл звука слишком большой (максимум {0} МБ).",
+    "Other": "Другие",
+    "Extras": "Дополнительно",
+    "✏️ Custom…": "✏️ Другой язык…",
+    "Language name (in English)": "Название языка (по-английски)",
+    "Footnote label": "Короткая метка",
+    "Direction": "Направление",
+    "Narration → study language": "Из текста — в изучаемый язык",
+    "Study language → narration": "Из изучаемого языка — в текст",
+    "Grammar notes (gender, part of speech)": "Грамматические пометки (род, часть речи)",
+    "Usage example": "Пример употребления",
+    "Enter the custom language name in settings.": "Укажите название языка в настройках языкового режима."
 }

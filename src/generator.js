@@ -106,7 +106,30 @@ function isOutputRu() {
 
 function langCacheKey() {
     const s = S();
-    return `${s.targetLanguage || 'en'}:${s.cefrLevel || 'auto'}:${getOutputLanguage()}`;
+    // Custom name/label participate only for the custom target (empty otherwise).
+    return [
+        s.targetLanguage || 'en',
+        s.cefrLevel || 'auto',
+        getOutputLanguage(),
+        s.languageDirection === 'reverse' ? 'rev' : 'fwd',
+        s.languageGrammarNotes ? 'gr1' : 'gr0',
+        s.languageUsageExample ? 'us1' : 'us0',
+        s.targetLanguage === 'custom'
+            ? `${(s.customTargetName || '').trim()}:${(s.customTargetLabel || '').trim()}`
+            : '',
+    ].join(':');
+}
+
+/**
+ * Generation gate for the custom target language: 'custom' selected but the
+ * language name is empty would put a placeholder into every prompt. Returns
+ * the error message key, or null when generation may proceed.
+ */
+export function customLanguageIssue() {
+    const s = S();
+    if ((s.targetLanguage || 'en') !== 'custom') return null;
+    if (!(s.customTargetName || '').trim()) return 'Enter the custom language name in settings.';
+    return null;
 }
 
 /** Drop every cached prompt whose key starts with the prefix (style/lang/
@@ -144,7 +167,8 @@ export async function assembleStyle() {
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 let raw = await resp.text();
                 raw = interpolateLangPrompt(raw);
-                const examples = PROMPT_EXAMPLES.language?.[examplesLocale] || '';
+                const direction = S().languageDirection === 'reverse' ? 'reverse' : 'forward';
+                const examples = PROMPT_EXAMPLES.language?.[examplesLocale]?.[direction] || '';
                 raw = raw.replace(/\{\{EXAMPLES\}\}/g, examples);
                 stylePrompt = raw;
                 state.promptCache[key] = stylePrompt;
@@ -241,17 +265,62 @@ function interpolateLangPrompt(template) {
         b1b2: 'Focus on B1–C1 vocabulary. Explain idioms, phrasal verbs, collocations, nuanced usage. Highlight differences between literal and figurative meaning.',
         c1c2: 'Focus on C1–C2 vocabulary. Literary terms, etymology, stylistic nuances, rare constructions. Include word origins and register information.',
     };
+    // Direction blocks (forward = narration → study language; reverse = the
+    // post IS in the study language, explained in the output language). Each
+    // carries {{TARGET_LANG_NAME}}/{{OUTPUT_LANGUAGE}} tokens, so like
+    // {{CONLANG_NOTE}} they must be substituted BEFORE those placeholders.
+    const DIRECTION_TASK = {
+        forward: 'The text they are reading is in the narration language. Your task: for every interesting or educational word/phrase in the text, create a footnote that teaches its {{TARGET_LANG_NAME}} equivalent. This turns any text into a language-learning experience.',
+        reverse: 'The text they are reading is written in {{TARGET_LANG_NAME}} itself — they learn by reading it. Your task: for every word or phrase in the text that a learner may not fully understand, create a footnote that explains it in {{OUTPUT_LANGUAGE}}: translation, pronunciation, usage. This turns any text into a language-learning experience.',
+    };
+    const DIRECTION_PRIORITIES = {
+        forward: [
+            '- Words or phrases with interesting, non-obvious, or instructive translations to {{TARGET_LANG_NAME}} — highest priority.',
+            '- Idiomatic expressions that don\'t translate literally between the narration language and {{TARGET_LANG_NAME}}.',
+            '- Words with multiple meanings or false friends between the two languages.',
+            '- Literary or formal vocabulary that differs significantly from everyday speech in {{TARGET_LANG_NAME}}.',
+            '- Culture-specific terms that have no direct equivalent.',
+            '- Common words at the target CEFR level that are useful building blocks.',
+        ].join('\n'),
+        reverse: [
+            '- Words or phrases in {{TARGET_LANG_NAME}} that a learner at the selected CEFR level may not know — highest priority.',
+            '- Idioms and colloquialisms in {{TARGET_LANG_NAME}} that don\'t translate literally.',
+            '- Words whose meaning in context differs from the dictionary one; slang and abbreviations.',
+            '- Literary or formal vocabulary in {{TARGET_LANG_NAME}}.',
+            '- Culture-specific references a learner may miss.',
+            '- Common words at the target CEFR level that are useful building blocks.',
+        ].join('\n'),
+    };
+    const GRAMMAR_RULE = {
+        off: 'Do NOT include grammar gender or part of speech labels — focus on pronunciation, meaning, and usage instead.',
+        on: 'Include brief grammar notes where useful (gender, part of speech, irregular forms) right after the phonetic reading — a few words, not a paragraph.',
+    };
+    const USAGE_RULE = 'End the body with one short usage example: a natural sentence in {{TARGET_LANG_NAME}} using the word, followed by its translation in {{OUTPUT_LANGUAGE}} in parentheses.';
     const lang = S().targetLanguage || 'en';
     const level = S().cefrLevel || 'auto';
     const outputLang = isRu ? 'Russian' : 'English';
-    // Conlang attestation note — substituted first so its own
-    // {{TARGET_LANG_NAME}} token is expanded by the next replace.
+    // Custom target language: the prompt uses the user-typed name; the label
+    // falls back to a derived short tag. (An empty NAME is blocked at the
+    // generation gate — customLanguageIssue; this fallback only keeps
+    // previews/copy-bake from emitting a dangling placeholder.)
+    const isCustom = lang === 'custom';
+    const customName = (S().customTargetName || '').trim();
+    const customLabel = (S().customTargetLabel || '').trim();
+    const langName = isCustom ? (customName || 'Custom language') : (LANG_NAMES[lang] || lang);
+    const langLabel = isCustom
+        ? (customLabel || (customName ? `${customName.slice(0, 3)}.` : 'lang.'))
+        : (LANG_LABELS[lang] || `${lang}.`);
+    const direction = S().languageDirection === 'reverse' ? 'reverse' : 'forward';
     const conlangNote = CONLANG_CODES.has(lang) ? CONLANG_NOTE_BODY : '';
     return template
         .replace(/\{\{CONLANG_NOTE\}\}/g, conlangNote)
-        .replace(/\{\{TARGET_LANG_NAME\}\}/g, LANG_NAMES[lang] || lang)
+        .replace(/\{\{DIRECTION_TASK\}\}/g, DIRECTION_TASK[direction])
+        .replace(/\{\{DIRECTION_PRIORITIES\}\}/g, DIRECTION_PRIORITIES[direction])
+        .replace(/\{\{GRAMMAR_RULE\}\}/g, S().languageGrammarNotes ? GRAMMAR_RULE.on : GRAMMAR_RULE.off)
+        .replace(/\{\{USAGE_RULE\}\}/g, S().languageUsageExample ? USAGE_RULE : '')
+        .replace(/\{\{TARGET_LANG_NAME\}\}/g, langName)
         .replace(/\{\{TARGET_LANG_CODE\}\}/g, lang)
-        .replace(/\{\{TARGET_LANG_LABEL\}\}/g, LANG_LABELS[lang] || `${lang}.`)
+        .replace(/\{\{TARGET_LANG_LABEL\}\}/g, langLabel)
         .replace(/\{\{CEFR_LEVEL\}\}/g, level)
         .replace(/\{\{CEFR_LEVEL_DESC\}\}/g, CEFR_DESC[level] || CEFR_DESC.auto)
         .replace(/\{\{OUTPUT_LANGUAGE\}\}/g, outputLang);
@@ -496,6 +565,12 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
     // so every entry path (regen buttons, panel, popup, slash commands) must
     // refuse to generate until the extension is re-enabled.
     if (!S().enabled) return;
+    // Custom target language needs a name before any prompt is built.
+    const langIssue = customLanguageIssue();
+    if (langIssue) {
+        globalThis.toastr?.error?.(`[Glosses] ${t(langIssue)}`);
+        return;
+    }
     if (!variantIsViable(messageId, swipeIdx)) {
         // Reject placeholder/short posts at every entry point (Issue 5).
         return;

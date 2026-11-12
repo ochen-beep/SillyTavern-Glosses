@@ -169,7 +169,8 @@ Example with phrase anchor (source text: "сына Гора"):
 ⁵ Сын Гора (Мифол.) — Обозначение потомка Гора, бога неба с головой сокола; наследник его культа и мифологического статуса защитника царской власти.`,
     },
     language: {
-        en: `### Examples
+        en: {
+            forward: `### Examples
 
 **Single word with instructive translation (source: "He felt a strange tension"):**
 \`\`\`json
@@ -209,7 +210,25 @@ Example with phrase anchor (source text: "сына Гора"):
 
 **Text-only fallback example:**
 ¹ Напряжение (Eng.) — Tension · /ˈtɛnʃən/ · «téhn-shn» · from tense · collocation: under tension`,
-        ru: `### Examples
+            reverse: `### Examples
+
+**Word in the study language explained in the reader's language (source: "Его упорство удивило всех"):**
+\`\`\`json
+{
+  "footnotes": [
+    {
+      "anchor": "упорство",
+      "text": "¹ Упорство (Ru.) — Persistence, tenacity · /ʊpɐˈrostvə/ · «oo-porst-va» · mnemonic: упор — he puts up a fight · collocation: с упорством — with persistence"
+    }
+  ]
+}
+\`\`\`
+
+**Text-only fallback example:**
+¹ Упорство (Ru.) — Persistence, tenacity · /ʊpɐˈrostvə/ · «oo-porst-va» · from упорный`,
+        },
+        ru: {
+            forward: `### Examples
 
 **Single word with instructive translation (source: "Он ощущал странное напряжение"):**
 \`\`\`json
@@ -249,6 +268,23 @@ Example with phrase anchor (source text: "сына Гора"):
 
 **Text-only fallback example:**
 ¹ Напряжение (англ.) — Tension · /ˈtɛnʃən/ · «те́ншн» · от tense · коллокация: under tension`,
+            reverse: `### Examples
+
+**Слово на изучаемом языке с объяснением на языке читателя (source: "His tenacity surprised everyone"):**
+\`\`\`json
+{
+  "footnotes": [
+    {
+      "anchor": "tenacity",
+      "text": "¹ Tenacity (англ.) — Упорство, настойчивость · /təˈnæsɪti/ · «тэна́сити» · мнемоника: ten-acity — держится «десятью руками» · коллокация: sheer tenacity — чистое упрямство"
+    }
+  ]
+}
+\`\`\`
+
+**Text-only fallback example:**
+¹ Tenacity (англ.) — Упорство, настойчивость · /təˈnæsɪti/ · «тэна́сити» · от tenacious`,
+        },
     },
     // Hybrid mixed-lens examples. Intentionally mix lenses on the SAME Post
     // text so the model learns to switch lenses per anchor — including a

@@ -131,6 +131,10 @@
     gap: var(--gls-sp-3);
 }
 
+/* The custom-language fields block carries [hidden] toggled from JS, but the
+   class's display:grid beats the UA [hidden] rule — spell the hide out. */
+#gls_custom_language_fields[hidden] { display: none; }
+
 @media (max-width: 480px) {
     .gls-s-grid-2 { grid-template-columns: 1fr; }
 }

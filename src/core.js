@@ -117,6 +117,18 @@ export const DEFAULT_SETTINGS = Object.freeze({
     autoFootnoteCount: false,
     targetLanguage: 'en',
     cefrLevel: 'auto',
+    // Custom target language (targetLanguage === 'custom'): the prompt gets the
+    // name; the footnote code gets the short label (empty → derived tag).
+    customTargetName: '',
+    customTargetLabel: '',
+    // Language lens direction: 'forward' = narration → study language (teach
+    // translations of the post's words), 'reverse' = the post IS in the study
+    // language, explain its non-obvious words in the output language.
+    languageDirection: 'forward',
+    // Language lens extras: brief grammar notes (gender, part of speech) and a
+    // short usage example at the end of the footnote body.
+    languageGrammarNotes: false,
+    languageUsageExample: false,
     // Hybrid footnote style (6th promptStyle): which lenses are active. The
     // Language lens reuses targetLanguage / cefrLevel above. See spec
     // 2026-07-02-glosses-hybrid-mode-design.md.
@@ -334,6 +346,13 @@ export function loadSettings() {
     }
     if (!['ru', 'en'].includes(state.settings.outputLanguage)) {
         state.settings.outputLanguage = DEFAULT_SETTINGS.outputLanguage;
+        settingsChanged = true;
+    }
+    // Language-mode enum/strings: direction guard; custom-language fields are
+    // free-form strings defaulted by DEFAULT_SETTINGS (generation gates on an
+    // empty name — see generator.customLanguageIssue).
+    if (!['forward', 'reverse'].includes(state.settings.languageDirection)) {
+        state.settings.languageDirection = DEFAULT_SETTINGS.languageDirection;
         settingsChanged = true;
     }
     // Launcher mode enum — guard against stale/hand-edited values.
