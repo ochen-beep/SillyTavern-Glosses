@@ -105,6 +105,61 @@ test('formatFootnoteText: **bold** does not swallow *italic* on same line', () =
     assert.ok(out.includes('<em>italic</em>'));
 });
 
+// ── formatFootnoteText: [text](url) links ──
+
+test('formatFootnoteText renders [text](url) as a safe anchor', () => {
+    const out = formatFootnoteText('([docs.sillytavern.app](https://docs.sillytavern.app/?utm_source=openai))');
+    assert.equal(
+        out,
+        '(<a href="https://docs.sillytavern.app/?utm_source=openai" target="_blank" rel="noopener noreferrer">docs.sillytavern.app</a>)',
+    );
+});
+
+test('formatFootnoteText keeps balanced parens inside the URL', () => {
+    const out = formatFootnoteText('[w](https://en.wikipedia.org/wiki/A_(b))');
+    assert.equal(
+        out,
+        '<a href="https://en.wikipedia.org/wiki/A_(b)" target="_blank" rel="noopener noreferrer">w</a>',
+    );
+});
+
+test('formatFootnoteText: prose parens around a link stay outside the href', () => {
+    const out = formatFootnoteText('([w](https://en.wikipedia.org/wiki/A_(b)))');
+    assert.ok(out.includes('href="https://en.wikipedia.org/wiki/A_(b)"'));
+    // "("<a…>w</a>")" — the outer prose ")" must not be swallowed into the URL.
+    assert.ok(out.startsWith('(<a '), 'leading prose paren stays outside the anchor');
+    assert.ok(out.endsWith('</a>)'), 'trailing prose paren stays outside the anchor');
+});
+
+test('formatFootnoteText does not link javascript: / data: schemes', () => {
+    // The URL group requires ^https?:// — anything else stays literal text.
+    assert.equal(formatFootnoteText('[x](javascript:alert(1))'), '[x](javascript:alert(1))');
+    assert.equal(formatFootnoteText('[x](data:text/html,<b>)'), '[x](data:text/html,<b>)');
+});
+
+test('formatFootnoteText does not link URLs with a quote (href breakout)', () => {
+    // A quote in the URL would let it escape the href="…" attribute — the
+    // charset rejects it, so the whole markdown stays inert text.
+    assert.equal(formatFootnoteText('[x](https://a");alert(1;//)'), '[x](https://a");alert(1;//)');
+});
+
+test('formatFootnoteText leaves bare URLs untouched', () => {
+    // Only markdown links render as anchors; a bare URL keeps its literal form.
+    assert.equal(formatFootnoteText('see https://example.com here'), 'see https://example.com here');
+});
+
+test('formatFootnoteText: markdown inside link text still formats', () => {
+    const out = formatFootnoteText('[**Wiki** page](https://x.com/page)');
+    assert.ok(out.includes('<a href="https://x.com/page"'));
+    assert.ok(out.includes('<strong>Wiki</strong> page</a>'));
+});
+
+test('formatFootnoteText renders multiple links on one line', () => {
+    const out = formatFootnoteText('[a](https://x.y) and [b](https://z.w)');
+    assert.equal((out.match(/<a href=/g) || []).length, 2);
+    assert.ok(out.includes('rel="noopener noreferrer">a</a> and'));
+});
+
 // ── Defence-in-depth: model-injected HTML is neutralised ──
 
 test('formatFootnoteText kills an injected <img onerror>', () => {

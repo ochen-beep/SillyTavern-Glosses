@@ -193,6 +193,9 @@ export function buildPanel() {
     // the action buttons live outside .gls-panel-entry-main.
     body.addEventListener('click', (e) => {
         if (!S().panelCompactRows) return;
+        // A click on a [text](url) link is navigation, not a row toggle —
+        // let it open the new tab without expanding/collapsing the entry.
+        if (e.target.closest?.('a')) return;
         const main = e.target.closest?.('.gls-panel-entry-main');
         if (main && body.contains(main)) {
             main.closest('.gls-panel-entry')?.classList.toggle('gls-panel-entry--expanded');

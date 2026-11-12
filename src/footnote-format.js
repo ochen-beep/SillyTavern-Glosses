@@ -14,20 +14,36 @@ import { sanitize } from './core.js';
 
 /**
  * Mini-markdown → safe HTML for footnote bodies, applied AFTER DOMPurify.
- * Supports: **bold**, *italic*, `code`, ~~strikethrough~~, fenced ``` blocks
- * (stripped to plain text — mini-markdown has no <pre>), \n → <br>. Single pass.
+ * Supports: **bold**, *italic*, `code`, ~~strikethrough~~, [text](url) links,
+ * fenced ``` blocks (stripped to plain text — mini-markdown has no <pre>),
+ * \n → <br>. Single pass.
  *
  * Order matters: sanitize FIRST (kills any <img>/<a>/<script> the model
  * emitted), THEN transform inline markers into known-safe tags. The markdown
- * replacements only ever produce <strong>/<em>/<code>/<del>/<br>, which are
- * never stripped by a subsequent sanitize. Ported from DS Comments'
+ * replacements only ever produce <strong>/<em>/<code>/<del>/<a>/<br>, which
+ * are never stripped by a subsequent sanitize. Ported from DS Comments'
  * formatMessageContent.
+ *
+ * Links: the [text](url) pass runs before the other markers and emits
+ * <a href="…" target="_blank" rel="noopener noreferrer">. Safety contract
+ * mirrors the other passes: the URL group must start with http(s):// (no
+ * javascript: or data:) and may not contain whitespace, quotes or <>"`*~
+ * — so it cannot break out of the href attribute, inject tags, or be
+ * mangled by the later bold/italic/code/del passes. Bare ')' is excluded
+ * from the URL; a ')' inside it must balance its own '(' (CommonMark-style),
+ * so prose like "([docs.x](https://docs.x))" doesn't swallow the outer ')'
+ * into the href.
  *
  * @param {string} text - raw footnote text from the model/cache
  * @returns {string} sanitized HTML safe for innerHTML
  */
 export function formatFootnoteText(text) {
     let out = sanitize(text);
+    // Markdown links: [text](https://…) → real anchor. URL charset excludes
+    // whitespace/quotes/<>"`*~ (see docblock); a parenthesized URL path must
+    // balance its parens, the closing ')' of the markdown always terminates.
+    out = out.replace(/\[([^\]\n]+)\]\((https?:\/\/(?:[^\s()<>\"'`*~]|\([^\s()<>\"'`*~]*\))+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     out = out.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
     // Fenced code blocks: strip ``` (and optional language tag) so the inline-code
     // regex below doesn't wrap the whole block in one giant <code>. Must run

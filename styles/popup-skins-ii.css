@@ -782,7 +782,7 @@
 }
 
 /* Mini-markdown formatting inside footnote bodies (popup / inline / panel).
-   Applies to <strong>, <em>, <code>, <del> produced by formatFootnoteText. */
+   Applies to <strong>, <em>, <code>, <del>, <a> produced by formatFootnoteText. */
 .gls-popup-text code,
 .gls-inline-fn-text code,
 .gls-panel-text code {
@@ -806,6 +806,27 @@
 .gls-popup-text del,
 .gls-inline-fn-text del,
 .gls-panel-text del { opacity: 0.65; }
+
+/* Links from [text](url) — accent + soft underline, tracks light/dark themes
+   and light skins via the shared --gls-accent like the panel index. The title
+   (headword) rarely carries a link, but formatFootnoteText runs there too. */
+.gls-popup-text a,
+.gls-popup-title-text a,
+.gls-inline-fn-text a,
+.gls-panel-text a {
+    color: var(--gls-accent);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--gls-accent) 45%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+}
+.gls-popup-text a:hover,
+.gls-popup-title-text a:hover,
+.gls-inline-fn-text a:hover,
+.gls-panel-text a:hover {
+    text-decoration-color: var(--gls-accent);
+}
 
 .gls-popup-action-btn {
     background: none;
