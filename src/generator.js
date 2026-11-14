@@ -466,6 +466,8 @@ Translation rule: a phrase the post quotes in a language different from the narr
 
 Label rule: start the display label with a capital letter and use the nominative case, 1–4 words — never the full anchored narration clause (the clause stays verbatim in "anchor"; a quoted foreign phrase serves as its own label, and it must contain no spaced em-dash). Standard language tags such as (англ.), (Fr.) or (Jap.) keep their usual form. Capitalize the category code and end it with a dot: (Hist.), (Canon.). Separate the label and code from the body with a spaced em-dash ( — ): that separator is structural — the footnote is rendered as a title plus a body split at it, so start the body with a capital letter and write it as a standalone sentence (no dictionary-style lowercase after the dash).
 
+Anchor length: keep each "anchor" to the shortest span that identifies its target — usually 1–6 words (a term, a name, an idiom, a title, a short phrase). Quote a full clause ONLY when the footnote explains the situation itself rather than a term inside it, and even then a single short clause is enough; never span several clauses and never cross a sentence boundary. A quoted foreign phrase keeps its full wording. Long anchors bury the target under a wall of highlighted text — when in doubt, shorten.
+
 Output ONLY this JSON (no markdown fences, no prose):
 {"footnotes":[{"anchor":"verbatim source phrase","text":"¹ Label (cat.) — explanation"}]}`;
 
@@ -473,7 +475,7 @@ export const DIRECT_FOOTNOTE_CONTRACT = `[ANNOTATOR CONTRACT — direct footnote
 
 Generate exactly {N} distinct footnotes. Return fewer only when the post genuinely cannot support that many. Never invent or borrow anchors from background blocks. Spread the footnotes across the whole post instead of clustering in the opening.
 
-Scan the entire [Annotate this post] block: foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible; reuse is allowed to reach {N}.
+Scan the entire [Annotate this post] block: foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and short verbatim clauses describing a meaningful situation. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible; reuse is allowed to reach {N}.
 
 ${_CONTRACT_TAIL}`;
 
@@ -481,7 +483,7 @@ ${_CONTRACT_TAIL}`;
 // forbidden list, JSON-only output) is identical to the fixed contract.
 export const DIRECT_FOOTNOTE_CONTRACT_AUTO = `[ANNOTATOR CONTRACT — direct footnotes, one response]
 
-Decide yourself how many footnotes this post deserves: annotate every anchor in [Annotate this post] that a curious reader would genuinely want explained — foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Spread the footnotes across the whole post instead of clustering in the opening. Never pad the list with weak or duplicate anchors; an honest small set beats an inflated one. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible.
+Decide yourself how many footnotes this post deserves: annotate every anchor in [Annotate this post] that a curious reader would genuinely want explained — foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and short verbatim clauses describing a meaningful situation. Spread the footnotes across the whole post instead of clustering in the opening. Never pad the list with weak or duplicate anchors; an honest small set beats an inflated one. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible.
 
 ${_CONTRACT_TAIL}`;
 
