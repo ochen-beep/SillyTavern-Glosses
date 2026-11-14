@@ -107,16 +107,12 @@ test('non-custom targets never trip the gate', () => {
 });
 
 test('language prompt files carry the new macro slots', () => {
-    const styleSrc = readFileSync(join(promptsDir, 'language.md'), 'utf8');
-    for (const macro of ['{{DIRECTION_TASK}}', '{{DIRECTION_PRIORITIES}}', '{{GRAMMAR_RULE}}', '{{USAGE_RULE}}']) {
-        assert.ok(styleSrc.includes(macro), `language.md must carry ${macro}`);
-    }
     const lensSrc = readFileSync(join(promptsDir, 'lenses', 'language.md'), 'utf8');
     for (const macro of ['{{DIRECTION_PRIORITIES}}', '{{GRAMMAR_RULE}}', '{{USAGE_RULE}}']) {
         assert.ok(lensSrc.includes(macro), `lenses/language.md must carry ${macro}`);
     }
     assert.ok(!lensSrc.includes('{{DIRECTION_TASK}}'),
-        'the lens has a Voice line, not the task sentence — task lives in language.md');
+        'the lens has a Voice line, not the task sentence — the task wording is a macro for custom lens templates (LENS_MACRO_HINTS)');
 });
 
 test('language examples are direction-keyed for both locales', async () => {

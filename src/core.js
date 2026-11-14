@@ -111,7 +111,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // from the active lens set. The field stays for older stored settings and
     // is coerced to 'hybrid' on load.
     promptStyle: 'hybrid',
-    customPrompt: '',
     // Language of footnote TEXT ('ru' | 'en'). Default 'ru' per user. Replaces
     // the old heuristic (document.documentElement.lang). See
     // 2026-07-02-glosses-anchor-count-language-design.md §3.

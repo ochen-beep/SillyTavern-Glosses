@@ -34,10 +34,10 @@ test('stampPayload refuses non-viable text (placeholder / short)', () => {
     const short = makeMessage({ mes: 'tiny' });
     assert.equal(stampPayload(short, 0, FNS), null);
     const ok = makeMessage({ mes: 'a viable long enough body' });
-    const payload = stampPayload(ok, 0, FNS, { style: 'pratchett50' });
+    const payload = stampPayload(ok, 0, FNS, { style: 'hybrid' });
     assert.equal(payload.schema, PAYLOAD_SCHEMA);
     assert.equal(payload.contentDigest, contentDigest('a viable long enough body'));
-    assert.equal(payload.style, 'pratchett50');
+    assert.equal(payload.style, 'hybrid');
     assert.deepEqual(payload.footnotes, FNS);
     assert.deepEqual(payload.orphans, []);
 });

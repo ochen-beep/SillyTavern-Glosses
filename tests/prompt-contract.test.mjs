@@ -21,7 +21,18 @@ import { FOOTNOTE_CONTRACT } from '../src/prompt-contract.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const promptsDir = join(here, '..', 'prompts');
 
-const STYLE_FILES = ['pratchett.md', 'pratchett50.md', 'academic.md', 'meta_plus.md'];
+// Live style surfaces: the lens templates + the hybrid envelope. The classic
+// per-style files are retired (their presets are covered by the lenses), so
+// the duplication guard now watches the files that actually ship.
+const STYLE_FILES = [
+    'hybrid.md',
+    'lenses/language.md',
+    'lenses/pratchett.md',
+    'lenses/canon.md',
+    'lenses/academic.md',
+    'lenses/meta.md',
+    'lenses/expansion.md',
+];
 
 // ── 1. Contract completeness ──
 
@@ -100,8 +111,8 @@ test('style files no longer duplicate the nominative/bracket rules', () => {
     }
 });
 
-test('style files (incl. archivist) no longer duplicate the translation boundary', () => {
-    for (const f of [...STYLE_FILES, 'archivist.md']) {
+test('style files no longer duplicate the translation boundary', () => {
+    for (const f of STYLE_FILES) {
         const src = readFileSync(join(promptsDir, f), 'utf8');
         assert.ok(!src.includes('### Translation boundary'),
             `${f} must not re-state the translation boundary (it lives in the contract)`);
@@ -118,28 +129,19 @@ test('hybrid.md carries the lens envelope only (no format/translation rules)', (
 
 // ── 3. {{CONTRACT}} marker placement ──
 
-test('every style file carries the {{CONTRACT}} marker', () => {
+test('live style surfaces carry no contract marker', () => {
     for (const f of STYLE_FILES) {
-        const src = readFileSync(join(promptsDir, f), 'utf8');
-        assert.ok(src.includes('{{CONTRACT}}'),
-            `${f} must carry the {{CONTRACT}} marker where the format section was`);
-    }
-});
-
-test('language.md and hybrid.md are untouched (no marker needed)', () => {
-    for (const f of ['language.md', 'hybrid.md']) {
         const p = join(promptsDir, f);
         assert.ok(existsSync(p), `${f} must still exist`);
         const src = readFileSync(p, 'utf8');
-        // language.md keeps its own IPA/CEFR format section; hybrid.md is the
-        // lens envelope only — neither carries the contract marker.
+        // Style files are vibe-only: the format rules ride the user-message
+        // contract (generator.js _CONTRACT_TAIL), never a {{CONTRACT}} marker.
         assert.ok(!src.includes('{{CONTRACT}}'), `${f} must not carry the contract marker`);
     }
 });
 
-// ── 4. Contract text equals what the old per-style sections contained ──
-// Sanity: the marker replacement in loadPromptStyle is lossless — the contract
-// string itself must not contain leftover {{...}} placeholders that would be
+// ── 4. Contract text sanity ──
+// The contract string itself must not contain leftover {{...}} placeholders that would be
 // emitted raw.
 
 test('FOOTNOTE_CONTRACT has no unresolved {{placeholders}}', () => {

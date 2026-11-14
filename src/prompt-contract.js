@@ -10,20 +10,18 @@
  *     editable prompts/*.md files.
  *
  * Before the split, the format rules below were duplicated (with slight
- * wording drift) inside every style file (pratchett.md, pratchett50.md,
- * academic.md, meta_plus.md), so a rules tweak required editing 4+ files.
- * loadPromptStyle injects FOOTNOTE_CONTRACT via the {{CONTRACT}} marker that
- * sits where the per-style "### Format requirements" section used to be —
- * so the assembled prompt is unchanged for the model.
+ * wording drift) inside every classic style file, so a rules tweak required
+ * editing 4+ files. The classic styles are retired (their presets are covered
+ * by the hybrid lenses); FOOTNOTE_CONTRACT remains the canonical statement of
+ * the shared format rules and the rule source the tests pin.
  *
- * Style-specific tails that are NOT common (e.g. academic's "precise
- * explanation + etymology", meta's "2–4 sentences", pratchett50's extended
- * category-code list) stay in their own .md files after the marker.
+ * Lens-specific format quirks live in their own templates
+ * (prompts/lenses/*.md).
  *
- * NOTE: language.md keeps its own IPA/CEFR-specific format section. hybrid.md
- * carries only the lens envelope (output language, one-lens-per-anchor, active
- * lenses) — all universal format and translation rules live in the contracts:
- * this file (classic styles via {{CONTRACT}}), generator.js's _CONTRACT_TAIL
+ * NOTE: lenses/language.md keeps its own IPA/CEFR-specific format section.
+ * prompts/hybrid.md carries only the lens envelope (output language,
+ * one-lens-per-anchor, active lenses) — all universal format and translation
+ * rules live in the contracts: this file, generator.js's _CONTRACT_TAIL
  * (regular flow, all styles) and targeted-generation.js's inline contract.
  */
 

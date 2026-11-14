@@ -8,8 +8,8 @@
  * no reserve, no second request, no fill-loop. Prior anchors are supplied
  * as a soft advisory only; forced exclusions are strictly enforced.
  *
- * The PROMPT_EXAMPLES, BASE_SYSTEM_PROMPT blocks and the loadPromptStyle/
- * interpolateLangPrompt logic are unchanged from the original.
+ * The PROMPT_EXAMPLES, the base system prompt and the interpolateLangPrompt
+ * logic are unchanged from the original.
  */
 
 import {
@@ -18,7 +18,6 @@ import {
 } from './core.js';
 import { PROMPT_EXAMPLES } from './prompt-examples.js';
 import { buildContextBlocks } from './context-blocks.js';
-import { FOOTNOTE_CONTRACT } from './prompt-contract.js';
 import {
     digestFor, variantIsViable, saveFootnotes, getForcedIgnore,
 } from './cache.js';
@@ -39,34 +38,16 @@ import { generateWithConfiguredSource } from './connection.js';
 // BASE SYSTEM PROMPTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-const BASE_SYSTEM_PROMPT = `You are ABfootnote, a deterministic footnote extraction utility for SillyTavern.
-Your task is NOT roleplay, NOT chat continuation, NOT creative writing.
-Read the provided [Annotate this post] block and create footnotes for that exact post.
-Never continue the scene. Never write narrative prose. Never imitate the character.
-
-## SCENE FOCUS
-The [Annotate this post] block is the post you annotate — your ONLY target. All other blocks ([Earlier in the scene], character, world info) are background that helps you understand the target. Use the background to understand the target; annotate the target only.
-
-Follow the [ANNOTATOR CONTRACT] in the user message exactly for the JSON schema, count, anchor format, and footnote structure.`;
-
-const BASE_SYSTEM_PROMPT_LANG = `You are ABfootnote — a language-learning footnote generator for SillyTavern.
-For every interesting word or phrase in [Annotate this post], output a footnote that teaches its translation to the target language.
-Never continue the scene. Never write narrative prose. Never imitate the character.
-
-## SCENE FOCUS
-The [Annotate this post] block is the post you annotate — your ONLY target. All other blocks are background that helps you understand the target. Use the background to understand the target; annotate the target only.
-
-Follow the [ANNOTATOR CONTRACT] in the user message exactly for the JSON schema, count, anchor format, and footnote structure.`;
-
 // Constructed / fictional target languages. When the target is in this set,
-// {{CONLANG_NOTE}} is expanded into an attestation-honesty nudge in language.md.
-// Esperanto (`eo`) and Toki Pona (`tok`) are real but constructed — the note
-// still applies (it asks for canonically attested forms, not invented ones).
+// {{CONLANG_NOTE}} is expanded into an attestation-honesty nudge in the
+// language lens (prompts/lenses/language.md). Esperanto (`eo`) and Toki Pona
+// (`tok`) are real but constructed — the note still applies (it asks for
+// canonically attested forms, not invented ones).
 const CONLANG_CODES = new Set(['hvl', 'tlh', 'sin', 'quen', 'eo', 'tok']);
 
-// Body of the {{CONLANG_NOTE}} block, embedded into language.md. Contains a
-// {{TARGET_LANG_NAME}} token so it must be substituted BEFORE that placeholder
-// is expanded in interpolateLangPrompt.
+// Body of the {{CONLANG_NOTE}} block, embedded into the language lens.
+// Contains a {{TARGET_LANG_NAME}} token so it must be substituted BEFORE that
+// placeholder is expanded in interpolateLangPrompt.
 const CONLANG_NOTE_BODY = `### Attestation note (constructed / fictional target)
 The target language {{TARGET_LANG_NAME}} is a constructed or fictional
 language. Use only canonically attested words and IPA transcriptions — do not
@@ -141,97 +122,37 @@ function invalidatePromptCache(prefix) {
 }
 
 /**
- * Assemble the STYLE half of the prompt (style rules + few-shot examples) for
- * the current promptStyle + output language, WITHOUT the base system prompt.
- * Cached per key. The targeted flow («Точечно») uses this alone — the regular
- * BASE_SYSTEM_PROMPT contradicts the targeted contract (authoritative targets
- * need not occur in the post).
+ * Assemble the STYLE half of the prompt (lens rules + few-shot examples) for
+ * the hybrid lens constructor + output language, WITHOUT the base system
+ * prompt. The targeted flow («Точечно») uses this alone — the full hybrid
+ * system prompt contradicts the targeted contract (authoritative targets need
+ * not occur in the post).
+ *
+ * Hybrid is the only reachable style: loadSettings coerces every stored
+ * promptStyle to 'hybrid' (the single-style UI is retired; the former classic
+ * presets are covered by the built-in lenses). Caching lives inside
+ * _buildHybridPrompt.
  */
 export async function assembleStyle() {
-    const s = S();
     const outputLang = getOutputLanguage();
     const examplesLocale = outputLang === 'Russian' ? 'ru' : 'en';
-    let stylePrompt = '';
-
-    if (s.promptStyle === 'custom') {
-        stylePrompt = s.customPrompt || '';
-    } else if (s.promptStyle === 'language') {
-        const key = `language:${langCacheKey()}`;
-        if (state.promptCache[key]) {
-            stylePrompt = state.promptCache[key];
-        } else {
-            // Invalidate any stale language caches (settings changed).
-            invalidatePromptCache('language:');
-            try {
-                const resp = await fetch(`${getExtBase()}/prompts/language.md`);
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                let raw = await resp.text();
-                raw = interpolateLangPrompt(raw);
-                const direction = S().languageDirection === 'reverse' ? 'reverse' : 'forward';
-                const examples = PROMPT_EXAMPLES.language?.[examplesLocale]?.[direction] || '';
-                raw = raw.replace(/\{\{EXAMPLES\}\}/g, examples);
-                stylePrompt = raw;
-                state.promptCache[key] = stylePrompt;
-            } catch (e) { warn('Failed to load language prompt:', e); }
-        }
-    } else if (s.promptStyle === 'hybrid') {
-        // Hybrid mode: one footnote per anchor, the model picks the single
-        // best-fitting ACTIVE LENS. The envelope (prompts/hybrid.md) carries the
-        // COMMON rules (output language, translation boundary, format) ONCE; each
-        // active lens contributes only its own role (voice + when + label).
-        // Custom lenses (user-authored) travel alongside the 6 built-ins, so the
-        // constructor accepts any mix.
-        //
-        // Cache key is built from (a) the active built-in lens names + (b) the
-        // active custom lens ids + (c) lang/cefr/outputLang signature, so any
-        // flip / add / edit / delete of a custom lens invalidates it.
-        stylePrompt = await _buildHybridPrompt(examplesLocale, outputLang);
-    } else {
-        const style = s.promptStyle || 'pratchett';
-        const key = `${style}:${outputLang}`;
-        if (state.promptCache[key]) {
-            stylePrompt = state.promptCache[key];
-        } else {
-            invalidatePromptCache(`${style}:`);
-            try {
-                const resp = await fetch(`${getExtBase()}/prompts/${style}.md`);
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                let raw = await resp.text();
-                raw = raw.replace(/\{\{OUTPUT_LANGUAGE\}\}/g, outputLang);
-                // Contract/vibe split: the shared format rules were moved OUT of
-                // the style files into src/prompt-contract.js (they were
-                // duplicated verbatim in every style). The {{CONTRACT}} marker
-                // sits where the per-style "### Format requirements" section
-                // used to be, so the assembled prompt is unchanged.
-                raw = raw.replace(/\{\{CONTRACT\}\}/g, FOOTNOTE_CONTRACT);
-                const examples = PROMPT_EXAMPLES[style]?.[examplesLocale] || '';
-                raw = raw.replace(/\{\{EXAMPLES\}\}/g, examples);
-                stylePrompt = raw;
-                state.promptCache[key] = stylePrompt;
-            } catch (e) { warn('Failed to load prompt style:', e); }
-        }
-    }
-
+    const stylePrompt = await _buildHybridPrompt(examplesLocale, outputLang);
     // The style half is complete; the base system prompt is appended by
     // loadPromptStyle for the regular flow only.
     return (stylePrompt || '').trim();
 }
 
 /**
- * Full system prompt for the REGULAR flow: base SCENE-FOCUS prompt (what to
- * annotate) + the style half. The count target + VERBATIM contract live in
- * buildUserPrompt's user message. The system prompt carries no count pressure
- * here, so the model is never forced to fabricate anchors; the user-message
- * contract tells it to broaden anchor granularity (names/phrases/clauses) to
- * reach N honestly in one request.
+ * Full system prompt for the REGULAR flow: hybrid SCENE-FOCUS prompt (one
+ * best-fitting lens per anchor) + the style half. The count target + VERBATIM
+ * contract live in buildUserPrompt's user message. The system prompt carries
+ * no count pressure here, so the model is never forced to fabricate anchors;
+ * the user-message contract tells it to broaden anchor granularity
+ * (names/phrases/clauses) to reach N honestly in one request.
  */
 export async function loadPromptStyle() {
-    const s = S();
     const stylePrompt = await assembleStyle();
-    const basePrompt = s.promptStyle === 'language' ? BASE_SYSTEM_PROMPT_LANG
-        : s.promptStyle === 'hybrid'    ? BASE_SYSTEM_PROMPT_HYBRID
-        : BASE_SYSTEM_PROMPT;
-    return `${basePrompt}\n\n${stylePrompt || ''}`.trim();
+    return `${BASE_SYSTEM_PROMPT_HYBRID}\n\n${stylePrompt || ''}`.trim();
 }
 
 function interpolateLangPrompt(template) {
