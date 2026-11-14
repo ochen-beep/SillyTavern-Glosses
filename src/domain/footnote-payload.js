@@ -29,6 +29,8 @@
  */
 
 import { contentDigest, isViableMessageText } from './message-identity.js';
+import { normalizeAnchorKey } from '../anchor-utils.js';
+import { normalizeFootnotes } from '../parser.js';
 
 /** Key inside swipe_info[i].extra / msg.extra where the payload lives. */
 export const PAYLOAD_KEY = 'gls';
@@ -203,6 +205,44 @@ export function targetedOf(payload) {
  */
 export function reindexTargeted(targeted) {
     return (Array.isArray(targeted) ? targeted : []).map((e, i) => ({ ...e, index: i + 1 }));
+}
+
+/**
+ * Carry user-edited texts across a regeneration commit. `editFootnote` marks
+ * every user-written text with `edited: true`; regeneration commits route
+ * through this merge so a regen refreshes the model wording but never wipes
+ * the user's words:
+ *
+ *   - an edited entry whose anchor survives in the fresh set keeps the user's
+ *     text (and the flag) instead of the fresh wording;
+ *   - an edited entry whose anchor did NOT survive rides along as a floating
+ *     entry (no marker, "not anchored" badge, self-anchors if the phrase
+ *     reappears in a later edit) — a regen never drops the user's words;
+ *   - entries without the flag behave exactly as before.
+ *
+ * Pure; used by cache.saveFootnotes (regular regeneration commits). Targeted
+ * commits keep the same rule inline in cache.saveTargeted's upsert branch.
+ *
+ * @param {Array} prev — the previously stored footnotes of this variant
+ * @param {Array} incoming — the fresh model output (post-validation shape)
+ * @param {string} plainText — the current variant text, for renumber order
+ * @returns {Array} the merged, renumbered footnote array (or `incoming` as-is
+ *   when nothing was user-edited)
+ */
+export function carryEditedFootnotes(prev, incoming, plainText) {
+    const edited = (Array.isArray(prev) ? prev : [])
+        .filter((f) => f?.edited && normalizeAnchorKey(f?.anchor));
+    if (!edited.length || !Array.isArray(incoming)) return incoming;
+    const key = (f) => normalizeAnchorKey(f?.anchor);
+    const out = incoming.map((f) => {
+        const hit = edited.find((e) => key(e) === key(f));
+        return hit ? { ...f, text: hit.text, edited: true } : f;
+    });
+    const carried = edited
+        .filter((e) => !out.some((f) => key(f) === key(e)))
+        .map((e) => ({ index: 0, anchor: e.anchor, text: e.text, edited: true, floating: true }));
+    if (!carried.length) return out;
+    return normalizeFootnotes([...out, ...carried], plainText) ?? [...out, ...carried];
 }
 
 /**

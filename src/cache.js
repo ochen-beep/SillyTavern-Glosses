@@ -31,6 +31,7 @@ import { createMetadataRepository } from './infrastructure/metadata-repository.j
 import {
     PAYLOAD_KEY, readRawPayload, readVerifiedPayload, stampPayload, writePayload, clearPayload,
     variantText, digestForVariant, targetedOf, payloadBelongsToOtherVariant, reindexTargeted,
+    carryEditedFootnotes,
 } from './domain/footnote-payload.js';
 import { isViableMessageText } from './domain/message-identity.js';
 import { normalizeAnchorKey } from './anchor-utils.js';
@@ -155,7 +156,11 @@ export function saveFootnotes(msgId, swipeIdx, footnotes, meta = {}) {
     const msg = msgAt(msgId);
     if (!msg || !getCtx().chatId) return false;
     const sibling = readVerifiedPayload(msg, swipeIdx);
-    const payload = stampPayload(msg, swipeIdx, footnotes, {
+    // Every regular commit is a FULL replacement of the footnote set — without
+    // this merge a regeneration would wipe the user's hand-edited texts. The
+    // merge is a no-op unless some stored entry carries the `edited` flag.
+    const merged = carryEditedFootnotes(sibling?.footnotes ?? [], footnotes, variantText(msg, swipeIdx));
+    const payload = stampPayload(msg, swipeIdx, merged, {
         ...meta,
         targeted: Array.isArray(meta.targeted) ? meta.targeted : targetedOf(sibling),
     });
@@ -207,7 +212,14 @@ export function saveTargeted(msgId, swipeIdx, entries, opts = {}) {
         const key = normalizeAnchorKey(entry?.anchor);
         if (!key) continue;
         const existing = byKey.get(key);
-        if (existing) merged[merged.indexOf(existing)] = entry; // replace in place
+        if (existing) {
+            // Replace in place — except when the user hand-edited this entry:
+            // their text outranks the fresh model wording (same carry rule as
+            // regular footnotes' regeneration commits).
+            merged[merged.indexOf(existing)] = existing.edited
+                ? { ...entry, text: existing.text, edited: true }
+                : entry;
+        }
         else if (merged.length < TARGETED_CAP) { byKey.set(key, entry); merged.push(entry); }
         else capped++;
     }
