@@ -132,6 +132,9 @@ export function bindSettingsUI() {
         });
     });
 
+    // SSE streaming toggle — transport-level, gates both sources.
+    bindCb('gls_stream', 'stream');
+
     // Profile
     const profSel = $('gls_profile_select');
     if (profSel) {

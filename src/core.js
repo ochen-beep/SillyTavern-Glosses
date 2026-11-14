@@ -99,6 +99,13 @@ export const DEFAULT_SETTINGS = Object.freeze({
     glossUserMessages: false,
     source: '',
     selectedProfile: '',
+    // SSE streaming for BOTH transports (CM profile + custom fetch). Default
+    // ON: proxies behind Cloudflare kill long non-streamed replies (HTTP 524
+    // at ~100 s) and some gateways only answer correctly as a stream. No
+    // auto-fallback stream→non-stream (a retried request can double-charge a
+    // paid call) and no progressive rendering — footnote parsing needs the
+    // full text, so chunks accumulate into one string (connection.js).
+    stream: true,
     // The single-style dropdowns and presets were removed: the hybrid lens
     // constructor covers every former style, so the prompt is always built
     // from the active lens set. The field stays for older stored settings and
@@ -374,6 +381,13 @@ export function loadSettings() {
     }
     if (typeof state.settings.autoFootnoteCount !== 'boolean') {
         state.settings.autoFootnoteCount = false;
+        settingsChanged = true;
+    }
+    // stream flag: boolean false stays OFF (explicit opt-out), everything else
+    // — including old saves without the key (lodash.merge already supplies the
+    // default true) and hand-edited junk — lands ON.
+    if (typeof state.settings.stream !== 'boolean') {
+        state.settings.stream = DEFAULT_SETTINGS.stream;
         settingsChanged = true;
     }
     const ctxDepth = parseInt(state.settings.contextDepth, 10);

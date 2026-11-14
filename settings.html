@@ -27,6 +27,15 @@
                     <button class="gls-s-seg-btn" type="button" data-gls-src="custom" data-i18n="Custom (OpenAI-compatible)">Custom (OpenAI-compatible)</button>
                 </div>
             </div>
+            <!-- Level: transport, not source — the toggle gates BOTH the CM
+                 profile and the custom fetch, so it sits above the sub-panels. -->
+            <label class="gls-s-toggle-row">
+                <input type="checkbox" id="gls_stream" class="checkbox">
+                <span>
+                    <span class="gls-s-label-bold" data-i18n="Streaming (SSE)">Streaming (SSE)</span>
+                    <small class="gls-s-hint" data-i18n="Proxies behind Cloudflare drop long non-streamed replies (HTTP 524). Turn off only if the gateway cannot do SSE.">Proxies behind Cloudflare drop long non-streamed replies (HTTP 524). Turn off only if the gateway cannot do SSE.</small>
+                </span>
+            </label>
             <div id="gls_panel_profile" class="gls-s-sub-panel" hidden>
                 <div class="gls-s-sub-title" data-i18n="Connection Profile">Connection Profile</div>
                 <div class="gls-s-field-row">

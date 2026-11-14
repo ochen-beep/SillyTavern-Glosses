@@ -224,11 +224,15 @@ export async function generateWithProfile(sel, systemPrompt, userPrompt, signal)
         { role: 'user',   content: userPrompt },
     ];
 
+    // Streaming gates BOTH sources; the CM service accepts the flag as a
+    // first-class request option (shared.js defaultSendRequestParams).
+    const stream = S().stream !== false;
+
     let response;
     try {
         response = await ctx.ConnectionManagerRequestService.sendRequest(
             profile.id, messages, undefined,
-            { stream: false, signal: signal || null, extractData: true, includePreset: false, includeInstruct: false },
+            { stream, signal: signal || null, extractData: true, includePreset: false, includeInstruct: false },
         );
     } catch (e) {
         // CM wraps every failure as `new Error('API request failed', {cause})`,
@@ -242,7 +246,29 @@ export async function generateWithProfile(sel, systemPrompt, userPrompt, signal)
         throw new Error(t('Profile "{0}": {1}', profile.name, detail));
     }
 
-    const text = extractTextFromResponse(response);
+    // stream:true returns a FACTORY of an AsyncGenerator whose chunks carry
+    // the ACCUMULATED text (last string wins); some APIs cannot stream and
+    // answer with a plain extracted-data object — both shapes are accepted.
+    // The iteration sits OUTSIDE the sendRequest try/catch: a cancel landing
+    // mid-stream surfaces from the generator loop, long after sendRequest has
+    // resolved, and is mapped to AbortError by the same contract as above.
+    let text;
+    if (typeof response === 'function') {
+        let acc = '';
+        try {
+            for await (const chunk of response()) {
+                if (typeof chunk?.text === 'string') acc = chunk.text;
+            }
+        } catch (e) {
+            if (signal?.aborted || e?.name === 'AbortError' || e?.cause?.name === 'AbortError') {
+                throw new DOMException('Aborted', 'AbortError');
+            }
+            throw new Error(t('Profile "{0}": {1}', profile.name, e?.message || String(e)));
+        }
+        text = acc || null;
+    } else {
+        text = extractTextFromResponse(response);
+    }
     if (text !== null) return text;
     throw new Error(t('Profile "{0}" responded, but text could not be extracted.', profile.name));
 }
@@ -351,6 +377,45 @@ export function confirmInsecureEndpoint(normalizedUrl, allowList) {
 }
 
 /**
+ * Drain an OpenAI-compatible SSE body into the accumulated text. Transport-only
+ * mechanics: footnote parsing needs the FULL text, so delta chunks accumulate
+ * and the result is returned as one string — no progressive rendering. Tolerant
+ * of wild proxies: ': keep-alive' comments and non-JSON lines are skipped
+ * silently, usage chunks with empty choices and reasoning-only deltas are
+ * no-ops, CRLF line endings are trimmed; 'data: [DONE]' terminates. An empty
+ * result is the CALLER's error to raise (a silent '' would read as a legitimate
+ * empty model answer).
+ *
+ * Exported for tests; not part of the UI surface.
+ * @param {ReadableStream<Uint8Array>} body
+ * @returns {Promise<string>}
+ */
+export async function readSseText(body) {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let text = '';
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl;
+        while ((nl = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, nl).trim();
+            buffer = buffer.slice(nl + 1);
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (payload === '[DONE]') return text;
+            let json;
+            try { json = JSON.parse(payload); } catch { continue; }
+            const delta = json?.choices?.[0]?.delta;
+            if (typeof delta?.content === 'string') text += delta.content;
+        }
+    }
+    return text;
+}
+
+/**
  * Generate text via a custom OpenAI-compatible chat completions endpoint.
  * Sends ONLY the provided system + user prompts — no preset, no ST formatting.
  *
@@ -387,7 +452,10 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
     messages.push({ role: 'user', content: userPrompt });
 
-    const body = { messages, stream: false };
+    // Streaming is transport-only (chunks accumulate into one string); the
+    // toggle gates BOTH sources, so the flag is read here per request.
+    const stream = S().stream !== false;
+    const body = { messages, stream };
     if (model) body.model = model;
 
     // Debug capture gate: with debugMode off (default) only metadata is
@@ -396,14 +464,14 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
     const debugFull = S().debugMode === true;
 
     lastCustomEndpointDebug.request = debugFull
-        ? { url, model: model || '(default)', messages, stream: false, timestamp: Date.now() }
+        ? { url, model: model || '(default)', messages, stream, timestamp: Date.now() }
         // Outside debug mode only metadata is kept — full prompt bodies must
         // not sit in memory for the whole page lifetime (port of DS Comments).
         : {
             url,
             model: model || '(default)',
             messageChars: messages.map(m => (m?.content || '').length),
-            stream: false,
+            stream,
             timestamp: Date.now(),
         };
     lastCustomEndpointDebug.response = null;
@@ -434,6 +502,44 @@ export async function generateWithCustomEndpoint(systemPrompt, userPrompt, signa
         lastCustomEndpointDebug.error = { message: errMsg, status: response.status, timestamp: Date.now() };
         console.error(`[Glosses] [Custom Endpoint] ✗ ${errMsg}`);
         throw new Error(t('Custom endpoint HTTP {0}: {1}', response.status, errText.slice(0, 300)));
+    }
+
+    // Stream branch: accumulate the SSE deltas into the full text. The fetch
+    // signal (user abort + timeout) errors the body stream on abort, so a
+    // cancel surfaces here as AbortError and must propagate untouched; a
+    // timeout keeps its dedicated message. NO auto-fallback to non-stream:
+    // a retried request can double-charge a paid call — the user flips the
+    // toggle instead.
+    if (stream) {
+        let text = '';
+        try {
+            text = await readSseText(response.body);
+        } catch (e) {
+            if (e?.name === 'TimeoutError') {
+                throw new Error(t('Custom endpoint timed out ({0}s) - the server accepted the connection but did not respond.', REQUEST_TIMEOUT_MS / 1000));
+            }
+            throw e;
+        }
+        const streamDurationMs = Math.round(performance.now() - t0);
+        lastCustomEndpointDebug.response = debugFull
+            ? {
+                status: response.status,
+                text: text || '(empty)',
+                timestamp: Date.now(),
+                durationMs: streamDurationMs,
+                stream: true,
+            }
+            : {
+                status: response.status,
+                textChars: text.length,
+                timestamp: Date.now(),
+                durationMs: streamDurationMs,
+                stream: true,
+            };
+        if (!text) {
+            throw new Error(t('Streaming response contained no text — the endpoint may not support SSE. Turn off Streaming.'));
+        }
+        return text;
     }
 
     let data;
