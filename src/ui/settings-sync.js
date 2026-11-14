@@ -9,7 +9,7 @@
  */
 
 import {
-    state, S, saveSettings, t, setApiKey, notifyUser, warn, getCtx,
+    state, S, saveSettings, t, setApiKey, notifyUser, warn, getCtx, updatePanelModeSnapshot,
 } from '../core.js';
 import { generationCoordinator } from '../application/generation-coordinator.js';
 import { removeHighlights, restoreHighlightsAll, reapplyHighlightsAll } from '../renderer.js';
@@ -261,16 +261,24 @@ export function bindSettingsUI() {
         // footnote surface there). That side effect must not outlive the mode:
         // the pre-panel {enabled, hidden} pair is snapshotted on entry and
         // restored on exit, so leaving panel mode returns the panel to the
-        // state the user's own actions left it in. Session-scope snapshot:
-        // a bind that STARTS inside panel mode (reload / re-enable) has no
-        // pre-state — the documented degradation is that the panel stays
-        // enabled on exit (the mode forced it on at boot too).
+        // state the user's own actions left it in. The snapshot is persisted
+        // (settings.panelModeSnapshot) and kept in step by the explicit panel
+        // controls (updatePanelModeSnapshot), so a reload or server restart
+        // INSIDE the mode still restores the user's own pair on exit — a bind
+        // that starts inside panel mode seeds the snapshot from settings.
         let _panelModePrev = null;
+        const persistedSnap = S().panelModeSnapshot;
+        if (S().displayMode === 'panel' && persistedSnap
+            && typeof persistedSnap.enabled === 'boolean'
+            && typeof persistedSnap.hidden === 'boolean') {
+            _panelModePrev = { enabled: persistedSnap.enabled, hidden: persistedSnap.hidden };
+        }
         on(dmEl, 'change', () => {
             const prevMode = S().displayMode;
             S().displayMode = dmEl.value;
             if (S().displayMode === 'panel' && prevMode !== 'panel') {
                 _panelModePrev = { enabled: S().floatingPanelEnabled, hidden: S().floatingPanelHidden };
+                S().panelModeSnapshot = { ..._panelModePrev };
                 S().floatingPanelEnabled = true;
                 S().floatingPanelHidden = false;
             } else if (S().displayMode !== 'panel' && prevMode === 'panel') {
@@ -279,6 +287,7 @@ export function bindSettingsUI() {
                     S().floatingPanelHidden = _panelModePrev.hidden;
                 }
                 _panelModePrev = null;
+                S().panelModeSnapshot = null;
             }
             // The checkbox always mirrors the live flags, both directions.
             const fpCbEl = $('gls_floating_panel');
@@ -487,6 +496,7 @@ export function bindSettingsUI() {
             // Master control: touching it clears any persisted ✕-hide so the
             // next enable starts with a visible panel.
             S().floatingPanelHidden = false;
+            updatePanelModeSnapshot();
             saveSettings();
             updatePanel();
             // Self-gating both ways: arms the observer only when the panel is

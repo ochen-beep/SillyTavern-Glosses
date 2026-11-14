@@ -225,6 +225,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // path. Survives page reloads and server restarts (it rides the regular
     // extension settings), replacing the old session-only display:none hide.
     floatingPanelHidden: false,
+    // Pre-panel-mode {enabled, hidden} pair, persisted while displayMode==='panel'
+    // so leaving the mode restores the user's own choice even after a reload or
+    // server restart that happened inside the mode (the in-memory snapshot dies
+    // with the tab). Written on entering the mode and by explicit panel controls;
+    // cleared on leaving the mode. See updatePanelModeSnapshot.
+    panelModeSnapshot: null,
     soundEnabled: true,
     soundVolume: 30,
     // soundName: a bundled filename OR '__custom__' (a data-URL blob in
@@ -407,6 +413,14 @@ export function loadSettings() {
         state.settings.selectedPreset = '';
         settingsChanged = true;
     }
+    // Panel-mode snapshot: shape-guard against stale/hand-edited values. It is
+    // an internal write-through field (updatePanelModeSnapshot / the displayMode
+    // binder), not a user-facing setting.
+    const snap = state.settings.panelModeSnapshot;
+    if (snap !== null && (typeof snap !== 'object' || typeof snap.enabled !== 'boolean' || typeof snap.hidden !== 'boolean')) {
+        state.settings.panelModeSnapshot = null;
+        settingsChanged = true;
+    }
     // Hybrid lenses — guard against stale/hand-edited values: ensure the
     // object and all 6 boolean keys exist. A partially-saved object from an
     // older Glosses version gets the missing keys filled from DEFAULTS.
@@ -527,6 +541,21 @@ export async function flushSettings() {
     // Fallback: re-arm the debounce (current pre-v3.1 behaviour) — better
     // than nothing for older/forked ST builds where the import failed.
     ctx.saveSettingsDebounced();
+}
+
+/**
+ * Persist the pre-panel-mode {enabled, hidden} pair while displayMode==='panel'.
+ * Called from the explicit panel controls (settings checkbox, panel ✕, launcher
+ * toggle) so the snapshot tracks the user's LATEST explicit choice instead of
+ * the forced entry state; the displayMode binder writes the entry snapshot and
+ * clears it on exit. Outside panel mode this is a no-op — the pair must not
+ * leak past the mode that forced it.
+ */
+export function updatePanelModeSnapshot() {
+    const s = S();
+    if (s.displayMode !== 'panel') return;
+    s.panelModeSnapshot = { enabled: !!s.floatingPanelEnabled, hidden: !!s.floatingPanelHidden };
+    saveSettings();
 }
 
 // ── Custom-endpoint API key (localforage; kept out of the settings JSON) ──

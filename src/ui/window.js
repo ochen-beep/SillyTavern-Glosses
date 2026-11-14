@@ -13,7 +13,7 @@
  */
 
 import {
-    state, S, getCtx, saveSettings, showConfirmModal, t,
+    state, S, getCtx, saveSettings, showConfirmModal, t, updatePanelModeSnapshot,
 } from '../core.js';
 import { getVariantPayload, digestFor, clearVariant } from '../cache.js';
 import { targetedOf } from '../domain/footnote-payload.js';
@@ -168,6 +168,7 @@ export function buildPanel() {
         // visibly active = launcher isn't lit).
         if (_floatingPanel) _floatingPanel.style.display = 'none';
         S().floatingPanelHidden = true;
+        updatePanelModeSnapshot();
         saveSettings();
         import('./launcher.js').then(({ ensureLauncher }) => ensureLauncher()).catch(() => {});
     });
