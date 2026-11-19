@@ -659,3 +659,7 @@ let _testApiOverride = null;
 export function _testSetApiOverride(fn) { _testApiOverride = fn; }
 export function _testClearApiOverride() { _testApiOverride = null; }
 
+export const _test = (globalThis.process?.env?.NODE_TEST === '1')
+    ? { resolveActiveLenses }
+    : null;
+

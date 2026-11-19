@@ -254,3 +254,13 @@ ${wi}]`);
 
     return parts;
 }
+
+export const _test = (globalThis.process?.env?.NODE_TEST === '1')
+    ? {
+        getPersonaDescription,
+        // Node cannot resolve the real dynamic import('../../../../personas.js')
+        // (it points into ST's public/scripts), so tests pre-seed the memoized
+        // module promise through this seam instead.
+        _setUserAvatarImport: (mod) => { _userAvatarImport = mod; },
+    }
+    : null;

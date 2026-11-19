@@ -1,26 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-// §5.3 spec test: resolveActiveLenses contract.
-// The function bodies below mirror src/generator.js's `resolveActiveLenses`
-// 1:1 (intentional duplication per plan §Task4 — testing the CONTRACT
-// independently of the surrounding generator.js scope, which under Node
-// pulls jQuery/DOM via core.js. If the real implementation drifts, this
-// test still passes for the wrong reason — the spec calls that out as
-// acceptable for v3.1, with a follow-up to assert against the real module).
+// §5.3 spec test: resolveActiveLenses contract, tested against the REAL
+// generator.js implementation via the NODE_TEST-gated _test export. (The
+// previous version of this file mirrored the function body 1:1 — it passed
+// for the wrong reason once the real implementation drifted.)
 
-const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion'];
-const DEFAULT_HYBRID_LENSSES = { language: true, pratchett: true, canon: true, academic: false, meta: false, expansion: false };
+import './helpers/stub-runtime.mjs';
+import { DEFAULT_SETTINGS } from '../src/core.js';
+import { _test } from '../src/generator.js';
 
-function resolveActiveLenses(lenses, defaults) {
-    const src = (lenses && typeof lenses === 'object') ? lenses : {};
-    const out = {};
-    for (const k of HYBRID_BUILTIN_LENSES) {
-        const v = src[k];
-        out[k] = (typeof v === 'boolean') ? v : defaults[k];
-    }
-    return out;
-}
+const { resolveActiveLenses } = _test;
+const DEFAULT_HYBRID_LENSSES = DEFAULT_SETTINGS.hybridLenses;
 
 test('resolveActiveLenses backfills defaults for missing/typed-wrong keys', () => {
     const defaults = DEFAULT_HYBRID_LENSSES;

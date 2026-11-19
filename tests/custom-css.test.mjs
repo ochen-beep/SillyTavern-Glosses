@@ -274,12 +274,15 @@ test('removeCustomCssTags removes both tags via element.remove()', () => {
 
 import { openCssEditor } from '../src/ui/custom-css.js';
 
-test('open() paints the highlight layer with the current CSS (no blank first open)', () => {
-    // MUST run before the "builds once" test below: the editor dialog is a
-    // module-level singleton, so this test needs buildEditor() to run under
-    // ITS document fake for the pre/textarea to be reachable here.
+test('openCssEditor builds once, paints the current CSS, and reuses the dialog', () => {
+    // The editor dialog is a module-level singleton: build, paint and reuse
+    // all run inside THIS one test so the singleton lifecycle is observable
+    // end-to-end under a single document fake. The dialog appends its overlay
+    // to body and installs/uninstalls a document-level Escape handler — both
+    // must exist on the fake.
     const { doc } = fakeDocument();
-    doc.body = { appendChild(el) { doc._overlay = el; } };
+    let bodyAppends = 0;
+    doc.body = { appendChild(el) { bodyAppends++; doc._overlay = el; } };
     doc.addEventListener = () => {};
     doc.removeEventListener = () => {};
     doc.createElement = () => {
@@ -312,6 +315,8 @@ test('open() paints the highlight layer with the current CSS (no blank first ope
         globalThis.SillyTavern = { libs: { hljs: { highlight: (code) => ({ value: 'HL:' + code }) } } };
         S().customCss = '.gls-popup { color: hotpink; }';
         openCssEditor();
+        assert.equal(doc._overlay.hidden, false, 'open shows the overlay');
+        assert.equal(bodyAppends, 1, 'overlay mounted once (transient body mount)');
         const pre = doc.created.find(el => el.className === 'gls-css-hl');
         assert.ok(pre, 'highlight pre built');
         assert.equal(pre.hidden, false, 'overlay layer visible when hljs resolves');
@@ -319,53 +324,11 @@ test('open() paints the highlight layer with the current CSS (no blank first ope
             pre.children[0]._html, 'HL:.gls-popup { color: hotpink; }',
             'pre painted from the CURRENT textarea value, not the empty string',
         );
-    } finally {
-        // Restore the singleton's hidden⇔detached invariant so the next test's
-        // mount counting (open() re-appends only when hidden) still holds.
-        if (doc._overlay) doc._overlay.hidden = true;
-        globalThis.document = realDoc;
-        globalThis.SillyTavern = realST;
-    }
-});
-
-test('openCssEditor builds once, opens transiently, and reuses the dialog', () => {
-    const { doc } = fakeDocument();
-    // The dialog appends its overlay to body and installs/uninstalls a
-    // document-level Escape handler — both must exist on the fake. The body
-    // records the mount so we can assert the overlay is shown and reused.
-    let bodyAppends = 0;
-    doc.body = { appendChild(el) { bodyAppends++; doc._overlay = el; } };
-    doc.addEventListener = () => {};
-    doc.removeEventListener = () => {};
-    // Minimal appendChild on elements for the dialog construction.
-    doc.createElement = () => {
-        const el = {
-            id: '', className: '', hidden: false, value: '', textContent: '',
-            _html: '',
-            set innerHTML(v) { this._html = String(v ?? ''); },
-            get innerHTML() { return this._html; },
-            style: {},
-            classList: { add() {}, remove() {}, toggle() {} },
-            attributes: {},
-            setAttribute(k, v) { this.attributes[k] = String(v); },
-            getAttribute(k) { return this.attributes[k] ?? null; },
-            appendChild() {}, addEventListener() {}, removeEventListener() {},
-            focus() {},
-        };
-        return el;
-    };
-    const realDoc = globalThis.document;
-    globalThis.document = doc;
-    try {
-        resetCtx({ extensionSettings: { Glosses: {} } });
-        loadSettings();
-        openCssEditor();
-        assert.equal(doc._overlay.hidden, false, 'open shows the overlay');
-        assert.equal(bodyAppends, 1, 'overlay mounted once (transient body mount)');
         openCssEditor();
         assert.equal(bodyAppends, 1, 'second open reuses the built dialog');
     } finally {
         globalThis.document = realDoc;
+        globalThis.SillyTavern = realST;
     }
 });
 

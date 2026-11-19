@@ -3,18 +3,19 @@ import assert from 'node:assert/strict';
 
 // Phase 1b test: sanitize (DOMPurify) + formatFootnoteText (mini-markdown).
 //
-// stub-runtime.mjs installs DOMPurify.sanitize as identity by default — that
-// would let <img>/<a>/<script> through and the XSS assertions below would
-// wrongly fail. To test the real contract, we install a DOMPurify mock that
-// mimics the FORBID_TAGS behaviour (strips media/link/script/embed tags +
-// event-handler attributes) closely enough to verify formatFootnoteText's
-// defence-in-depth. The production path uses ST's real DOMPurify.
+// The DOMPurify CONTRACT (FORBID_TAGS forwarding, verdict pass-through,
+// fail-closed escape) is pinned by the spy tests in the sanitize section
+// below: they intercept the real backend call instead of re-implementing it.
+// The formatFootnoteText pipeline tests, however, need a backend that
+// actually strips dangerous tags — stub-runtime's identity DOMPurify would
+// let <img>/<a>/<script> through and those assertions would wrongly fail.
+// Real DOMPurify is unavailable under Node, so a mimic of its FORBID_TAGS
+// behaviour is installed to serve as that backend.
 
 import './helpers/stub-runtime.mjs';
 
-// DOMPurify mock: strip FORBID_TAGS entirely and neuter on* attributes + the
-// javascript: scheme. Mirrors what real DOMPurify does for our FORBID_TAGS set,
-// plus script/style removal which DOMPurify does by default.
+// DOMPurify mimic (pipeline backend only, see above): strip FORBID_TAGS
+// entirely and neuter on* attributes + the javascript: scheme.
 SillyTavern.libs.DOMPurify.sanitize = (html, opts = {}) => {
     const forbid = new Set(opts?.FORBID_TAGS || []);
     forbid.add('script'); forbid.add('style'); // DOMPurify default-denies these
@@ -32,43 +33,40 @@ import { formatFootnoteText, splitFootnoteHead } from '../src/footnote-format.js
 import { sanitize, escapeHtml } from '../src/core.js';
 import { stripLeadingNumber } from '../src/parser.js';
 
-// ── sanitize: XSS defence-in-depth ──
+// ── sanitize: DOMPurify contract (spy pattern) ──
+// The tests intercept the single backend call core.sanitize makes — the
+// assertions pin the contract AROUND DOMPurify, not any mimic's behaviour.
 
-test('sanitize strips <img> tracking pixels', () => {
-    const out = sanitize('<img src="http://evil/x.png">');
-    assert.equal(out, '');
+test('sanitize forwards FORBID_TAGS to DOMPurify once and passes its verdict through', () => {
+    const calls = [];
+    const orig = SillyTavern.libs.DOMPurify.sanitize;
+    SillyTavern.libs.DOMPurify.sanitize = (html, opts) => {
+        calls.push({ html, opts });
+        return 'CLEAN';
+    };
+    try {
+        assert.equal(sanitize('<img src=x>'), 'CLEAN');   // DOMPurify's verdict wins
+        assert.equal(calls.length, 1, 'exactly one backend call');
+        assert.equal(sanitize('<img src=x>'), 'CLEAN');
+        assert.equal(calls.length, 1, 'LRU: the repeat is served from the cache, not DOMPurify');
+        assert.deepEqual(
+            calls[0].opts?.FORBID_TAGS,
+            ['img', 'a', 'video', 'audio', 'source', 'iframe', 'object', 'embed'],
+        );
+    } finally {
+        SillyTavern.libs.DOMPurify.sanitize = orig;
+    }
 });
 
-test('sanitize strips <a> phishing links', () => {
-    const out = sanitize('<a href="http://evil.com">click</a>');
-    assert.equal(out, 'click');
-});
-
-test('sanitize strips <script> blocks', () => {
-    const out = sanitize('<script>alert(1)</script>');
-    // Real DOMPurify strips the whole script element including content; our
-    // mock only strips tags, leaving content. Verify the tag is gone (content
-    // survival is acceptable since formatFootnoteText escapes via DOMPurify,
-    // and <script> content without its tag can't execute).
-    assert.ok(!out.includes('<script'), 'script tag must be removed');
-});
-
-test('sanitize strips onerror event handler from surviving tags', () => {
-    // A <p onerror=...> survives the FORBID_TAGS list but loses its handler.
-    const out = sanitize('<p onerror="alert(1)">text</p>');
-    assert.ok(!out.includes('onerror'));
-    assert.ok(out.includes('text'));
-});
-
-test('sanitize keeps safe inline tags (strong/em/code)', () => {
-    const out = sanitize('<strong>b</strong> <em>i</em> <code>c</code>');
-    assert.equal(out, '<strong>b</strong> <em>i</em> <code>c</code>');
-});
-
-test('sanitize LRU cache returns identical result for repeated input', () => {
-    const a = sanitize('hello **world**');
-    const b = sanitize('hello **world**');
-    assert.equal(a, b);
+test('sanitize fails closed: a throwing DOMPurify yields escapeHtml, never raw HTML', () => {
+    const orig = SillyTavern.libs.DOMPurify.sanitize;
+    SillyTavern.libs.DOMPurify.sanitize = () => { throw new Error('boom'); };
+    try {
+        const raw = '<img src=x onerror=1>';
+        assert.equal(sanitize(raw), escapeHtml(raw));
+    } finally {
+        SillyTavern.libs.DOMPurify.sanitize = orig;
+    }
 });
 
 // ── formatFootnoteText: mini-markdown ──

@@ -346,3 +346,48 @@ test('disable/enable cycle binds to a fresh signal, old listeners do not linger'
         assert.equal(spyInstances[1].aborted, true);
     });
 });
+
+// ── Select bindings: initialize from settings, write changes back ────────────
+// (Merged from the retired settings-bind.test.mjs — same contract, driven
+// through this file's FakeDocument instead of getElementById monkey-patching.)
+
+test('launcher mode select initializes from settings and writes changes back', () => {
+    freshSettingsContext();
+    S().launcherMode = 'floating';
+    withFakeDom(() => {
+        seedControls();
+        const select = fakeDoc.register('gls_launcher_mode');
+        let saves = 0;
+        globalThis._stCtx.saveSettingsDebounced = () => { saves++; };
+        bindSettingsUI();
+        assert.equal(select.value, 'floating', 'select initialized from settings on bind');
+        // Switching back to 'bar' keeps the change handler on the remove-only
+        // path of ensureLauncher() (the FAB mount path needs a real DOM).
+        select.value = 'bar';
+        for (const { fn } of select.listeners.change ?? []) fn();
+        assert.equal(S().launcherMode, 'bar', 'change writes settings.launcherMode');
+        assert.ok(saves > 0, 'change persists settings');
+        unbindSettingsUI();
+    });
+});
+
+test('marker size select initializes from settings and republishes highlight styles', () => {
+    freshSettingsContext();
+    S().markerFontSize = '0.85em';
+    withFakeDom(() => {
+        seedControls();
+        const select = fakeDoc.register('gls_marker_size');
+        let saves = 0;
+        globalThis._stCtx.saveSettingsDebounced = () => { saves++; };
+        bindSettingsUI();
+        assert.equal(select.value, '0.85em', 'select initialized from settings on bind');
+        // The change callback is applyHighlightStyles: it publishes vars on
+        // document.documentElement (the fake root) and rides applyCustomCss,
+        // which no-ops safely without a document.head.
+        select.value = '0.70em';
+        for (const { fn } of select.listeners.change ?? []) fn();
+        assert.equal(S().markerFontSize, '0.70em', 'change writes settings.markerFontSize');
+        assert.ok(saves > 0, 'change persists settings');
+        unbindSettingsUI();
+    });
+});

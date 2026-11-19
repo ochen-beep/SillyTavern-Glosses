@@ -9,11 +9,10 @@ import { dirname, join } from 'node:path';
 // The shared footnote format rules were moved OUT of the style .md files into
 // src/prompt-contract.js (FOOTNOTE_CONTRACT), injected via the {{CONTRACT}}
 // marker. Verifies:
-//   1. The contract contains every critical format rule (anchor verbatim,
-//      superscript index, nominative case, non-nominative rule, bracket ban).
-//   2. No style file still duplicates those rules (no "### Format requirements").
-//   3. Every style file carries the {{CONTRACT}} marker where the section used
-//      to be, so the assembled prompt is unchanged for the model.
+//   1. No style file still duplicates the contract rules (no "### Format
+//      requirements") — the rules live in prompt-contract.js only.
+//   2. Every style file carries no {{CONTRACT}} marker (vibe-only surfaces).
+//   3. The contract text itself has no unresolved {{placeholders}}.
 
 import './helpers/stub-runtime.mjs';
 import { FOOTNOTE_CONTRACT } from '../src/prompt-contract.js';
@@ -34,56 +33,7 @@ const STYLE_FILES = [
     'lenses/expansion.md',
 ];
 
-// ── 1. Contract completeness ──
-
-test('FOOTNOTE_CONTRACT contains the anchor-verbatim rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /"anchor" MUST be the exact verbatim phrase/);
-});
-
-test('FOOTNOTE_CONTRACT contains the superscript-index rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /superscript digits/);
-    assert.match(FOOTNOTE_CONTRACT, /¹, ², \.\.\., ⁹, ¹⁰, ¹¹, \.\.\./);
-});
-
-test('FOOTNOTE_CONTRACT contains the nominative-case rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /nominative case/);
-    assert.match(FOOTNOTE_CONTRACT, /благовониями/);   // the canonical oblique example
-});
-
-test('FOOTNOTE_CONTRACT contains the bracket-notation ban', () => {
-    assert.match(FOOTNOTE_CONTRACT, /Do NOT put bracket notation in the "text" field/);
-});
-
-test('FOOTNOTE_CONTRACT contains the language-codes list', () => {
-    assert.match(FOOTNOTE_CONTRACT, /\(It\.\), \(Fr\.\), \(Lat\.\)/);
-});
-
-test('FOOTNOTE_CONTRACT contains the spread-footnotes rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /beginning, middle, and end/);
-});
-
-test('FOOTNOTE_CONTRACT contains the mandatory-translation rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /different from the narration language/);
-    assert.match(FOOTNOTE_CONTRACT, /MUST get a footnote/);
-    assert.match(FOOTNOTE_CONTRACT, /already rendered in the narration language/);
-});
-
-test('FOOTNOTE_CONTRACT contains the capital-label rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /capital letter/);
-    assert.match(FOOTNOTE_CONTRACT, /1–4 words/);
-});
-
-test('FOOTNOTE_CONTRACT contains the spaced-em-dash separator rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /spaced em-dash/);
-    assert.match(FOOTNOTE_CONTRACT, /structural/);
-});
-
-test('FOOTNOTE_CONTRACT contains the body-capital-letter rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /body starts with a capital letter/);
-    assert.match(FOOTNOTE_CONTRACT, /standalone sentence/);
-});
-
-// ── 2. No duplication left in the style files ──
+// ── 1. No duplication left in the style files ──
 
 test('style files no longer contain a "### Format requirements" section', () => {
     for (const f of STYLE_FILES) {
@@ -127,7 +77,7 @@ test('hybrid.md carries the lens envelope only (no format/translation rules)', (
         'hybrid.md must not re-state the translation boundary (it lives in the contracts)');
 });
 
-// ── 3. {{CONTRACT}} marker placement ──
+// ── 2. {{CONTRACT}} marker placement ──
 
 test('live style surfaces carry no contract marker', () => {
     for (const f of STYLE_FILES) {
@@ -140,7 +90,7 @@ test('live style surfaces carry no contract marker', () => {
     }
 });
 
-// ── 4. Contract text sanity ──
+// ── 3. Contract text sanity ──
 // The contract string itself must not contain leftover {{...}} placeholders that would be
 // emitted raw.
 
