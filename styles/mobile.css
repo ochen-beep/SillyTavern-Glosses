@@ -12,6 +12,8 @@
        inject on .mes children. */
     .gls-marker { max-width: 100%; }
     .gls-inline-fns { margin-left: 0; margin-right: 0; max-width: 100%; }
+    /* 44px minimum touch target on the disclosure header (thumbs, not cursors). */
+    .gls-inline-fns .gls-inline-fns-head { min-height: 44px; box-sizing: border-box; }
     /* iOS Safari zooms the whole page when a text field with an effective
        font-size below 16px is focused. Glosses' fields inherit the panel/
        popup font pairs (≈0.78–0.9em) — pin 16px on every Glosses-owned text

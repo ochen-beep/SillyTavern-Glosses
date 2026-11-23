@@ -355,5 +355,9 @@
     "per-direction \"what to footnote\" list": "список «что сноскировать» для направления",
     "grammar-notes toggle rule": "правило переключателя грамматики",
     "usage-example toggle rule": "правило переключателя примера употребления",
-    "Macros after the first one work only in the Language lens. In a custom lens they stay as literal text — to get baked values, copy the Language lens with ⧉.": "Макросы после первого работают только в линзе «Языковой». В своей линзе они останутся текстом; чтобы получить готовые значения — скопируйте языковую линзу кнопкой ⧉."
+    "Macros after the first one work only in the Language lens. In a custom lens they stay as literal text — to get baked values, copy the Language lens with ⧉.": "Макросы после первого работают только в линзе «Языковой». В своей линзе они останутся текстом; чтобы получить готовые значения — скопируйте языковую линзу кнопкой ⧉.",
+    "Footnote block style": "Стиль блока сносок",
+    "Short rule": "Короткая черта",
+    "Asterism": "Астеризм",
+    "Full-width line": "Линия во всю ширину"
 }

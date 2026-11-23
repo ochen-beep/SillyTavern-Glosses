@@ -85,6 +85,8 @@ export class MiniElement {
         this.childNodes.push(child);
         return child;
     }
+    /** DOM Spec ParentNode.append — variadic appendChild. */
+    append(...nodes) { for (const n of nodes) this.appendChild(n); }
     replaceChild(next, prev) {
         const i = this.childNodes.indexOf(prev);
         if (i < 0) throw new Error('replaceChild: reference node not found');

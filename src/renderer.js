@@ -35,9 +35,14 @@ import { rankOccurrencesByContext } from './domain/rebind.js';
  * versions), so appending there — as pre-3.3 did — made the block a side
  * column next to the text instead of a block under it. Same hosting pattern
  * ST uses for `.mes_reasoning_details`. Called only from injectHighlights
- * when displayMode ∈ {inline, both}. Footnotes are rendered in their natural
- * order (by `fn.index`); missing index becomes the natural array position so
- * legacy unparsed payloads still get a numbered block.
+ * when displayMode ∈ {inline, both}. The block is a native <details> disclosure,
+ * collapsed by default: the summary header (motif + small-caps label + count,
+ * motif picked by the blockHeadStyle setting) carries the progressive-disclosure
+ * cue, the browser owns toggle/keyboard/aria — no JS listeners. Rebuilds always
+ * reset to collapsed, so a regen/swipe starts clean.
+ * Footnotes are rendered in their natural order (by `fn.index`); missing index
+ * becomes the natural array position so legacy unparsed payloads still get a
+ * numbered block.
  */
 function renderInlineBlock(mesEl, footnotes) {
     const host = mesEl.querySelector(':scope > .mes_block') || mesEl;
@@ -59,10 +64,31 @@ function renderInlineBlock(mesEl, footnotes) {
         .sort((a, b) => (parseInt(a.index, 10) || 0) - (parseInt(b.index, 10) || 0));
     const targeted = footnotes.filter(f => f.kind === 't');
     const ordered = [...regular, ...targeted];
-    const block = existing || document.createElement('div');
+    const block = existing || document.createElement('details');
     block.className = 'gls-inline-fns';
-    block.setAttribute('aria-label', t('Footnotes'));
+    // Header motif from settings (rule / asterism / hairline); unknown or
+    // legacy values fall back to the print-style short rule.
+    block.classList.add('gls-head-' + (S().blockHeadStyle || 'rule'));
     block.innerHTML = '';
+    // Rebuilds reset to collapsed even on the reuse path, where a previous
+    // <details> element carries its open state.
+    block.open = false;
+    const summary = document.createElement('summary');
+    summary.className = 'gls-inline-fns-head';
+    const title = document.createElement('span');
+    title.className = 'gls-inline-fns-title';
+    const label = document.createElement('span');
+    label.textContent = t('Footnotes');
+    // Typographic count «Сноски · 5»: the middot rides the count span — no
+    // pill badge, the book back-matter look instead of a UI chip.
+    const count = document.createElement('span');
+    count.className = 'gls-inline-fns-count';
+    count.textContent = '· ' + ordered.length;
+    title.append(label, count);
+    const chev = document.createElement('i');
+    chev.className = 'fa-solid fa-chevron-down gls-inline-fns-chev';
+    summary.append(title, chev);
+    block.append(summary);
     for (const fn of ordered) {
         const isTargeted = fn.kind === 't';
         const p = document.createElement('p');
@@ -336,6 +362,9 @@ function revealInlineFootnote(marker) {
     const block = mesEl.querySelector('.mes_block > .gls-inline-fns')
         || mesEl.querySelector('.gls-inline-fns');
     if (!block) return;
+    // A collapsed <details> hides its rows; open it first or scrollIntoView
+    // and the flash would land on nothing visible.
+    block.open = true;
     const kindT = marker.dataset.glsKind === 't';
     const idx = String(marker.dataset.glsIndex);
     const entry = [...block.querySelectorAll('.gls-inline-fn')]
@@ -350,8 +379,16 @@ function revealInlineFootnote(marker) {
     entry.classList.add('gls-fn-flash');
     // The animation runs once and the class outlives it (fill-mode none — the
     // row's look is back to normal), but stale classes would accumulate across
-    // taps; drop it when the animation ends.
-    entry.addEventListener('animationend', () => entry.classList.remove('gls-fn-flash'), { once: true });
+    // taps; drop it when the FLASH animation ends. Name-pinned: the row also
+    // carries the disclosure reveal animation (gls-fn-reveal), and on a first
+    // tap that ends first (~200ms) — an unfiltered once-listener would consume
+    // its event and cut the 1.6s flash short.
+    const onFlashEnd = (e) => {
+        if (e.animationName !== 'gls-fn-flash') return;
+        entry.classList.remove('gls-fn-flash');
+        entry.removeEventListener('animationend', onFlashEnd);
+    };
+    entry.addEventListener('animationend', onFlashEnd);
 }
 
 /** One marker-activation policy for both input paths: popup modes resolve and

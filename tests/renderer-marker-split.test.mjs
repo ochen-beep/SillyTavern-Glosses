@@ -79,3 +79,19 @@ test('removeHighlights unwraps quote-split markers back to the original text', (
     assert.equal(mesText.textContent, original);
     assert.equal(mesText.querySelectorAll('.gls-marker').length, 0);
 });
+
+test('inline block header: no icon glyph, middot count, style class from settings', () => {
+    // Anchor-less payload → the early renderInlineBlock branch in injectHighlights.
+    const mesText = el('div', 'mes_text', el('p', '', txt('Просто текст без якорей.')));
+    const mesEl = el('div', 'mes', mesText);
+    injectHighlights(mesEl, [{ index: 3, text: '³ Тестовая сноска.' }]);
+
+    const block = mesEl.querySelector('.gls-inline-fns');
+    assert.ok(block, 'under-post block rendered');
+    assert.equal(block.tagName, 'DETAILS', 'native disclosure');
+    assert.ok(block.className.includes('gls-head-rule'), 'default print-rule motif class');
+    assert.equal(block.open, false, 'collapsed by default');
+    assert.equal(block.querySelector('.gls-inline-fns-icon'), null, 'list icon removed');
+    const count = block.querySelector('.gls-inline-fns-count');
+    assert.equal(count.textContent, '· 1', 'typographic middot count (array length, not fn index)');
+});

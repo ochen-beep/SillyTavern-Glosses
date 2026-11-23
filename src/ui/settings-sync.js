@@ -312,6 +312,10 @@ export function bindSettingsUI() {
         });
     }
 
+    // Under-post block header motif: the class rides the block rendered by
+    // renderInlineBlock, so on-screen posts re-inject for the new shape.
+    bindSelect('gls_block_head_style', 'blockHeadStyle', { onChange: reapplyHighlightsAll });
+
     /**
      * Keep the Display-section snapshots in step with class-driven state.
      * Color/opacity/fonts/width ride :root custom properties (pure CSS live),

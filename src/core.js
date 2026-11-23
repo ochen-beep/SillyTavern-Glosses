@@ -161,6 +161,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // editor (settings-sync); Reset deletes the key.
     builtinLensOverrides: {},
     displayMode: 'both',
+    // Under-post block header motif (how the collapsed disclosure separates
+    // itself from the text): 'rule' = short left-aligned accent bar (the
+    // print footnote-separator convention), 'asterism' = ⁂ break glyph,
+    // 'hairline' = full-width top line (wiki style).
+    blockHeadStyle: 'rule',
     highlightColor: '#ffe066',
     highlightOpacity: 40,
     highlightStyle: 'background',
