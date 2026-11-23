@@ -8,23 +8,22 @@
  * no reserve, no second request, no fill-loop. Prior anchors are supplied
  * as a soft advisory only; forced exclusions are strictly enforced.
  *
- * The PROMPT_EXAMPLES, BASE_SYSTEM_PROMPT blocks and the loadPromptStyle/
- * interpolateLangPrompt logic are unchanged from the original.
+ * The PROMPT_EXAMPLES, the base system prompt and the interpolateLangPrompt
+ * logic are unchanged from the original.
  */
 
 import {
     state, S, getCtx, getExtBase, warn, error, extractPlainText, t,
-    DEFAULT_SETTINGS,
+    DEFAULT_SETTINGS, MAX_FOOTNOTES_CAP, HYBRID_BUILTIN_LENSES,
 } from './core.js';
-import { FOOTNOTE_CONTRACT } from './prompt-contract.js';
+import { PROMPT_EXAMPLES } from './prompt-examples.js';
+import { buildContextBlocks } from './context-blocks.js';
 import {
-    digestFor, variantIsViable, saveFootnotes, listFootnoteSets,
-    getForcedIgnore, getPoolExcluded,
+    digestFor, variantIsViable, saveFootnotes, getForcedIgnore,
 } from './cache.js';
 import { isTranslatedView } from './domain/message-identity.js';
-import { collectExplainedAnchors, combineForbiddenAnchors } from './anchor-policy.js';
+import { combineForbiddenAnchors } from './anchor-policy.js';
 import { findAnchorInText } from './anchor-utils.js';
-import { getChatLoreConfig, collectAutomaticLore, resolveManualLore, LORE_MODE, LORE_SCOPE, LORE_SCAN_MAX_CONTEXT } from './lorebooks.js';
 import { buildTextIndex, computeContextSelectors, findFuzzySpan } from './text-index.js';
 import { parseResponse, validateFootnotes, validateFootnotesAgainstText, normalizeFootnotes } from './parser.js';
 import { injectHighlights, setSpinner } from './renderer.js';
@@ -39,34 +38,16 @@ import { generateWithConfiguredSource } from './connection.js';
 // BASE SYSTEM PROMPTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-const BASE_SYSTEM_PROMPT = `You are ABfootnote, a deterministic footnote extraction utility for SillyTavern.
-Your task is NOT roleplay, NOT chat continuation, NOT creative writing.
-Read the provided [Annotate this post] block and create footnotes for that exact post.
-Never continue the scene. Never write narrative prose. Never imitate the character.
-
-## SCENE FOCUS
-The [Annotate this post] block is the post you annotate — your ONLY target. All other blocks ([Earlier in the scene], character, world info) are background that helps you understand the target. Use the background to understand the target; annotate the target only.
-
-Follow the [ANNOTATOR CONTRACT] in the user message exactly for the JSON schema, count, anchor format, and footnote structure.`;
-
-const BASE_SYSTEM_PROMPT_LANG = `You are ABfootnote — a language-learning footnote generator for SillyTavern.
-For every interesting word or phrase in [Annotate this post], output a footnote that teaches its translation to the target language.
-Never continue the scene. Never write narrative prose. Never imitate the character.
-
-## SCENE FOCUS
-The [Annotate this post] block is the post you annotate — your ONLY target. All other blocks are background that helps you understand the target. Use the background to understand the target; annotate the target only.
-
-Follow the [ANNOTATOR CONTRACT] in the user message exactly for the JSON schema, count, anchor format, and footnote structure.`;
-
 // Constructed / fictional target languages. When the target is in this set,
-// {{CONLANG_NOTE}} is expanded into an attestation-honesty nudge in language.md.
-// Esperanto (`eo`) and Toki Pona (`tok`) are real but constructed — the note
-// still applies (it asks for canonically attested forms, not invented ones).
+// {{CONLANG_NOTE}} is expanded into an attestation-honesty nudge in the
+// language lens (prompts/lenses/language.md). Esperanto (`eo`) and Toki Pona
+// (`tok`) are real but constructed — the note still applies (it asks for
+// canonically attested forms, not invented ones).
 const CONLANG_CODES = new Set(['hvl', 'tlh', 'sin', 'quen', 'eo', 'tok']);
 
-// Body of the {{CONLANG_NOTE}} block, embedded into language.md. Contains a
-// {{TARGET_LANG_NAME}} token so it must be substituted BEFORE that placeholder
-// is expanded in interpolateLangPrompt.
+// Body of the {{CONLANG_NOTE}} block, embedded into the language lens.
+// Contains a {{TARGET_LANG_NAME}} token so it must be substituted BEFORE that
+// placeholder is expanded in interpolateLangPrompt.
 const CONLANG_NOTE_BODY = `### Attestation note (constructed / fictional target)
 The target language {{TARGET_LANG_NAME}} is a constructed or fictional
 language. Use only canonically attested words and IPA transcriptions — do not
@@ -87,281 +68,6 @@ The [Annotate this post] block is the post you annotate — your ONLY target. Al
 
 Follow the [ANNOTATOR CONTRACT] in the user message exactly for the JSON schema, count, anchor format, and footnote structure.`;
 
-// Few-shot examples keyed by [style][locale]. These live in code (not in the
-// .md files) because they need to vary by output language and embed the exact
-// superscript format the parser expects.
-const PROMPT_EXAMPLES = {
-    pratchett: {
-        en: `### Examples (exact output format — copy this structure)
-
-¹ Madonna (It.) — An exclamation of shock, literally "the Virgin Mary." Although, given what's happening in the room, the Virgin would most likely prefer to pretend she was never here and quietly slip out the back door.
-
-² Baisse le son, tu vas réveiller les morts (Fr.) — "Turn it down, you'll wake the dead." A fundamentally incorrect claim: as any practicing necromancer knows, the dead sleep remarkably soundly, and raising them requires at minimum a sacrificial goat, not merely loud music.
-
-³ Cruciatus (Lat.) — An unforgivable curse causing unbearable pain. Considered poor etiquette in polite society, though unfortunately polite society usually ends right where dark wizards with bad childhoods begin.
-
-Example with non-nominative anchor (source text: "rubbed with kohl"):
-⁴ Kohl (hist.) — Traditional ancient Egyptian eye cosmetic made from ground galena. Served both a sacred-aesthetic and practical function, shielding the optic nerve from harsh sun and infection.
-Anchor in JSON: "rubbed with kohl"
-
-Example with phrase anchor (source text: "son of Horus"):
-⁵ Son of Horus (myth.) — Horus was the falcon-headed sky god, known for his vindictiveness and his talent for losing important body parts in family squabbles. Direct descent from him automatically guaranteed perfect posture, innate pomposity, and an acute need to look down on everyone else as something stuck to the sole of a sandal.
-Anchor in JSON: "son of Horus"`,
-        ru: `### Examples (exact output format — copy this structure)
-
-¹ Madonna (ит.) — Выражение шока, буквально «Богоматерь». Хотя, учитывая происходящее в комнате, Богоматерь, скорее всего, предпочла бы сделать вид, что её здесь нет, и тихо уйти через чёрный ход.
-
-² Baisse le son, tu vas réveiller les morts (фр.) — «Убавь звук, ты мертвых разбудишь». Утверждение в корне неверное: как известно любому практикующему некроманту, мёртвые спят на удивление крепко, и чтобы их разбудить, требуется как минимум жертвенный козёл, а не просто громкая музыка.
-
-³ Cruciatus (лат.) — Непростительное проклятие, причиняющее невыносимую боль. В приличном обществе считается дурным тоном, но, к сожалению, приличное общество обычно заканчивается там, где начинаются тёмные маги с плохим детством.
-
-Example with non-nominative anchor (source text: "натёрла сурьмой"):
-⁴ Сурьма (историч.) — Традиционная древнеегипетская подводка для глаз, изготавливавшаяся из растёртого галенита. Выполняла как сакрально-эстетическую функцию, так и практическую, защищая зрительный нерв от палящего солнца и инфекций.
-Anchor in JSON: "натёрла сурьмой"
-
-Example with phrase anchor (source text: "сына Гора"):
-⁵ Сын Гора (мифол.) — Гор был богом неба с головой сокола, известным своей мстительностью и талантом терять важные части тела в семейных ссорах. Прямое родство с ним автоматически гарантировало идеальную осанку, врождённый пафос и острую потребность смотреть на всех остальных как на нечто, прилипшее к подошве сандалии.
-Anchor in JSON: "сына Гора"`,
-    },
-    pratchett50: {
-        en: `### Examples (exact output format — copy this structure)
-
-**Foreign phrase — translation first, Pratchett remark earns its place:**
-¹ Baisse le son, tu vas réveiller les morts (Fr.) — "Turn it down, you'll wake the dead." A stock hyperbolic complaint. As any practicing necromancer knows, the dead actually sleep remarkably soundly, and their awakening requires at minimum a sacrificial goat, not merely loud music.
-
-**Technical term — precise definition, dry remark at the end:**
-² Nanobots (Tech.) — Hypothetical molecular-scale devices designed to perform tasks inside the body: drug delivery, diagnostics, tissue repair. Hypothetical — because real engineers are currently occupied with making regular printers work at least half the time.
-
-**Real geographical location — factual note, remark only if genuinely apt:**
-³ Café de Flore (Geo.) — Café at 172 Boulevard Saint-Germain, Paris, founded in 1887. Regular haunt of Jean-Paul Sartre and Simone de Beauvoir in the 1940s; still considered an intellectual landmark of the Left Bank. Eight euros for an espresso — that's not for the coffee, it's for the right to sit next to the ghost of existentialism.
-
-**Historical event — what and when, Pratchett iff warranted:**
-⁴ Battle of Waterloo (Hist.) — Fought on 18 June 1815 near the eponymous village in Belgium, where the Seventh Coalition under the Duke of Wellington and Marshal Blücher delivered the final defeat to Napoleon's army. For Napoleon, this was Europe's definitive "no" — politely worded enough not to explain the reasons, yet convincing enough that seventy thousand bayonets did the job.
-
-**Fictional-universe canon — factual first, irony welcome:**
-⁵ Avada Kedavra (Canon) — One of the three Unforgivable Curses in J. K. Rowling's legendarium; causes instant death without visible bodily damage. First appears in "Goblet of Fire" (2000). The only documented way to survive is to be the main character and have enough books left in the series.
-
-**Cultural reference / jargon — full Pratchett:**
-⁶ Cruciatus (Lat.) — An unforgivable curse causing unbearable pain. Considered poor form in polite society, but polite society usually ends precisely where dark wizards with troubled childhoods and grudge lists longer than "War and Peace" begin.
-
-Example with non-nominative anchor (source text: "rubbed with kohl"):
-⁷ Kohl (Hist.) — A cosmetic compound based on ground galena (lead sulfide), used in ancient Egypt as eye lining; applied with a sharpened stick, simultaneously protecting against sun and infection. That galena contained lead did not deter the Egyptians — they were realists.
-
-Example with phrase anchor (source text: "son of Horus"):
-⁸ Son of Horus (Myth.) — Descendant of Horus, the ancient Egyptian falcon-headed sky god and patron of pharaohs. Direct lineage automatically guaranteed impeccable posture, innate pomposity, and the habit of looking at everyone as something stuck to the sole of a sandal.`,
-        ru: `### Examples (exact output format — copy this structure)
-
-**Foreign phrase — translation first, Pratchett remark earns its place:**
-¹ Baisse le son, tu vas réveiller les morts (фр.) — «Убавь звук, ты мертвецов разбудишь». Устойчивое разговорное преувеличение. Как известно любому практикующему некроманту, мёртвые на самом деле спят на удивление крепко, и для их пробуждения требуется как минимум жертвенный козёл, а не просто громкая музыка.
-
-**Technical term — precise definition, dry remark at the end:**
-² Наноботы (техн.) — Гипотетические устройства молекулярного масштаба, спроектированные для выполнения задач внутри организма: доставки лекарств, диагностики, восстановления тканей. Гипотетические — потому что реальные инженеры пока заняты тем, чтобы обычные принтеры работали хотя бы через раз.
-
-**Real geographical location — factual note, remark only if genuinely apt:**
-³ Café de Flore (геогр.) — Кафе на бульваре Сен-Жермен, 172, Париж, основано в 1887 году. Постоянное место Жан-Поля Сартра и Симоны де Бовуар в 1940-х; по сей день считается интеллектуальным символом Левого берега. Восемь евро за эспрессо — это не за кофе, это за право занять стул рядом с призраком экзистенциализма.
-
-**Historical event — what and when, Pratchett iff warranted:**
-⁴ Битва при Ватерлоо (историч.) — Сражение 18 июня 1815 года близ одноимённой деревни в Бельгии, в котором силы Седьмой коалиции под командованием герцога Веллингтона и фельдмаршала Блюхера нанесли окончательное поражение армии Наполеона. Для Наполеона это стало окончательным «нет» со стороны Европы — достаточно вежливым, чтобы не объяснять причин, и достаточно убедительным, чтобы хватило семидесяти тысяч штыков.
-
-**Fictional-universe canon — factual first, irony welcome:**
-⁵ Авада Кедавра (канон.) — Одно из трёх Непростительных заклятий в легендариуме Дж. К. Роулинг; вызывает мгновенную смерть без видимых повреждений тела. Впервые появляется в «Кубке огня» (2000). Единственный задокументированный способ выжить — быть главным героем и иметь достаточно книг в серии.
-
-**Cultural reference / jargon — full Pratchett:**
-⁶ Cruciatus (лат.) — Непростительное проклятие, причиняющее невыносимую боль. В приличном обществе считается дурным тоном, но приличное общество обычно заканчивается именно там, где начинаются тёмные маги с плохим детством и списком обид длиннее, чем «Война и мир».
-
-Example with non-nominative anchor (source text: "натёрла сурьмой"):
-⁷ Сурьма (историч.) — Косметическая смесь на основе растёртого галенита (сульфида свинца), применявшаяся в Древнем Египте как подводка для глаз; наносилась заострённой палочкой, одновременно защищая от солнца и инфекций. То, что галенит содержит свинец, египтян не останавливало — они были реалистами.
-
-Example with phrase anchor (source text: "сына Гора"):
-⁸ Сын Гора (мифол.) — Потомок Гора, египетского бога неба с головой сокола, покровителя фараонов. Прямое родство автоматически гарантировало безупречную осанку, врождённый пафос и привычку смотреть на окружающих как на нечто, прилипшее к подошве сандалии.`,
-    },
-    meta_plus: {
-        en: `### Examples (exact output format — copy this structure)
-
-¹ Dark Cave (litcrit.) — The author spent three paragraphs describing the darkness in a cave that, as it turns out, had torches standing in it. The writer apparently believed "dark" was synonymous with "atmospheric." He was wrong.
-
-² Hero Charges Into Battle (narrative.) — In Chapter 12, this same character broke his ribs falling down a three-step staircase. Now he's charging twenty armed goblins with a single poker. Apparently the ribs healed extraordinarily fast — or the author simply forgot.
-
-³ "Forewarned Is Forearmed" (fourthwall.) — Does the reader genuinely believe this character will ever be both forewarned and forearmed simultaneously? The author has promised three times that "next time will be worse." So far, only the prose is getting worse.
-
-⁴ Dungeon Civil Code (archive.) — §7.3.2 of the Dungeon Civil Code: "Any party discovering a treasure chest is required to first check for mimics, and then for more dangerous mimics. In the event of a mimic of a mimic, legal counsel is recommended — provided the mimic hasn't eaten counsel first."
-
-⁵ On the Dark Lord's Sword (gossip.) — In the taverns they whisper that the Dark Lord's sword was actually bought at a clearance sale in an arms shop for three copper pennies and sharpened by a driver who quit after the first swing. The Lord, of course, maintains it is "a ritual blade of ancient times." The driver disagrees.
-
-⁶ Knocking at the Door (folklore.) — If someone knocks three times at midnight — it's spirits. Four times — it's the postman. Five times — it's spirits who have learned to count and decided to frighten you even more.
-
-⁷ "I Am Unstoppable" (irony.) — The character announces this with the confidence of someone who has clearly never been stopped before, which statistically means his first time is about three paragraphs away.
-
-⁸ The Final Stand (bathos.) — A three-page monologue about honor, destiny, and the weight of centuries of dragon blood — interrupted by a sneeze that sends him stumbling off the edge of the parapet. The narrative budget has been spent.
-
-⁹ "Just a Scratch" (litotes.) — The character lost an arm. The text calls it "a minor inconvenience." The remaining four paragraphs describe, in forensic detail, how the arm is currently on the other side of the courtyard.
-
-¹⁰ Hero Before a Mirror (intertext.) — Hamlet held a skull. Our hero holds a hairbrush and delivers the same soliloquy to his own reflection, minus the philosophical depth but plus surprisingly specific hair care advice.
-
-¹¹ "An Army of Thousands" (hyperbol.) — The text claims the army stretched "from horizon to horizon." At standard marching density, that is roughly 4.7 soldiers and one very confused goat.`,
-        ru: `### Examples (exact output format — copy this structure)
-
-¹ Тёмная пещера (литкрит.) — Автор потратил три абзаца на описание темноты в пещере, где, как выясняется, стояли факелы. Писатель, видимо, полагал, что «тёмный» — это синоним «атмосферного». Он ошибался.
-
-² Герой врывается в бой (нарратив.) — В главе 12 этот же персонаж сломал себе рёбра после падения с лестницы из трёх ступенек. Теперь он бросается на двадцать вооружённых гоблинов с одной кочергой. Видимо, рёбра срослись экстремально быстро — или автор просто забыл.
-
-³ «Предупреждён — значит вооружён» (четв.стена) — Интересно, читатель действительно верит, что этот персонаж когда-нибудь будет предупреждён и вооружён одновременно? Автор уже три раза обещал, что «в следующий раз будет хуже». Пока что хуже становится только прозе.
-
-⁴ Гражданский кодекс Подземелья (архив.) — Статья 7.3.2 Гражданского Кодекса Подземелья: «Любая партия, обнаружившая сундук с сокровищами, обязана сначала проверить его на наличие мимиков, а затем — на наличие более опасных мимиков. В случае обнаружения мимика мимика рекомендуется обратиться к юристу, если мимик не съел юриста первым.»
-
-⁵ О мече Тёмного Лорда (сплетня) — В тавернах шепчут, что меч Тёмного Лорда на самом деле был куплен на распродаже в оружейной лавке за три медяка и подточен шофёром, который уволился после первого же замаха. Лорд, впрочем, утверждает, что это «ритуальный клинок древних времён». Шофёр утверждает иначе.
-
-⁶ Стук в дверь (примета) — Если в полночь в дверь стучат трижды — это духи. Если четыре раза — это почтальон. Если пять раз — это духи, которые научились считать и решили вас напугать ещё сильнее.
-
-⁷ «Меня не остановить» (ирония) — Персонаж произносит это с уверенностью человека, которого, судя по статистике, ещё никогда не останавливали. Что математически означает: первый раз — через абзац.
-
-⁸ Последний бой (батос) — Трёхстраничный монолог о чести, предназначении и весе веков драконьей крови — прерванный чихом, от которого он спотыкается и падает с парапета. Нарративный бюджет исчерпан.
-
-⁹ «Царапинка» (лифтез) — Персонаж потерял руку. Текст называет это «незначительным неудобством». Остальные четыре абзаца описывают в судебно-медицинских подробностях, как рука в данный момент находится на другом конце двора.
-
-¹⁰ Герой перед зеркалом (интекст.) — Гамлет держал череп. Наш герой держит расчёску и произносит тот же монолог перед собственным отражением — без философской глубины, но с неожиданно подробными рекомендациями по уходу за волосами.
-
-¹¹ «Армия в тысячи воинов» (гиперб.) — Текст утверждает, что армия тянулась «от горизонта до горизонта». При стандартной плотности марша это примерно 4,7 солдата и один растерянный козёл.`,
-    },
-    academic: {
-        en: `### Examples (exact output format — copy this structure)
-
-¹ Cruciatus (Lat., from crucio — "to torture") — In J. K. Rowling's legendarium, one of the three Unforgivable Curses; inflicts intense pain without physical damage. First mentioned in "Harry Potter and the Goblet of Fire" (2000).
-
-² Baisse le son, tu vas réveiller les morts (Fr.) — "Turn it down, you'll wake the dead." Colloquial French expression used as a hyperbolic complaint about excessive noise.
-
-³ Shendyt (Arch., anc. Egyp.) — Traditional ancient Egyptian linen loincloth; a basic element of male attire across all social strata, secured by a belt of varying complexity depending on the wearer's status.
-
-Example with non-nominative anchor (source text: "rubbed with kohl"):
-⁴ Kohl (Hist.) — Traditional cosmetic compound based on galena (lead sulfide), used in ancient Egypt as eye lining; applied with a sharpened stick.
-
-Example with phrase anchor (source text: "son of Horus"):
-⁵ Son of Horus (Myth.) — Designation for a descendant of Horus, the falcon-headed sky god; inheritor of his cult and the mythological status of protector of royal authority.`,
-        ru: `### Examples (exact output format — copy this structure)
-
-¹ Cruciatus (лат., от crucio — «мучить») — В легендариуме Дж. К. Роулинг одно из трёх Непростительных заклятий; вызывает интенсивную боль без физических повреждений. Впервые упоминается в «Гарри Поттере и Кубке огня» (2000).
-
-² Baisse le son, tu vas réveiller les morts (фр.) — «Убавь звук, ты мертвых разбудишь». Разговорное французское выражение, употребляется как гиперболическое указание на чрезмерный шум.
-
-³ Shendyt (архаич., др.-егип.) — Традиционная древнеегипетская набедренная повязка из льна; базовый элемент мужского костюма всех социальных слоёв, фиксировавшийся поясом различной степени сложности в зависимости от статуса владельца.
-
-Example with non-nominative anchor (source text: "натёрла сурьмой"):
-⁴ Сурьма (историч.) — Традиционная косметическая смесь на основе галенита (сульфида свинца), использовавшаяся в Древнем Египте в качестве подводки для глаз; наносилась заострённой палочкой.
-
-Example with phrase anchor (source text: "сына Гора"):
-⁵ Сын Гора (мифол.) — Обозначение потомка Гора, бога неба с головой сокола; наследник его культа и мифологического статуса защитника царской власти.`,
-    },
-    language: {
-        en: `### Examples
-
-**Single word with instructive translation (source: "He felt a strange tension"):**
-\`\`\`json
-{
-  "footnotes": [
-    {
-      "anchor": "напряжение",
-      "text": "¹ напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · mnemonic: from tense ( напряжённый) · collocation: under tension — под напряжением"
-    }
-  ]
-}
-\`\`\`
-
-**Word with multiple meanings (source: "Drago could not explain this strange feeling"):**
-\`\`\`json
-{
-  "footnotes": [
-    {
-      "anchor": "чувство",
-      "text": "¹ чувство (Eng.) — feeling · /ˈfiːlɪŋ/ · «féeling» · also: sense (чувство/смысл), emotion (эмоция) · collocation: a sense of — чувство чего-либо"
-    }
-  ]
-}
-\`\`\`
-
-**Phrase (source: "She became absolutely devoted"):**
-\`\`\`json
-{
-  "footnotes": [
-    {
-      "anchor": "абсолютный",
-      "text": "¹ абсолютный (Eng.) — absolute · /ˈæbsəluːt/ · «ábsolút» · from Lat. absolutus — unlimited · mnemonic: ab(olute)ly = абсолютно"
-    }
-  ]
-}
-\`\`\`
-
-**Text-only fallback example:**
-¹ напряжение (Eng.) — tension · /ˈtɛnʃən/ · «téhn-shn» · from tense · collocation: under tension`,
-        ru: `### Examples
-
-**Single word with instructive translation (source: "Он ощущал странное напряжение"):**
-\`\`\`json
-{
-  "footnotes": [
-    {
-      "anchor": "напряжение",
-      "text": "¹ напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · мнемоника: от tense (напряжённый) · коллокация: under tension — под напряжением"
-    }
-  ]
-}
-\`\`\`
-
-**Word with multiple meanings (source: "Драго не мог объяснить это странное чувство"):**
-\`\`\`json
-{
-  "footnotes": [
-    {
-      "anchor": "чувство",
-      "text": "¹ чувство (англ.) — feeling · /ˈfiːlɪŋ/ · «фи́линг» · also: sense (чувство/смысл), emotion (эмоция) · коллокация: a sense of — чувство чего-либо"
-    }
-  ]
-}
-\`\`\`
-
-**Phrase (source: "Она превратилась в абсолютный куль"):**
-\`\`\`json
-{
-  "footnotes": [
-    {
-      "anchor": "абсолютный",
-      "text": "¹ абсолютный (англ.) — absolute · /ˈæbsəluːt/ · «а́бсолю́т» · от лат. absolutus — неограниченный · мнемоника: ab(olute)ly = абсолютно"
-    }
-  ]
-}
-\`\`\`
-
-**Text-only fallback example:**
-¹ напряжение (англ.) — tension · /ˈtɛnʃən/ · «те́ншн» · от tense · коллокация: under tension`,
-    },
-    // Hybrid mixed-lens examples. Intentionally mix lenses on the SAME Post
-    // text so the model learns to switch lenses per anchor — including a
-    // situation-level (multi-word clause) anchor winning the Pratchett lens.
-    hybrid: {
-        en: `### Examples (mixed lenses — copy this switching behaviour)
-
-Post (context only; footnote its words/phrases/situations, not wholesale).
-"She whispered 'valar morghulis' and sat on the Iron Throne, the blade edges biting through her gown."
-
-¹ valar morghulis ({{TARGET_LANG_LABEL}}) — valar morghulis · /ˈvalar ˈmorɡulis/ · «váh-lar mor-gúh-liss» · mnemonic: valar (all men) + morghulis (must die) · collocation: valar dohaeris — "all men must serve" (the traditional response).
-
-² Iron Throne (canon.) — Seat of the House of the Dragon in King's Landing, forged by Aegon the Conqueror from the swords of defeated enemies. Per canon, its blades cut whoever sits on it — a deliberate reminder that power should never be comfortable.
-
-³ sat on the Iron Throne, the blade edges biting through her gown (Pratchett.) — A coronation: traditionally the moment a monarch settles into power. Here, power settles into her — with some interest. The throne, famously made of swords, takes the job of "ruling uncomfortably" rather literally; one might suggest it is overachieving.
-⁴ whispered 'valar morghulis' (narrative.) — A character mutters a ominous foreign phrase and then immediately does the most predictable thing possible. The author believes untranslated menace substitutes for character motivation. It does not. Somewhere, a footnote generator is being underpaid to point this out.`,
-        ru: `### Examples (mixed lenses — copy this switching behaviour)
-
-Post (context only; footnote its words/phrases/situations, not wholesale).
-«Она прошептала „valar morghulis" и села на Железный трон, лезвия врезаясь в её платье.»
-
-¹ valar morghulis ({{TARGET_LANG_LABEL}}) — valar morghulis · /ˈvalar ˈmorɡulis/ · «ва́лар мор-гу́лис» · мнемоника: valar (все люди) + morghulis (должны умереть) · коллокация: valar dohaeris — «все люди должны служить» (традиционный ответ).
-
-² Железный трон (канон.) — Резной трон Дома Дракона в Королевской Гавани, выкован Эйгоном Завоевателем из мечей поверженных врагов. По канону, его лезвия режут всякого сидящего — намеренное напоминание о том, что власть не должна быть удобной.
-
-³ села на Железный трон, лезвия врезаясь в её платье (пратчетт.) — Коронация: традиционно момент, когда монарх входит во власть. Здесь власть входит в неё — причём с интересом. Трон, как известно, сделан из мечей, и работу «править неудобно» понимает весьма буквально; можно сказать, перевыполняет план.
-⁴ прошептала «valar morghulis» (нарратив.) — Персонаж бормочет зловещую иностранную фразу, а затем немедленно делает самое предсказуемое, что можно придумать. Автор полагает, что непереведённая угроза заменяет мотивацию персонажа. Это не так. Где-то генератор сносок недополучает за то, что указывает на это.`,
-    },
-};
-
 // ══════════════════════════════════════════════════════════════════════════════
 // PROMPT STYLE LOADING
 // ══════════════════════════════════════════════════════════════════════════════
@@ -381,7 +87,30 @@ function isOutputRu() {
 
 function langCacheKey() {
     const s = S();
-    return `${s.targetLanguage || 'en'}:${s.cefrLevel || 'auto'}:${getOutputLanguage()}`;
+    // Custom name/label participate only for the custom target (empty otherwise).
+    return [
+        s.targetLanguage || 'en',
+        s.cefrLevel || 'auto',
+        getOutputLanguage(),
+        s.languageDirection === 'reverse' ? 'rev' : 'fwd',
+        s.languageGrammarNotes ? 'gr1' : 'gr0',
+        s.languageUsageExample ? 'us1' : 'us0',
+        s.targetLanguage === 'custom'
+            ? `${(s.customTargetName || '').trim()}:${(s.customTargetLabel || '').trim()}`
+            : '',
+    ].join(':');
+}
+
+/**
+ * Generation gate for the custom target language: 'custom' selected but the
+ * language name is empty would put a placeholder into every prompt. Returns
+ * the error message key, or null when generation may proceed.
+ */
+export function customLanguageIssue() {
+    const s = S();
+    if ((s.targetLanguage || 'en') !== 'custom') return null;
+    if (!(s.customTargetName || '').trim()) return 'Enter the custom language name in settings.';
+    return null;
 }
 
 /** Drop every cached prompt whose key starts with the prefix (style/lang/
@@ -393,96 +122,37 @@ function invalidatePromptCache(prefix) {
 }
 
 /**
- * Assemble the STYLE half of the prompt (style rules + few-shot examples) for
- * the current promptStyle + output language, WITHOUT the base system prompt.
- * Cached per key. The targeted flow («Точечно») uses this alone — the regular
- * BASE_SYSTEM_PROMPT contradicts the targeted contract (authoritative targets
- * need not occur in the post).
+ * Assemble the STYLE half of the prompt (lens rules + few-shot examples) for
+ * the hybrid lens constructor + output language, WITHOUT the base system
+ * prompt. The targeted flow («Точечно») uses this alone — the full hybrid
+ * system prompt contradicts the targeted contract (authoritative targets need
+ * not occur in the post).
+ *
+ * Hybrid is the only reachable style: loadSettings coerces every stored
+ * promptStyle to 'hybrid' (the single-style UI is retired; the former classic
+ * presets are covered by the built-in lenses). Caching lives inside
+ * _buildHybridPrompt.
  */
 export async function assembleStyle() {
-    const s = S();
     const outputLang = getOutputLanguage();
     const examplesLocale = outputLang === 'Russian' ? 'ru' : 'en';
-    let stylePrompt = '';
-
-    if (s.promptStyle === 'custom') {
-        stylePrompt = s.customPrompt || '';
-    } else if (s.promptStyle === 'language') {
-        const key = `language:${langCacheKey()}`;
-        if (state.promptCache[key]) {
-            stylePrompt = state.promptCache[key];
-        } else {
-            // Invalidate any stale language caches (settings changed).
-            invalidatePromptCache('language:');
-            try {
-                const resp = await fetch(`${getExtBase()}/prompts/language.md`);
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                let raw = await resp.text();
-                raw = interpolateLangPrompt(raw);
-                const examples = PROMPT_EXAMPLES.language?.[examplesLocale] || '';
-                raw = raw.replace(/\{\{EXAMPLES\}\}/g, examples);
-                stylePrompt = raw;
-                state.promptCache[key] = stylePrompt;
-            } catch (e) { warn('Failed to load language prompt:', e); }
-        }
-    } else if (s.promptStyle === 'hybrid') {
-        // Hybrid mode: one footnote per anchor, the model picks the single
-        // best-fitting ACTIVE LENS. The envelope (prompts/hybrid.md) carries the
-        // COMMON rules (output language, translation boundary, format) ONCE; each
-        // active lens contributes only its own role (voice + when + label).
-        // Custom lenses (user-authored) travel alongside the 6 built-ins, so the
-        // constructor accepts any mix.
-        //
-        // Cache key is built from (a) the active built-in lens names + (b) the
-        // active custom lens ids + (c) lang/cefr/outputLang signature, so any
-        // flip / add / edit / delete of a custom lens invalidates it.
-        stylePrompt = await _buildHybridPrompt(examplesLocale, outputLang);
-    } else {
-        const style = s.promptStyle || 'pratchett';
-        const key = `${style}:${outputLang}`;
-        if (state.promptCache[key]) {
-            stylePrompt = state.promptCache[key];
-        } else {
-            invalidatePromptCache(`${style}:`);
-            try {
-                const resp = await fetch(`${getExtBase()}/prompts/${style}.md`);
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                let raw = await resp.text();
-                raw = raw.replace(/\{\{OUTPUT_LANGUAGE\}\}/g, outputLang);
-                // Contract/vibe split: the shared format rules were moved OUT of
-                // the style files into src/prompt-contract.js (they were
-                // duplicated verbatim in every style). The {{CONTRACT}} marker
-                // sits where the per-style "### Format requirements" section
-                // used to be, so the assembled prompt is unchanged.
-                raw = raw.replace(/\{\{CONTRACT\}\}/g, FOOTNOTE_CONTRACT);
-                const examples = PROMPT_EXAMPLES[style]?.[examplesLocale] || '';
-                raw = raw.replace(/\{\{EXAMPLES\}\}/g, examples);
-                stylePrompt = raw;
-                state.promptCache[key] = stylePrompt;
-            } catch (e) { warn('Failed to load prompt style:', e); }
-        }
-    }
-
+    const stylePrompt = await _buildHybridPrompt(examplesLocale, outputLang);
     // The style half is complete; the base system prompt is appended by
     // loadPromptStyle for the regular flow only.
     return (stylePrompt || '').trim();
 }
 
 /**
- * Full system prompt for the REGULAR flow: base SCENE-FOCUS prompt (what to
- * annotate) + the style half. The count target + VERBATIM contract live in
- * buildUserPrompt's user message. The system prompt carries no count pressure
- * here, so the model is never forced to fabricate anchors; the user-message
- * contract tells it to broaden anchor granularity (names/phrases/clauses) to
- * reach N honestly in one request.
+ * Full system prompt for the REGULAR flow: hybrid SCENE-FOCUS prompt (one
+ * best-fitting lens per anchor) + the style half. The count target + VERBATIM
+ * contract live in buildUserPrompt's user message. The system prompt carries
+ * no count pressure here, so the model is never forced to fabricate anchors;
+ * the user-message contract tells it to broaden anchor granularity
+ * (names/phrases/clauses) to reach N honestly in one request.
  */
 export async function loadPromptStyle() {
-    const s = S();
     const stylePrompt = await assembleStyle();
-    const basePrompt = s.promptStyle === 'language' ? BASE_SYSTEM_PROMPT_LANG
-        : s.promptStyle === 'hybrid'    ? BASE_SYSTEM_PROMPT_HYBRID
-        : BASE_SYSTEM_PROMPT;
-    return `${basePrompt}\n\n${stylePrompt || ''}`.trim();
+    return `${BASE_SYSTEM_PROMPT_HYBRID}\n\n${stylePrompt || ''}`.trim();
 }
 
 function interpolateLangPrompt(template) {
@@ -516,27 +186,83 @@ function interpolateLangPrompt(template) {
         b1b2: 'Focus on B1–C1 vocabulary. Explain idioms, phrasal verbs, collocations, nuanced usage. Highlight differences between literal and figurative meaning.',
         c1c2: 'Focus on C1–C2 vocabulary. Literary terms, etymology, stylistic nuances, rare constructions. Include word origins and register information.',
     };
+    // Direction blocks (forward = narration → study language; reverse = the
+    // post IS in the study language, explained in the output language). Each
+    // carries {{TARGET_LANG_NAME}}/{{OUTPUT_LANGUAGE}} tokens, so like
+    // {{CONLANG_NOTE}} they must be substituted BEFORE those placeholders.
+    const DIRECTION_TASK = {
+        forward: 'The text they are reading is in the narration language. Your task: for every interesting or educational word/phrase in the text, create a footnote that teaches its {{TARGET_LANG_NAME}} equivalent. This turns any text into a language-learning experience.',
+        reverse: 'The text they are reading is written in {{TARGET_LANG_NAME}} itself — they learn by reading it. Your task: for every word or phrase in the text that a learner may not fully understand, create a footnote that explains it in {{OUTPUT_LANGUAGE}}: translation, pronunciation, usage. This turns any text into a language-learning experience.',
+    };
+    const DIRECTION_PRIORITIES = {
+        forward: [
+            '- Words or phrases with interesting, non-obvious, or instructive translations to {{TARGET_LANG_NAME}} — highest priority.',
+            '- Idiomatic expressions that don\'t translate literally between the narration language and {{TARGET_LANG_NAME}}.',
+            '- Words with multiple meanings or false friends between the two languages.',
+            '- Literary or formal vocabulary that differs significantly from everyday speech in {{TARGET_LANG_NAME}}.',
+            '- Culture-specific terms that have no direct equivalent.',
+            '- Common words at the target CEFR level that are useful building blocks.',
+        ].join('\n'),
+        reverse: [
+            '- Words or phrases in {{TARGET_LANG_NAME}} that a learner at the selected CEFR level may not know — highest priority.',
+            '- Idioms and colloquialisms in {{TARGET_LANG_NAME}} that don\'t translate literally.',
+            '- Words whose meaning in context differs from the dictionary one; slang and abbreviations.',
+            '- Literary or formal vocabulary in {{TARGET_LANG_NAME}}.',
+            '- Culture-specific references a learner may miss.',
+            '- Common words at the target CEFR level that are useful building blocks.',
+        ].join('\n'),
+    };
+    const GRAMMAR_RULE = {
+        off: 'Do NOT include grammar gender or part of speech labels — focus on pronunciation, meaning, and usage instead.',
+        on: 'Include brief grammar notes where useful (gender, part of speech, irregular forms) right after the phonetic reading — a few words, not a paragraph.',
+    };
+    const USAGE_RULE = 'End the body with one short usage example: a natural sentence in {{TARGET_LANG_NAME}} using the word, followed by its translation in {{OUTPUT_LANGUAGE}} in parentheses.';
     const lang = S().targetLanguage || 'en';
     const level = S().cefrLevel || 'auto';
     const outputLang = isRu ? 'Russian' : 'English';
-    // Conlang attestation note — substituted first so its own
-    // {{TARGET_LANG_NAME}} token is expanded by the next replace.
+    // Custom target language: the prompt uses the user-typed name; the label
+    // falls back to a derived short tag. (An empty NAME is blocked at the
+    // generation gate — customLanguageIssue; this fallback only keeps
+    // previews/copy-bake from emitting a dangling placeholder.)
+    const isCustom = lang === 'custom';
+    const customName = (S().customTargetName || '').trim();
+    const customLabel = (S().customTargetLabel || '').trim();
+    const langName = isCustom ? (customName || 'Custom language') : (LANG_NAMES[lang] || lang);
+    const langLabel = isCustom
+        ? (customLabel || (customName ? `${customName.slice(0, 3)}.` : 'lang.'))
+        : (LANG_LABELS[lang] || `${lang}.`);
+    const direction = S().languageDirection === 'reverse' ? 'reverse' : 'forward';
     const conlangNote = CONLANG_CODES.has(lang) ? CONLANG_NOTE_BODY : '';
     return template
         .replace(/\{\{CONLANG_NOTE\}\}/g, conlangNote)
-        .replace(/\{\{TARGET_LANG_NAME\}\}/g, LANG_NAMES[lang] || lang)
+        .replace(/\{\{DIRECTION_TASK\}\}/g, DIRECTION_TASK[direction])
+        .replace(/\{\{DIRECTION_PRIORITIES\}\}/g, DIRECTION_PRIORITIES[direction])
+        .replace(/\{\{GRAMMAR_RULE\}\}/g, S().languageGrammarNotes ? GRAMMAR_RULE.on : GRAMMAR_RULE.off)
+        .replace(/\{\{USAGE_RULE\}\}/g, S().languageUsageExample ? USAGE_RULE : '')
+        .replace(/\{\{TARGET_LANG_NAME\}\}/g, langName)
         .replace(/\{\{TARGET_LANG_CODE\}\}/g, lang)
-        .replace(/\{\{TARGET_LANG_LABEL\}\}/g, LANG_LABELS[lang] || `${lang}.`)
+        .replace(/\{\{TARGET_LANG_LABEL\}\}/g, langLabel)
         .replace(/\{\{CEFR_LEVEL\}\}/g, level)
         .replace(/\{\{CEFR_LEVEL_DESC\}\}/g, CEFR_DESC[level] || CEFR_DESC.auto)
         .replace(/\{\{OUTPUT_LANGUAGE\}\}/g, outputLang);
+}
+
+/**
+ * Snapshot a built-in lens's raw template for "copy to custom lenses".
+ * The language lens's {{TARGET_LANG_*}}/{{CEFR_*}}/{{CONLANG_NOTE}} tokens are
+ * BAKED with the current settings — the custom-lens build path never runs the
+ * language interpolation — while {{OUTPUT_LANGUAGE}} stays raw because the
+ * custom path substitutes it at generation time (generator _buildHybridPrompt).
+ */
+export function bakeLensCopyText(lensId, rawTemplate) {
+    const raw = String(rawTemplate ?? '');
+    return lensId === 'language' ? interpolateLangPrompt(raw) : raw;
 }
 
 // ── Hybrid prompt assembly ──────────────────────────────────────────────────
 // The envelope (prompts/hybrid.md) carries the COMMON rules ONCE; each active
 // lens contributes only its role. Custom lenses (user-authored) travel inline.
 // One footnote per anchor: the model picks the single best-fitting ACTIVE LENS.
-const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion'];
 
 /**
  * Resolve the active lens flags using DEFAULT_SETTINGS as the single source
@@ -571,8 +297,13 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
     const anyBuiltin = HYBRID_BUILTIN_LENSES.some(k => active[k]);
     if (!anyBuiltin && !customActive.length) active.language = true;
 
+    const overrides = s.builtinLensOverrides || {};
+    // An overridden lens is marked in the cache signature (`name*`) so ADDING
+    // or REMOVING an override produces a new key; EDITING an override's text
+    // relies on settings-sync's _invalidateLanguageCache (same contract as
+    // custom-lens text edits).
     const sig = [
-        ...HYBRID_BUILTIN_LENSES.filter(k => active[k]),
+        ...HYBRID_BUILTIN_LENSES.filter(k => active[k]).map(k => String(overrides[k] || '').trim() ? `${k}*` : k),
         ...customActive.map(c => c.id || c.name),
     ].join(',');
     const key = `hybrid:${sig}:${langCacheKey()}`;
@@ -598,9 +329,15 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
     for (const lens of HYBRID_BUILTIN_LENSES) {
         if (!active[lens]) continue;
         try {
-            const snipResp = await fetch(`${getExtBase()}/prompts/lenses/${lens}.md`);
-            if (!snipResp.ok) throw new Error(`HTTP ${snipResp.status} (lenses/${lens}.md)`);
-            let snip = await snipResp.text();
+            // User override wins over the bundled template. The language
+            // lens's tokens interpolate identically for overrides and disk
+            // templates (see interpolateLangPrompt below).
+            let snip = String(overrides[lens] || '').trim();
+            if (!snip) {
+                const snipResp = await fetch(`${getExtBase()}/prompts/lenses/${lens}.md`);
+                if (!snipResp.ok) throw new Error(`HTTP ${snipResp.status} (lenses/${lens}.md)`);
+                snip = await snipResp.text();
+            }
             // Language lens needs {{TARGET_LANG_*}} + {{CEFR_*}} + {{CONLANG_NOTE}}
             // interpolated BEFORE {{OUTPUT_LANGUAGE}} is applied. interpolateLangPrompt
             // handles OUTPUT_LANGUAGE too, so it's a single pass for that lens.
@@ -641,261 +378,53 @@ async function _buildHybridPrompt(examplesLocale, outputLang) {
 // USER PROMPT BUILDING
 // ══════════════════════════════════════════════════════════════════════════════
 
-/** Coerce arbitrary WI/persona return shapes into a plain string. */
-function coercePromptText(value) {
-    if (!value) return '';
-    if (typeof value === 'string') return value;
-    if (Array.isArray(value)) return value.map(coercePromptText).filter(Boolean).join('\n');
-    if (typeof value === 'object') {
-        if (typeof value.worldInfoString === 'string') return value.worldInfoString;
-        if (typeof value.worldInfoBefore === 'string' || typeof value.worldInfoAfter === 'string') {
-            return [value.worldInfoBefore, value.worldInfoAfter].filter(Boolean).join('\n');
-        }
-        if (typeof value.prompt === 'string') return value.prompt;
-        if (typeof value.content === 'string') return value.content;
-        if (typeof value.text === 'string') return value.text;
-        if (typeof value.toString === 'function' && value.toString !== Object.prototype.toString) {
-            const str = value.toString();
-            if (str && str !== '[object Object]') return str;
-        }
-        try { const json = JSON.stringify(value); return json && json !== '{}' ? json : ''; } catch { return ''; }
-    }
-    const str = String(value);
-    return str === '[object Object]' ? '' : str;
-}
 
-function getTargetFootnoteCount() {
-    const n = parseInt(S().maxFootnotes, 10);
-    return Number.isFinite(n) ? Math.min(20, Math.max(1, n)) : 5;
-}
+// Shared tail of both contracts: forbidden-list rule + output schema (F3 —
+// one place to edit the JSON shape; previously drifted between two copies).
+const _CONTRACT_TAIL = `Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
 
-/**
- * Build the input consumed by SillyTavern's automatic lore activation
- * (getWorldInfoPrompt). Ported from DS Comments (src/generator.js).
- *   - Messages newest-first (ST's scan expects reverse-chronological order)
- *     with raw m.mes — the same surface ST itself scans.
- *   - globalScanData carries the 'quiet' trigger plus the persona/character
- *     fields whose TEXT can activate keyword entries: without them, entries
- *     keyed on words that appear only in the character description, scenario,
- *     or persona never activate for the footnote prompt.
- */
-export function buildLoreScanInput(ctx) {
-    const chatMessages = (ctx.chat || [])
-        .filter(m => m && !m.is_system && !m.is_hidden)
-        .map(m => {
-            const name = m.is_user ? (ctx.name1 || 'User') : (m.name || ctx.name2 || 'Character');
-            return `${name}: ${String(m.mes || '')}`;
-        })
-        .reverse();
+Translation rule: a phrase the post quotes in a language different from the narration language MUST get a footnote, and its body must open with the translation. Do NOT create a translation footnote for wording already rendered in the narration language, even if the story says a character speaks another language.
 
-    const globalScanData = { trigger: 'quiet' };
-    try {
-        if (ctx.characterId !== undefined && ctx.characters?.[ctx.characterId]) {
-            const ch = ctx.characters[ctx.characterId];
-            if (ch.description) globalScanData.characterDescription = ch.description;
-            if (ch.personality) globalScanData.characterPersonality = ch.personality;
-            if (ch.scenario) globalScanData.scenario = ch.scenario;
-        }
-        const pd = ctx.powerUserSettings?.persona_description;
-        if (pd) globalScanData.personaDescription = pd;
-    } catch { /* skip */ }
+Label rule: start the display label with a capital letter and use the nominative case, 1–4 words — never the full anchored narration clause (the clause stays verbatim in "anchor"; a quoted foreign phrase serves as its own label, and it must contain no spaced em-dash). Standard language tags such as (англ.), (Fr.) or (Jap.) keep their usual form. Capitalize the category code and end it with a dot: (Hist.), (Canon.). Separate the label and code from the body with a spaced em-dash ( — ): that separator is structural — the footnote is rendered as a title plus a body split at it, so start the body with a capital letter and write it as a standalone sentence (no dictionary-style lowercase after the dash).
 
-    return { chatMessages, globalScanData };
-}
-
-function buildCharBlock(messageId) {
-    const ctx = getCtx();
-    let ch = null;
-    if (ctx.characterId !== undefined && ctx.characters?.[ctx.characterId]) {
-        ch = ctx.characters[ctx.characterId];
-    } else {
-        const msg = ctx.chat?.[parseInt(messageId)];
-        if (msg?.name) ch = ctx.characters?.find(c => c.name === msg.name) ?? null;
-    }
-    if (!ch?.description) return '';
-    return `[Character: ${ch.name}\n${ch.description}]`;
-}
-
-function buildChatHistory(anchorMsgId) {
-    const ctx = getCtx();
-    const depth = Math.max(0, parseInt(S().contextDepth, 10) || 0);
-    const chat = ctx.chat;
-    if (!chat || depth <= 0) return '';
-    // Context is STRICTLY prior messages. The anchor post is annotated via
-    // [Annotate this post] and must NOT also appear here — otherwise the model
-    // starts generating footnotes for older posts' words instead of the
-    // current one.
-    const endIdx = parseInt(anchorMsgId, 10); // exclusive of the anchor
-    return chat
-        .slice(0, endIdx)
-        .slice(-depth)
-        .filter(m => !m.is_system && !m.is_hidden)
-        .map(m => `${m.is_user ? (ctx.name1 || 'User') : (m.name || 'AI')}: ${extractPlainText(m.mes || '')}`)
-        .join('\n');
-}
-
-/**
- * Build the context blocks for the single generation turn: the annotation
- * target ([Annotate this post], the ONLY block validateFootnotes resolves
- * anchors against — see extractPostTextFromPrompt in parser.js) + background
- * blocks the model may use to enrich explanations ([Earlier in the scene],
- * Character, User persona, World info). Background is reference context, never
- * an anchor source. The first element is always [Annotate this post: ...], so
- * extractPostTextFromPrompt can resolve anchors against the target alone.
- */
-
-/**
- * Read the current persona description, preferring ctx.getPersonaDescription
- * (older ST) and falling back to ctx.powerUserSettings + personas.js's
- * `user_avatar` named export (newer ST where ctx.getPersonaDescription is
- * no longer exposed via getContext). Never throws — returns '' on any
- * failure (the persona block is opt-in enrichment; a missing description
- * is not an error, just a degraded footnote).
- *
- * Verified against release (paths from third-party/<ext>/src/generator.js):
- *   - ctx.powerUserSettings: exposed in getContext() (st-context.js:228)
- *   - user_avatar: named export of public/scripts/personas.js:108
- *   - persona_descriptions: power_user field (power-user.js), keyed by avatar
- */
-let _userAvatarImport = null; // memoize the dynamic personas.js import
-async function getPersonaDescription() {
-    const ctx = getCtx();
-    // Preferred path (older ST versions that still expose it).
-    if (typeof ctx.getPersonaDescription === 'function') {
-        try { return ctx.getPersonaDescription() || ''; } catch { /* fall through */ }
-    }
-    // Fallback: read manually via ctx.powerUserSettings + personas.js's user_avatar.
-    // From src/generator.js the relative path to public/scripts/personas.js is
-    //   ../../../../personas.js  (4 ../ hops: src → Glosses → third-party → extensions → scripts)
-    try {
-        if (!_userAvatarImport) {
-            _userAvatarImport = import('../../../../personas.js').catch(() => null);
-        }
-        const mod = await _userAvatarImport;
-        const user_avatar = mod?.user_avatar;
-        const pu = ctx.powerUserSettings;
-        if (user_avatar && pu?.persona_descriptions) {
-            const desc = pu.persona_descriptions?.[user_avatar]?.description;
-            if (typeof desc === 'string') return desc;
-        }
-    } catch { /* non-critical */ }
-    return '';
-}
-
-/**
- * @param {string} messageId
- * @param {number} swipeIdx
- * @param {{ skipForbidden?: boolean }} [opts] — skipForbidden drops the
- *        [Forbidden anchors] block. Used by the targeted flow, whose targets
- *        are explicit user choices that must not be second-guessed by the
- *        stop-words / forced-ignore lists.
- */
-export async function buildContextBlocks(messageId, swipeIdx, opts = {}) {
-    const ctx = getCtx();
-    const s = S();
-    const msg = ctx.chat?.[parseInt(messageId)];
-    if (!msg) return [];
-    const text = Array.isArray(msg.swipes) ? (msg.swipes[swipeIdx] ?? msg.mes) : msg.mes;
-    const cleanText = extractPlainText(text);
-    const parts = [`[Annotate this post:\n${cleanText}]`];
-
-    if (s.avoidRepeatedAnchors !== false) {
-        // "Already explained" pool: permissive — every anchor Glosses has ever
-        // generated for this chat (any message, any variant), except the
-        // current message's own anchors, so the block can't leak a hint to
-        // re-gloss exactly the target. Those filters deliberately do NOT
-        // filter by swipe/position/message-type: in chats with swipes or
-        // regenerations those filters silently dropped most of the pool,
-        // leaving the advisory block empty. See collectExplainedAnchors.
-        const prior = collectExplainedAnchors({
-            sets: listFootnoteSets(),
-            currentMsgId: messageId,
-            limit: 200,
-            // Per-chat "hidden from advisory" list, curated from the pool-manager
-            // UI in the Exclusions tab. Hides an anchor from THIS block only —
-            // the footnote itself is unaffected.
-            excludeKeys: getPoolExcluded(),
-        });
-        if (prior.length) {
-            parts.push(`[Previously glossed anchors - prefer different anchors when possible; reuse is allowed to reach the requested count:\n${prior.join('; ')}]`);
-        }
-    }
-
-    if (s.contextDepth > 0) {
-        const history = buildChatHistory(messageId);
-        if (history) parts.push(`[Earlier in the scene — reference only; do NOT annotate it, use it only as background:\n${history}]`);
-    }
-    if (s.includeCharacterCard) {
-        const card = buildCharBlock(messageId);
-        if (card) parts.push(card);
-    }
-    if (s.includePersona) {
-        const persona = await getPersonaDescription();
-        if (persona) parts.push(`[User persona:\n${persona}]`);
-    }
-    // ── Lorebook context. Effective source, in order:
-    //   1. per-chat config (chatMetadata.gls_lorebook, lorebooks.js) when its
-    //      enabled flag is on — AUTOMATIC scope ALL (dry-run scan + vectorized
-    //      entries from the WORLD_INFO_ACTIVATED cache) or ATTACHED (only the
-    //      entries of books bound to this chat), or MANUAL (user-picked
-    //      entries via resolveManualLore). Cache miss in ATTACHED → empty:
-    //      there is NO degradation to the full scan, because that path cannot
-    //      exclude global-panel books and would break the attached-only
-    //      contract (aligned with DS Comments).
-    //   2. otherwise the legacy global includeLorebook toggle → full scan.
-    // isDryRun is ALWAYS true in every scan (contract ported from DS
-    // Comments): a non-dry-run scan re-emits WORLD_INFO_ACTIVATED and writes
-    // sticky/cooldown timed-effects into chat_metadata OUTSIDE ST's
-    // generation cycle — the footnote prompt must neither consume nor mutate
-    // the main chat's world-info state.
-    const loreCfg = getChatLoreConfig(ctx);
-    if (loreCfg.enabled || s.includeLorebook) {
-        let wi = '';
-        try {
-            if (loreCfg.enabled && loreCfg.mode === LORE_MODE.MANUAL) {
-                const lore = await resolveManualLore(ctx, loreCfg.selectedEntries);
-                wi = lore.text;
-            } else if (loreCfg.enabled) {
-                const { chatMessages, globalScanData } = buildLoreScanInput(ctx);
-                const scope = loreCfg.autoScope ?? LORE_SCOPE.ALL;
-                const lore = await collectAutomaticLore(ctx, { chatMessages, globalScanData, anchorMsgId: messageId, anchorSwipeIdx: swipeIdx, scope });
-                wi = lore.text;
-            } else {
-                const { chatMessages, globalScanData } = buildLoreScanInput(ctx);
-                const wiResult = ctx.getWorldInfoPrompt?.(chatMessages, LORE_SCAN_MAX_CONTEXT, true, globalScanData);
-                wi = coercePromptText(wiResult instanceof Promise ? await wiResult : wiResult);
-            }
-        } catch { /* WI unavailable */ }
-        if (wi) parts.push(`[World info — background only. Do NOT annotate it:
-${wi}]`);
-    }
-
-    if (!opts.skipForbidden) {
-        const stopList = (s.stopWords || '').split(',').map(x => x.trim()).filter(Boolean);
-        const forbidden = combineForbiddenAnchors(stopList, getForcedIgnore());
-        if (forbidden.length) parts.push(`[Forbidden anchors — do NOT create footnotes for these exact phrases:\n${forbidden.join('; ')}]`);
-    }
-
-    return parts;
-}
-
-export const DIRECT_FOOTNOTE_CONTRACT = `[ANNOTATOR CONTRACT — direct footnotes, one response]
-
-Generate exactly {N} distinct footnotes. Return fewer only when the post genuinely cannot support that many. Never invent or borrow anchors from background blocks.
-
-Scan the entire [Annotate this post] block: foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and verbatim clauses describing a meaningful situation. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. Prefer anchors not listed in the advisory previously-glossed block when possible, but reuse is allowed to reach {N}.
-
-Do not create anchors matching the forbidden list. For an oblique source form, keep the exact source phrase in "anchor" and use the nominative only as the display label in "text".
+Anchor length: keep each "anchor" to the shortest span that identifies its target — usually 1–6 words (a term, a name, an idiom, a title, a short phrase). Quote a full clause ONLY when the footnote explains the situation itself rather than a term inside it, and even then a single short clause is enough; never span several clauses and never cross a sentence boundary. A quoted foreign phrase keeps its full wording. Long anchors bury the target under a wall of highlighted text — when in doubt, shorten.
 
 Output ONLY this JSON (no markdown fences, no prose):
 {"footnotes":[{"anchor":"verbatim source phrase","text":"¹ Label (cat.) — explanation"}]}`;
+
+export const DIRECT_FOOTNOTE_CONTRACT = `[ANNOTATOR CONTRACT — direct footnotes, one response]
+
+Generate exactly {N} distinct footnotes. Return fewer only when the post genuinely cannot support that many. Never invent or borrow anchors from background blocks. Spread the footnotes across the whole post instead of clustering in the opening.
+
+Scan the entire [Annotate this post] block: foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and short verbatim clauses describing a meaningful situation. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible; reuse is allowed to reach {N}.
+
+${_CONTRACT_TAIL}`;
+
+// Auto-count variant: no N pressure. Everything else (verbatim anchors,
+// forbidden list, JSON-only output) is identical to the fixed contract.
+export const DIRECT_FOOTNOTE_CONTRACT_AUTO = `[ANNOTATOR CONTRACT — direct footnotes, one response]
+
+Decide yourself how many footnotes this post deserves: annotate every anchor in [Annotate this post] that a curious reader would genuinely want explained — foreign/archaic terms, specialized vocabulary, proper nouns, place names, titles of works, idioms, metaphors, and short verbatim clauses describing a meaningful situation. Spread the footnotes across the whole post instead of clustering in the opening. Never pad the list with weak or duplicate anchors; an honest small set beats an inflated one. Each "anchor" MUST be an exact verbatim substring of [Annotate this post] and distinct from every other anchor; quote the visible wording only — never include markdown decoration characters (*, _, \`, ~) in the anchor. If a [Previously glossed anchors] block is provided below, prefer anchors not listed there when possible.
+
+${_CONTRACT_TAIL}`;
+
+function getTargetFootnoteCount() {
+    const n = parseInt(S().maxFootnotes, 10);
+    return Number.isFinite(n) ? Math.min(MAX_FOOTNOTES_CAP, Math.max(1, n)) : 5;
+}
+
+/** True when the model (not the numeric setting) decides the footnote count. */
+export function isAutoFootnoteCount() {
+    return S().autoFootnoteCount === true;
+}
 
 /** Build the direct user-turn prompt with target, contract, then reference blocks. */
 export async function buildUserPrompt(messageId, swipeIdx) {
     const parts = await buildContextBlocks(messageId, swipeIdx);
     if (!parts.length) return '';
-    const targetCount = getTargetFootnoteCount();
-    const contract = DIRECT_FOOTNOTE_CONTRACT.replace(/\{N\}/g, String(targetCount));
+    const contract = isAutoFootnoteCount()
+        ? DIRECT_FOOTNOTE_CONTRACT_AUTO
+        : DIRECT_FOOTNOTE_CONTRACT.replace(/\{N\}/g, String(getTargetFootnoteCount()));
     return [parts[0], contract, ...parts.slice(1)].join('\n\n');
 }
 
@@ -955,6 +484,16 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         globalThis.toastr?.info?.(`[Glosses] ${t('The message is translated — un-translate it to regenerate footnotes.')}`);
         return;
     }
+    // Master toggle off = fully inert: the soft-disable keeps bindings alive,
+    // so every entry path (regen buttons, panel, popup, slash commands) must
+    // refuse to generate until the extension is re-enabled.
+    if (!S().enabled) return;
+    // Custom target language needs a name before any prompt is built.
+    const langIssue = customLanguageIssue();
+    if (langIssue) {
+        globalThis.toastr?.error?.(`[Glosses] ${t(langIssue)}`);
+        return;
+    }
     if (!variantIsViable(messageId, swipeIdx)) {
         // Reject placeholder/short posts at every entry point (Issue 5).
         return;
@@ -973,6 +512,7 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         const signal = ctrl.signal;
         const systemPrompt = await loadPromptStyle();
         if (!generationCoordinator.isCurrent(run)) return;   // chat switched / swiped / superseded
+        // fixed-count mode only; unused by the auto-count path
         const target = getTargetFootnoteCount();
         const userPrompt = await buildUserPrompt(messageId, swipeIdx);
         if (!generationCoordinator.isCurrent(run)) return;   // chat switched / swiped / superseded
@@ -1013,8 +553,9 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         const plain = extractPlainText(rawMes);
         let footnotes = normalizeFootnotes(validated, validationText ?? plain) ?? validated;
         // If the model overshoots N, keep the first N in document order and
-        // renumber 1..N. Undershoot is left as-is (honest maximum).
-        if (footnotes.length > target) {
+        // renumber 1..N. Undershoot is left as-is (honest maximum). Auto-count
+        // mode keeps every validated footnote the model returned.
+        if (!isAutoFootnoteCount() && footnotes.length > target) {
             footnotes = footnotes.slice(0, target);
             footnotes = renumberFootnotes(footnotes);
         }
@@ -1024,9 +565,12 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         // entries constrained to the renderer/cache footnote shape, plus the
         // context selectors (prefix/suffix around the resolved span) that let
         // re-injections prefer the occurrence each anchor was originally
-        // placed on when the anchor string occurs multiple times.
+        // placed on when the anchor string occurs multiple times. Floating
+        // entries (anchor not in the post) ride along with their flag — no
+        // selectors resolve for them.
         footnotes = footnotes.map((f) => {
             const out = { index: f.index, anchor: f.anchor, text: f.text };
+            if (f.floating) out.floating = true;
             if (validationText !== null) {
                 const hit = findAnchorInText(validationText, f.anchor);
                 if (hit) Object.assign(out, computeContextSelectors(validationText, hit.start, hit.end));
@@ -1052,7 +596,11 @@ export async function generateFootnotes(messageId, swipeIdx, mesEl, { auto = fal
         // targeted paths reset it, so one failure kept the badge up forever and
         // hid the empty-state Generate CTA behind 'unconfigured'.
         state.configuredState = { ok: true, reason: '' };
-        injectHighlights(mesEl, footnotes);
+        // The entry snapshot can go stale across the awaits: a host re-render
+        // may replace the .mes node while text and digest stay equal. Re-resolve
+        // so markers land in the live DOM, not a detached orphan.
+        const liveMesEl = document.querySelector(`.mes[mesid="${messageId}"]`) || mesEl;
+        injectHighlights(liveMesEl, footnotes);
         playSound();
         state.panelFocusMsgId = String(messageId);
         panelInvalidate();
@@ -1110,4 +658,8 @@ async function callAPI(systemPrompt, userPrompt, signal) {
 let _testApiOverride = null;
 export function _testSetApiOverride(fn) { _testApiOverride = fn; }
 export function _testClearApiOverride() { _testApiOverride = null; }
+
+export const _test = (globalThis.process?.env?.NODE_TEST === '1')
+    ? { resolveActiveLenses }
+    : null;
 

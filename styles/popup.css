@@ -1,0 +1,69 @@
+/* ══════════════════════════════════════════════════════════
+   FOOTNOTE POPUP
+   ══════════════════════════════════════════════════════════ */
+
+.gls-popup {
+    position: fixed;
+    /* z-index layering vs ST (public/style.css): character/config popups sit at
+       4000–4100, #dialogue_popup (the Popup.show.* modal) and the swipe arrows
+       at 9999, autocomplete at 10000, toasts ~99999. 9000 keeps the footnote
+       popup above the floating panel (2998) and the FAB (2999) and ST's chrome but BELOW
+       #dialogue_popup — a confirm dialog opened while the popup is visible must
+       never be covered. The old 10000 floated above ST's own modals. */
+    z-index: 9000;
+    min-width: 260px;
+    /* Width cap is user-tunable (popupMaxWidth setting); the 92vw guard keeps
+       the popup inside narrow viewports regardless of the chosen cap. */
+    max-width: min(var(--gls-popup-maxw, 420px), 92vw);
+    max-height: 70vh;
+    overflow-y: auto;
+    /* Scroll chaining: without this, overscrolling the popup bleeds into the
+       chat behind it. Contain it so the popup scroll ends at its own edge.
+       Ported from DS Comments. */
+    overscroll-behavior: contain;
+    background: var(--gls-surface);
+    color: var(--gls-text);
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-popup-radius, var(--gls-radius-lg));
+    /* Float, not lift: the popup hovers over chat text and needs the wide
+       halo (see --gls-shadow-float). Shadow strength is user-tunable via
+       :root classes (soft/none) — see the POPUP APPEARANCE KNOBS block. */
+    box-shadow: var(--gls-shadow-float);
+    font-family: var(--gls-font-family);
+    font-size: var(--gls-font-size);
+    /* Subtle settle-in: 4px rise + fade reads as "opened here" without the
+       heaviness the v3.0 principles ban (no scale, no slide). */
+    animation: gls-pop 0.14s ease-out;
+    /* The popup is positioned:fixed, so opening/repositioning it doesn't need
+       to reflow the chat. Containment makes that guarantee explicit so the
+       browser skips invalidating .mes descendants on popup mutations.
+       'size' omitted: popup height is content-driven, we don't want to clip. */
+    contain: layout paint style;
+}
+
+@keyframes gls-pop {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gls-popup { animation: none; }
+}
+
+/* Popup scrollbar: slim and trackless — the popup is a reading card, not a
+   pane. Firefox via scrollbar-*; WebKit/Blink via pseudo-elements. */
+.gls-popup {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--gls-text) 30%, transparent) transparent;
+}
+.gls-popup::-webkit-scrollbar { width: 8px; }
+.gls-popup::-webkit-scrollbar-track { background: transparent; }
+.gls-popup::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--gls-text) 26%, transparent);
+    border-radius: 4px;
+    /* 2px transparent border + content-box clip = the thumb floats off the
+       card edge instead of touching it. */
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+

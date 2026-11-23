@@ -9,12 +9,12 @@
  */
 
 import {
-    state, S, saveSettings, t, getApiKey, setApiKey, notifyUser, warn, getCtx,
+    state, S, saveSettings, t, setApiKey, notifyUser, warn, getCtx, updatePanelModeSnapshot,
 } from '../core.js';
 import { generationCoordinator } from '../application/generation-coordinator.js';
-import { applyHighlightStyles, removeHighlights, restoreHighlightsAll, reapplyHighlightsAll, closePopup } from '../renderer.js';
-import { getProfiles, getProfileDetails, confirmInsecureEndpoint } from '../connection.js';
-import { classifyEndpoint, isOriginAllowed } from '../infrastructure/endpoint-policy.js';
+import { removeHighlights, restoreHighlightsAll, reapplyHighlightsAll } from '../renderer.js';
+import { closePopup } from './footnote-popup.js';
+import { applyHighlightStyles } from './highlight-styles.js';
 import { updatePanel, invalidateAiMsgCache, panelInvalidate } from './window.js';
 import { buildPopupHeader } from './popup-header.js';
 import { buildSkinGallery } from './skin-gallery.js';
@@ -30,83 +30,12 @@ import { getChatLoreConfig, saveChatLoreConfig } from '../lorebooks.js';
 import { createLorebookPicker } from './lorebook-picker.js';
 import { buildColorPicker } from './color-picker.js';
 import { openCssEditor } from './custom-css.js';
-
-// ══════════════════════════════════════════════════════════════════════════════
-// PRESETS (spec §6.1)
-// ══════════════════════════════════════════════════════════════════════════════
-// Short-name preset table. Key = what's stored in S().selectedPreset; value =
-// the partial settings merge applied on selection. Fields not listed here are
-// left untouched. The four curated entries cover the most common style+lang
-// combos; '(no preset / manual)' is the sentinel represented by '' (no entry).
-//
-// Apply() = setPreset(key) (below), wired from the dropdown change listener in
-// bindSettingsUI. Any manual edit of one of the preset's constituent fields
-// calls clearPresetOnManualEdit() so the dropdown auto-reverts to the sentinel
-// (the user is now in manual mode).
-const PRESETS = {
-    'pratchett50-ru':   { promptStyle: 'pratchett50', outputLanguage: 'ru' },
-    'lang-en-ru-a2':    {
-        promptStyle: 'language',   outputLanguage: 'ru',
-        targetLanguage: 'en',      cefrLevel: 'a1a2',
-    },
-    'academic-lore-ru': { promptStyle: 'academic',    outputLanguage: 'ru' },
-    'meta-ru':          { promptStyle: 'meta_plus',   outputLanguage: 'ru' },
-};
-
-/** Apply a preset by merging its fields into S(), saving, and forcing
- *  the downstream controls (style dropdown, language panel, hybrid
- *  toggles) to re-read from state. The caller also clears/sets
- *  S().selectedPreset. Defensive on missing key (no-op). */
-function setPreset(key) {
-    const preset = PRESETS[key];
-    if (!preset) return;
-    const s = S();
-    for (const [k, v] of Object.entries(preset)) {
-        s[k] = v;
-    }
-    s.selectedPreset = key;
-    saveSettings();
-    // Re-sync every downstream control the preset touched so the dropdowns +
-    // checkboxes reflect the merged state (not a stale prior render).
-    _invalidateLanguageCache();
-    updatePromptPanels();
-    updatePresetShowing();
-}
-
-/** Sync the visible settings controls DOWN to current S() after a preset
- *  apply (or after loadSettings rehydrates a stored selectedPreset on init).
- *  Touches: prompt style, output lang, target lang, CEFR, and the 6 hybrid
- *  lens checkboxes. No-ops for elements that aren't present. */
-function updatePresetShowing() {
-    const s = S();
-    const psEl = document.getElementById('gls_prompt_style');
-    if (psEl) psEl.value = s.promptStyle;
-    const olEl = document.getElementById('gls_output_language');
-    if (olEl) olEl.value = s.outputLanguage || 'ru';
-    const tlEl = document.getElementById('gls_target_language');
-    if (tlEl) tlEl.value = s.targetLanguage;
-    const cefrEl = document.getElementById('gls_cefr_level');
-    if (cefrEl) cefrEl.value = s.cefrLevel;
-    for (const lens of ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion']) {
-        const el = document.getElementById(`gls_hybrid_lens_${lens}`);
-        if (el) el.checked = !!s.hybridLenses?.[lens];
-    }
-    const presetSel = document.getElementById('gls_preset');
-    if (presetSel) presetSel.value = s.selectedPreset || '';
-}
-
-/** Clear selectedPreset (called from any downstream control's manual edit
- *  so the dropdown auto-reverts to the sentinel). Does NOT change any other
- *  settings; the user's manual edit stays as written. No-op when no preset
- *  was active. */
-function clearPresetOnManualEdit() {
-    if (S().selectedPreset) {
-        S().selectedPreset = '';
-        saveSettings();
-        const sel = document.getElementById('gls_preset');
-        if (sel) sel.value = '';
-    }
-}
+import { setupLensEditor } from './lens-editor.js';
+import { createBinders } from './setting-binders.js';
+import {
+    bindHttpConfirm, refreshHttpConfirm, updateProfileModelInfo,
+    syncCustomApiKeyField, populateProfiles,
+} from './connection-settings.js';
 
 let _settingsBound = false;
 // CHAT_CHANGED hook for the per-chat lore controls: bound once for the page
@@ -114,7 +43,8 @@ let _settingsBound = false;
 // intentionally NOT routed through the bind-scoped AbortController — it must
 // re-sync after every re-enable). The picker itself is re-created on every
 // bind (the settings DOM is rebuilt on disable→enable).
-let _loreChatHook = false;
+/** @type {(() => void) | null} CHAT_CHANGED → picker refresh; removed on unbind. */
+let _loreChatHandler = null;
 /** @type {ReturnType<import('./lorebook-picker.js').createLorebookPicker> | null} */
 let _lorePicker = null;
 // Stage 7: module-owned AbortController for the settings panel. bindSettingsUI
@@ -153,6 +83,7 @@ export function bindSettingsUI() {
     _settingsBound = true;
     _settingsAbort = new AbortController();
     const $ = id => document.getElementById(id);
+    const { bindCb, bindNum, bindSlider, bindSelect, bindText } = createBinders(on);
 
     // ── Accordion toggles ──
     document.querySelectorAll('#gls_settings .gls-s-section-header').forEach(btn => {
@@ -168,35 +99,27 @@ export function bindSettingsUI() {
 
     // Master toggle
     bindCb('gls_enabled', 'enabled', () => {
-        if (!S().enabled) document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
-        else restoreHighlightsAll();
+        if (!S().enabled) {
+            document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
+            // Regen buttons carry their own click listeners; the soft-disable
+            // must remove them or they keep generating while "off".
+            document.querySelectorAll('.gls-regen-btn').forEach(btn => btn.remove());
+        } else {
+            restoreHighlightsAll();
+        }
         applyHighlightStyles();
+        // updatePanel() tears the floating panel down when disabled and rebuilds
+        // it on re-enable (mirrors the floatingPanelEnabled reconciliation).
+        updatePanel();
         // Mount/remove the 🪶 launcher so it tracks the enabled state. Without
         // this the button lingered in #qr--bar after disabling until a chat
         // switch rebuilt the bar (ensureLauncher removes when !enabled).
         ensureLauncher();
     });
 
-    // §6.1: Presets dropdown — primary one-click configurator at the top of the
-    // Prompt section. Selecting a preset merges its fields into S() and syncs
-    // downstream controls; picking the sentinel ('') just clears selectedPreset
-    // without touching other fields. Any manual edit of a downstream control
-    // calls clearPresetOnManualEdit() (wired in those listeners below). On
-    // init we mirror S().selectedPreset into the select so a rehydrated
-    // preset selection from a loaded settings blob is reflected in the UI.
-    const presetSel = $('gls_preset');
-    if (presetSel) {
-        presetSel.value = S().selectedPreset || '';
-        on(presetSel, 'change', async () => {
-            const key = presetSel.value;
-            if (!key) {
-                // Sentinel picked — clear the flag, don't touch other settings.
-                clearPresetOnManualEdit();
-                return;
-            }
-            await setPreset(key);
-        });
-    }
+    // Lens UI (built-in overrides + custom rows); the binders follow the
+    // same AbortController the rest of the panel uses.
+    setupLensEditor({ on, invalidateLanguageCache: _invalidateLanguageCache });
 
     // Source (segmented picker)
     syncSegSource();
@@ -208,6 +131,9 @@ export function bindSettingsUI() {
             updateSrcPanels();
         });
     });
+
+    // SSE streaming toggle — transport-level, gates both sources.
+    bindCb('gls_stream', 'stream');
 
     // Profile
     const profSel = $('gls_profile_select');
@@ -260,14 +186,7 @@ export function bindSettingsUI() {
         syncCustomApiKeyField(akEl);
     }
 
-    // Prompt style
-    bindSelect('gls_prompt_style', 'promptStyle',
-        { onChange() { clearPresetOnManualEdit(); updatePromptPanels(); } });
-    updatePromptPanels();
-
-    bindText('gls_custom_prompt', 'customPrompt');
-
-    // Language (for the 'language' prompt style)
+    // Language (for the Language lens)
     const tlEl = $('gls_target_language');
     if (tlEl) {
         // Localise <optgroup> labels — data-i18n no-ops on optgroup (it
@@ -278,8 +197,16 @@ export function bindSettingsUI() {
         });
     }
     bindSelect('gls_target_language', 'targetLanguage',
-        { onChange() { clearPresetOnManualEdit(); _invalidateLanguageCache(); } });
-    bindSelect('gls_cefr_level', 'cefrLevel', { onChange() { clearPresetOnManualEdit(); _invalidateLanguageCache(); } });
+        { onChange() { _invalidateLanguageCache(); syncCustomLanguageFields(); } });
+    bindSelect('gls_cefr_level', 'cefrLevel', { onChange() { _invalidateLanguageCache(); } });
+    bindSelect('gls_language_direction', 'languageDirection',
+        { fallback: 'forward', onChange() { _invalidateLanguageCache(); } });
+    bindCb('gls_language_grammar', 'languageGrammarNotes', () => _invalidateLanguageCache());
+    bindCb('gls_language_usage', 'languageUsageExample', () => _invalidateLanguageCache());
+    bindText('gls_custom_target_name', 'customTargetName', { onChange: _invalidateLanguageCache });
+    bindText('gls_custom_target_label', 'customTargetLabel', { onChange: _invalidateLanguageCache });
+    syncCustomLanguageFields();
+    updatePromptPanels();
 
     // Hybrid lens toggles. Each flip changes the active lens signature →
     // the hybrid cache key changes → _invalidateLanguageCache drops stale
@@ -292,30 +219,22 @@ export function bindSettingsUI() {
         el.checked = !!S().hybridLenses?.[lens];
         on(el, 'change', () => {
             S().hybridLenses[lens] = el.checked;
-            clearPresetOnManualEdit();   // §6.1: manual lens edit = manual mode
             _invalidateLanguageCache();
             saveSettings();
             updatePromptPanels();
         });
     }
-
-    // Custom hybrid lenses (user-authored roles). Wired together so any
-    // mutation flips the hybrid cache + persists — lets the user build a
-    // universal prompt from built-in + their own lenses. See
-    // _buildHybridPrompt in generator.js.
-    const customListEl = $('gls_custom_lenses_list');
-    if (customListEl) {
-        renderCustomLenses(customListEl);
-        on($('gls_add_custom_lens'), 'click', () => {
-            const lenses = S().customLenses || (S().customLenses = []);
-            lenses.push({ id: _newLensId(), name: t('New lens'), prompt: '', active: true });
-            renderCustomLenses(customListEl);
-            _invalidateLanguageCache();
-            saveSettings();
-        });
-    }
-
     bindNum('gls_max_footnotes', 'maxFootnotes');
+
+    // Auto footnote count: the checkbox hands count authority to the model.
+    // The numeric input is DISABLED (not hidden) so the user sees what they
+    // will return to when they untick it.
+    const maxFnCountEl = $('gls_max_footnotes');
+    function syncAutoCountInput() {
+        if (maxFnCountEl) maxFnCountEl.disabled = S().autoFootnoteCount === true;
+    }
+    bindCb('gls_auto_footnote_count', 'autoFootnoteCount', syncAutoCountInput);
+    syncAutoCountInput();
 
     // Output language (footnote text language). Replaces the old
     // document.documentElement.lang heuristic. On change, wipe ALL prompt-style
@@ -325,7 +244,6 @@ export function bindSettingsUI() {
         olEl.value = S().outputLanguage || 'ru';
         on(olEl, 'change', () => {
             S().outputLanguage = olEl.value;
-            clearPresetOnManualEdit();   // §6.1
             // Output language affects EVERY style (base prompt, examples locale,
             // {{OUTPUT_LANGUAGE}} in .md files), so wipe the whole prompt cache,
             // not just language:/hybrid: prefixes. See
@@ -339,17 +257,41 @@ export function bindSettingsUI() {
     const dmEl = $('gls_display_mode');
     if (dmEl) {
         dmEl.value = S().displayMode;
+        // 'panel' mode force-enables the floating panel (it is the ONLY
+        // footnote surface there). That side effect must not outlive the mode:
+        // the pre-panel {enabled, hidden} pair is snapshotted on entry and
+        // restored on exit, so leaving panel mode returns the panel to the
+        // state the user's own actions left it in. The snapshot is persisted
+        // (settings.panelModeSnapshot) and kept in step by the explicit panel
+        // controls (updatePanelModeSnapshot), so a reload or server restart
+        // INSIDE the mode still restores the user's own pair on exit — a bind
+        // that starts inside panel mode seeds the snapshot from settings.
+        let _panelModePrev = null;
+        const persistedSnap = S().panelModeSnapshot;
+        if (S().displayMode === 'panel' && persistedSnap
+            && typeof persistedSnap.enabled === 'boolean'
+            && typeof persistedSnap.hidden === 'boolean') {
+            _panelModePrev = { enabled: persistedSnap.enabled, hidden: persistedSnap.hidden };
+        }
         on(dmEl, 'change', () => {
+            const prevMode = S().displayMode;
             S().displayMode = dmEl.value;
-            // 'panel' mode: the floating panel is the ONLY display surface, so
-            // it must exist and be visible — force the master flags on and
-            // sync the checkbox (it stays the user's off-switch afterwards).
-            if (S().displayMode === 'panel') {
+            if (S().displayMode === 'panel' && prevMode !== 'panel') {
+                _panelModePrev = { enabled: S().floatingPanelEnabled, hidden: S().floatingPanelHidden };
+                S().panelModeSnapshot = { ..._panelModePrev };
                 S().floatingPanelEnabled = true;
                 S().floatingPanelHidden = false;
-                const fpCbEl = $('gls_floating_panel');
-                if (fpCbEl) fpCbEl.checked = true;
+            } else if (S().displayMode !== 'panel' && prevMode === 'panel') {
+                if (_panelModePrev) {
+                    S().floatingPanelEnabled = _panelModePrev.enabled;
+                    S().floatingPanelHidden = _panelModePrev.hidden;
+                }
+                _panelModePrev = null;
+                S().panelModeSnapshot = null;
             }
+            // The checkbox always mirrors the live flags, both directions.
+            const fpCbEl = $('gls_floating_panel');
+            if (fpCbEl) fpCbEl.checked = S().floatingPanelEnabled;
             // An open popup is anchored to a marker that panel mode is about
             // to strip from the DOM — close it first.
             closePopup();
@@ -369,6 +311,10 @@ export function bindSettingsUI() {
             saveSettings();
         });
     }
+
+    // Under-post block header motif: the class rides the block rendered by
+    // renderInlineBlock, so on-screen posts re-inject for the new shape.
+    bindSelect('gls_block_head_style', 'blockHeadStyle', { onChange: reapplyHighlightsAll });
 
     /**
      * Keep the Display-section snapshots in step with class-driven state.
@@ -469,7 +415,7 @@ export function bindSettingsUI() {
         publish: applyHighlightStyles,
     });
 
-    on($('gls_marker_size'), 'change', function () { S().markerFontSize = this.value; applyHighlightStyles(); saveSettings(); });
+    bindSelect('gls_marker_size', 'markerFontSize', { fallback: '0.75em', onChange: applyHighlightStyles });
 
     // Compact panel rows: clamp each footnote body to two lines, click a row
     // to expand. The class rides #gls-panel-body, so a toggle restyles the
@@ -522,8 +468,6 @@ export function bindSettingsUI() {
 
     bindSelect('gls_popup_density', 'popupDensity', { fallback: 'comfortable', onChange: applyHighlightStyles });
 
-    bindSelect('gls_popup_shadow', 'popupShadow', { fallback: 'strong', onChange: applyHighlightStyles });
-
     bindSlider('gls_popup_corner', 'gls_popup_corner_val', 'popupCornerRadius', { readout: n => `${n}px`, publish: applyHighlightStyles });
 
     // Popup custom CSS layer. The toggle republishes the <style> tags through
@@ -556,6 +500,7 @@ export function bindSettingsUI() {
             // Master control: touching it clears any persisted ✕-hide so the
             // next enable starts with a visible panel.
             S().floatingPanelHidden = false;
+            updatePanelModeSnapshot();
             saveSettings();
             updatePanel();
             // Self-gating both ways: arms the observer only when the panel is
@@ -618,6 +563,18 @@ export function bindSettingsUI() {
     on(soundFileEl, 'change', async () => {
         const file = soundFileEl.files?.[0];
         if (!file) return;
+        // S2: cap the upload — the data-URL read + base64 POST amplifies ~1.33×,
+        // and a multi-hundred-MB file is not a sound-notification payload size.
+        // The legacy-blob migration (sound.js) is NOT capped: it moves data the
+        // user already has locally.
+        const SOUND_UPLOAD_CAP_MB = 10;
+        if (file.size > SOUND_UPLOAD_CAP_MB * 1024 * 1024) {
+            try {
+                notifyUser('error', t('The sound file is too large (max {0} MB).', SOUND_UPLOAD_CAP_MB), 'gls-sound-upload');
+            } catch { /* non-fatal */ }
+            soundFileEl.value = '';
+            return;
+        }
         try {
             const dataUrl = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -675,12 +632,12 @@ export function bindSettingsUI() {
         onChange: (cfg) => saveChatLoreConfig(cfg),
     }) : null;
     void _lorePicker?.refresh();
-    if (!_loreChatHook) {
-        _loreChatHook = true;
+    if (!_loreChatHandler) {
+        _loreChatHandler = () => { void _lorePicker?.refresh(); };
         const ctx0 = getCtx();
         try {
-            ctx0.eventSource?.on(ctx0.eventTypes?.CHAT_CHANGED, () => { void _lorePicker?.refresh(); });
-        } catch { /* non-fatal: controls stay at bind-time values */ }
+            ctx0.eventSource?.on(ctx0.eventTypes?.CHAT_CHANGED, _loreChatHandler);
+        } catch { _loreChatHandler = null; /* non-fatal: controls stay at bind-time values */ }
     }
 
     updateSrcPanels();
@@ -693,82 +650,20 @@ export function unbindSettingsUI() {
     // Reset the flag so a re-enable can bind a fresh controller.
     if (_settingsAbort) { _settingsAbort.abort(); _settingsAbort = null; }
     _settingsBound = false;
+    // The picker rides the shared eventSource (WORLDINFO_UPDATED) and mounts
+    // its own DOM listeners — neither may outlive the settings DOM they render
+    // into, or a disabled extension keeps refreshing into detached nodes.
+    _lorePicker?.destroy();
+    _lorePicker = null;
+    if (_loreChatHandler) {
+        try {
+            const ctx0 = getCtx();
+            ctx0?.eventSource?.removeListener?.(ctx0?.eventTypes?.CHAT_CHANGED, _loreChatHandler);
+        } catch { /* host already torn down */ }
+        _loreChatHandler = null;
+    }
 }
 
-function bindCb(id, key, onChange) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = !!S()[key];
-    on(el, 'change', () => { S()[key] = el.checked; saveSettings(); onChange?.(); });
-}
-
-function bindNum(id, key) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.value = S()[key] ?? 0;
-    // Honor the input's own min/max contract (settings.html declares it, e.g.
-    // max footnotes 1–20, context depth 0–50). Native number validation only
-    // styles/spinners — it never blocks a TYPED value, so without this clamp
-    // out-of-range numbers persisted and showed in the field.
-    const min = parseFloat(el.getAttribute?.('min'));
-    const max = parseFloat(el.getAttribute?.('max'));
-    const clamp = (n) => {
-        if (Number.isFinite(min) && n < min) return min;
-        if (Number.isFinite(max) && n > max) return max;
-        return n;
-    };
-    const apply = () => {
-        const n = parseFloat(el.value);
-        if (Number.isFinite(n)) { S()[key] = clamp(n); saveSettings(); }
-    };
-    on(el, 'input', apply);
-    on(el, 'change', () => {
-        apply();
-        // Normalize the visible field on commit (blur/Enter/spinner): a typed
-        // 25 shows 20; empty/garbage restores the last good setting. Mid-typing
-        // ('input') deliberately does NOT rewrite the field — fighting the caret.
-        const n = parseFloat(el.value);
-        el.value = String(Number.isFinite(n) ? clamp(n) : (S()[key] ?? ''));
-    });
-}
-
-/** Slider + readout + persist. `toSlider`/`toSetting` map between the
- *  setting's stored shape (e.g. the "0.90em" string) and the slider's plain
- *  number; `readout(n)` renders the value span; `publish` refreshes the
- *  live surfaces before save (same order as the hand-written copies). */
-function bindSlider(id, valId, key, { toSlider, toSetting, readout, publish } = {}) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const val = document.getElementById(valId);
-    const initial = toSlider ? toSlider(S()[key]) : (S()[key] ?? 0);
-    el.value = initial;
-    const show = (n) => { if (val) val.textContent = readout ? readout(n) : `${n}`; };
-    show(initial);
-    on(el, 'input', () => {
-        const n = parseFloat(el.value);
-        S()[key] = toSetting ? toSetting(n) : n;
-        show(n);
-        publish?.();
-        saveSettings();
-    });
-}
-
-/** Select + persist. `fallback` mirrors the `|| fallback` inits; `onChange`
- *  runs after the setting is saved (live-surface refresh hooks). */
-function bindSelect(id, key, { fallback, onChange } = {}) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.value = S()[key] || fallback || '';
-    on(el, 'change', () => { S()[key] = el.value; saveSettings(); onChange?.(); });
-}
-
-/** Text input + persist (no transform). */
-function bindText(id, key) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.value = S()[key] ?? '';
-    on(el, 'input', () => { S()[key] = el.value; saveSettings(); });
-}
 
 function updateSrcPanels() {
     const profEl = document.getElementById('gls_panel_profile');
@@ -784,70 +679,19 @@ function updateSrcPanels() {
     }
 }
 
-// ── Insecure-endpoint confirmation (plan stage 8, UI half) ──
-// The policy layer (endpoint-policy.js + connection.js) refuses plain HTTP on
-// non-loopback hosts until the origin is confirmed. These functions are the
-// settings-surface half of that flow: a hint + confirm button inside the
-// Custom panel while the endpoint is an unconfirmed insecure-http URL, and an
-// informational hint for loopback http (allowed, but not encrypted).
-
-function httpConfirmEls() {
-    return {
-        group: document.getElementById('gls_http_confirm_group'),
-        text: document.getElementById('gls_http_confirm_text'),
-        btn: document.getElementById('gls_http_confirm_btn'),
-    };
-}
-
-function refreshHttpConfirm() {
-    const { group, text } = httpConfirmEls();
-    if (!group || !text) return;
-    if (S().source !== 'custom') { group.hidden = true; return; }
-    const verdict = classifyEndpoint(S().customEndpoint);
-    if (!verdict.ok) { group.hidden = true; return; }
-    if (verdict.kind === 'insecure-http'
-        && !isOriginAllowed(verdict.normalized, S().customEndpointAllowlist || [])) {
-        let host = verdict.host;
-        try { host = new URL(verdict.normalized).host || verdict.host; } catch { /* keep raw host */ }
-        text.textContent = `${t('This endpoint uses plain HTTP outside localhost. Confirm the origin to allow requests — the API key will be sent unencrypted.')} [${host}]`;
-        group.hidden = false;
-        return;
-    }
-    if (verdict.kind === 'loopback-http') {
-        text.textContent = t('Local HTTP endpoint (localhost) — requests are allowed, but the key is not encrypted.');
-        group.hidden = false;
-        return;
-    }
-    group.hidden = true;
-}
-
-function bindHttpConfirm() {
-    const { btn } = httpConfirmEls();
-    refreshHttpConfirm();
-    if (!btn || btn.dataset.glsHttpConfirmBound === '1') return;
-    // Plain listener (not the bind-scoped `on()`): the settings DOM is
-    // recreated on every enable, so the element lifetime bounds the listener.
-    btn.dataset.glsHttpConfirmBound = '1';
-    btn.addEventListener('click', () => {
-        const verdict = classifyEndpoint(S().customEndpoint);
-        if (!verdict.ok || verdict.kind !== 'insecure-http') { refreshHttpConfirm(); return; }
-        confirmInsecureEndpoint(verdict.normalized, S().customEndpointAllowlist || []);
-        try { notifyUser('success', t('Endpoint origin confirmed.'), 'gls-http-confirm'); } catch { /* non-fatal */ }
-        refreshHttpConfirm();
-    });
-}
 
 function updatePromptPanels() {
-    const cw = document.getElementById('gls_custom_prompt_wrap');
-    if (cw) cw.hidden = S().promptStyle !== 'custom';
-    // The Language + CEFR selectors (gls_language_panel) are shown for the
-    // standalone 'language' style AND for 'hybrid' when its Language lens is on.
+    // The lens constructor is the only prompt configurator: its panel is
+    // always visible, and the language selectors follow the Language lens.
     const lp = document.getElementById('gls_language_panel');
-    const showLang = S().promptStyle === 'language'
-        || (S().promptStyle === 'hybrid' && S().hybridLenses?.language);
-    if (lp) lp.hidden = !showLang;
-    const hp = document.getElementById('gls_hybrid_panel');
-    if (hp) hp.hidden = S().promptStyle !== 'hybrid';
+    if (lp) lp.hidden = !S().hybridLenses?.language;
+    syncCustomLanguageFields();
+}
+
+/** Show the custom-language name/label fields only for the custom target. */
+function syncCustomLanguageFields() {
+    const wrap = document.getElementById('gls_custom_language_fields');
+    if (wrap) wrap.hidden = (S().targetLanguage || 'en') !== 'custom';
 }
 
 /** Reflect the active source button as pressed in the segmented picker. */
@@ -860,73 +704,6 @@ function syncSegSource() {
     });
 }
 
-let _modelInfoReq = 0;
-/** Show "<API> · <model>" under the selected profile (race-guarded). */
-function updateProfileModelInfo() {
-    const info = document.getElementById('gls_profile_info');
-    const txt  = document.getElementById('gls_profile_model');
-    if (!info || !txt) return;
-    const req = ++_modelInfoReq;
-    txt.textContent = '';
-    if (S().source !== 'profile' || !S().selectedProfile) {
-        info.hidden = true;
-        return;
-    }
-    getProfileDetails(S().selectedProfile).then(d => {
-        if (req !== _modelInfoReq) return;
-        if (!d) { info.hidden = true; return; }
-        const parts = [];
-        const api = d.api || '';
-        if (api) parts.push(String(api).toUpperCase());
-        const model = d.model || d.modelName || d.model_name || d.settings?.model || '';
-        if (model) parts.push(String(model));
-        if (!parts.length && d.name) parts.push(d.name);
-        txt.textContent = parts.length ? parts.join(' · ') : t('Profile selected (no model data)');
-        info.hidden = false;
-    }).catch(() => { if (req === _modelInfoReq) info.hidden = true; });
-}
-
-/** In-flight localforage write for the custom API key (see binding below). */
-let _apiKeySave = null;
-
-/** Load the localforage-backed API key into the password field. */
-function syncCustomApiKeyField(el) {
-    const input = el || document.getElementById('gls_custom_apikey');
-    if (!input) return;
-    // Never clobber the field while the user is editing it (or while a save
-    // from that editing is still in flight) — a panel update that lands
-    // mid-typing otherwise overwrites the input with the stale stored key and
-    // the value looks committed when it is not.
-    const fill = async () => {
-        if (_apiKeySave) await _apiKeySave;
-        if (document.activeElement === input) return;
-        const key = await getApiKey();
-        if (document.activeElement === input) return;
-        input.value = key || '';
-    };
-    fill();
-}
-
-async function populateProfiles() {
-    const sel = document.getElementById('gls_profile_select');
-    if (!sel) return;
-    sel.innerHTML = `<option value="">${t('-- Select Profile --')}</option>`;
-    try {
-        const profiles = await getProfiles();
-        for (const p of profiles) {
-            const opt = document.createElement('option');
-            opt.value = p.id;
-            opt.textContent = p.name;
-            sel.appendChild(opt);
-        }
-        if (S().selectedProfile && profiles.some(p => p.id === S().selectedProfile || p.name === S().selectedProfile)) {
-            sel.value = S().selectedProfile;
-        } else {
-            if (S().selectedProfile) { S().selectedProfile = ''; saveSettings(); }
-            sel.value = '';
-        }
-    } catch { /* profiles unavailable */ }
-}
 
 /** Drop cached language- and hybrid-style prompts so a target-language /
  *  CEFR / lens-toggle change applies. Hybrid's cache key embeds the lens
@@ -938,98 +715,3 @@ function _invalidateLanguageCache() {
     }
 }
 
-// ── Custom hybrid lenses ────────────────────────────────────────────────────
-// Each row: [✓ active] [name input] [edit ✎ toggles textarea] [delete ✕].
-// A custom lens contributes "### Lens: <name>\n<prompt>" to the assembled
-// hybrid prompt (see _buildHybridPrompt). {{OUTPUT_LANGUAGE}} is the only
-// token substituted inside the prompt body — no {{TARGET_LANG_*}}/{{CEFR_*}}.
-
-function _newLensId() {
-    try { if (crypto?.randomUUID) return crypto.randomUUID(); } catch {}
-    return 'cl' + Date.now().toString(36);
-}
-
-function _mutateCustomLens(fn) {
-    if (!Array.isArray(S().customLenses)) S().customLenses = [];
-    fn(S().customLenses);
-    _invalidateLanguageCache();
-    saveSettings();
-}
-
-function renderCustomLenses(listEl) {
-    if (!listEl) return;
-    listEl.innerHTML = '';
-    const lenses = S().customLenses || [];
-    if (!lenses.length) {
-        const empty = document.createElement('div');
-        empty.className = 'gls-s-custom-lenses-empty';
-        empty.textContent = t('No custom lenses yet.');
-        listEl.appendChild(empty);
-        return;
-    }
-
-    lenses.forEach((c, i) => {
-        const row = document.createElement('div');
-        row.className = 'gls-s-custom-lens-row';
-
-        // Active checkbox (toggle without save-others)
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.className = 'checkbox';
-        cb.checked = !!c.active;
-        cb.title = t('Enable');
-        on(cb, 'change', () => _mutateCustomLens(arr => { arr[i].active = cb.checked; }));
-
-        // Name input
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.className = 'text_pole gls-s-grow';
-        nameInput.value = c.name || '';
-        nameInput.placeholder = t('Lens name');
-        on(nameInput, 'input', () => _mutateCustomLens(arr => { arr[i].name = nameInput.value; }));
-
-        // Edit button (toggles the textarea below the row)
-        const editBtn = document.createElement('div');
-        editBtn.className = 'menu_button menu_button_icon';
-        editBtn.title = t('Edit prompt');
-        editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
-
-        const bodyWrap = document.createElement('div');
-        bodyWrap.className = 'gls-s-custom-lens-prompt';
-        bodyWrap.hidden = true;
-        const body = document.createElement('textarea');
-        body.className = 'text_pole gls-s-resize-v';
-        body.rows = 4;
-        body.value = c.prompt || '';
-        body.placeholder = t('Voice + when to footnote + label + format. Supports {{OUTPUT_LANGUAGE}}.');
-        on(body, 'input', () => _mutateCustomLens(arr => { arr[i].prompt = body.value; }));
-        bodyWrap.appendChild(body);
-
-        on(editBtn, 'click', () => {
-            const open = bodyWrap.hidden;
-            bodyWrap.hidden = !open;
-            if (open) body.focus();
-        });
-
-        // Delete button
-        const delBtn = document.createElement('div');
-        delBtn.className = 'menu_button menu_button_icon';
-        delBtn.title = t('Delete');
-        delBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-        on(delBtn, 'click', () => {
-            _mutateCustomLens(arr => { arr.splice(i, 1); });
-            renderCustomLenses(listEl);
-        });
-
-        const controls = document.createElement('div');
-        controls.className = 'gls-s-custom-lens-row-controls';
-        controls.appendChild(nameInput);
-        controls.appendChild(editBtn);
-        controls.appendChild(delBtn);
-
-        row.appendChild(cb);
-        row.appendChild(controls);
-        row.appendChild(bodyWrap);
-        listEl.appendChild(row);
-    });
-}

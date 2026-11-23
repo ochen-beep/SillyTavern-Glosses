@@ -1,7 +1,7 @@
 // @ts-check
 /** Pure policy helpers for prior anchors and forced exclusions. */
 
-import { findAnchorInText, normalizeAnchorKey } from './anchor-utils.js';
+import { normalizeAnchorKey } from './anchor-utils.js';
 
 function numericId(value) {
     const n = Number(value);

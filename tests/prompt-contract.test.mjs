@@ -9,11 +9,10 @@ import { dirname, join } from 'node:path';
 // The shared footnote format rules were moved OUT of the style .md files into
 // src/prompt-contract.js (FOOTNOTE_CONTRACT), injected via the {{CONTRACT}}
 // marker. Verifies:
-//   1. The contract contains every critical format rule (anchor verbatim,
-//      superscript index, nominative case, non-nominative rule, bracket ban).
-//   2. No style file still duplicates those rules (no "### Format requirements").
-//   3. Every style file carries the {{CONTRACT}} marker where the section used
-//      to be, so the assembled prompt is unchanged for the model.
+//   1. No style file still duplicates the contract rules (no "### Format
+//      requirements") — the rules live in prompt-contract.js only.
+//   2. Every style file carries no {{CONTRACT}} marker (vibe-only surfaces).
+//   3. The contract text itself has no unresolved {{placeholders}}.
 
 import './helpers/stub-runtime.mjs';
 import { FOOTNOTE_CONTRACT } from '../src/prompt-contract.js';
@@ -21,37 +20,20 @@ import { FOOTNOTE_CONTRACT } from '../src/prompt-contract.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const promptsDir = join(here, '..', 'prompts');
 
-const STYLE_FILES = ['pratchett.md', 'pratchett50.md', 'academic.md', 'meta_plus.md'];
+// Live style surfaces: the lens templates + the hybrid envelope. The classic
+// per-style files are retired (their presets are covered by the lenses), so
+// the duplication guard now watches the files that actually ship.
+const STYLE_FILES = [
+    'hybrid.md',
+    'lenses/language.md',
+    'lenses/pratchett.md',
+    'lenses/canon.md',
+    'lenses/academic.md',
+    'lenses/meta.md',
+    'lenses/expansion.md',
+];
 
-// ── 1. Contract completeness ──
-
-test('FOOTNOTE_CONTRACT contains the anchor-verbatim rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /"anchor" MUST be the exact verbatim phrase/);
-});
-
-test('FOOTNOTE_CONTRACT contains the superscript-index rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /superscript digits/);
-    assert.match(FOOTNOTE_CONTRACT, /¹, ², \.\.\., ⁹, ¹⁰, ¹¹, \.\.\./);
-});
-
-test('FOOTNOTE_CONTRACT contains the nominative-case rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /nominative case/);
-    assert.match(FOOTNOTE_CONTRACT, /благовониями/);   // the canonical oblique example
-});
-
-test('FOOTNOTE_CONTRACT contains the bracket-notation ban', () => {
-    assert.match(FOOTNOTE_CONTRACT, /Do NOT put bracket notation in the "text" field/);
-});
-
-test('FOOTNOTE_CONTRACT contains the language-codes list', () => {
-    assert.match(FOOTNOTE_CONTRACT, /\(It\.\), \(Fr\.\), \(Lat\.\)/);
-});
-
-test('FOOTNOTE_CONTRACT contains the spread-footnotes rule', () => {
-    assert.match(FOOTNOTE_CONTRACT, /beginning, middle, and end/);
-});
-
-// ── 2. No duplication left in the style files ──
+// ── 1. No duplication left in the style files ──
 
 test('style files no longer contain a "### Format requirements" section', () => {
     for (const f of STYLE_FILES) {
@@ -79,29 +61,37 @@ test('style files no longer duplicate the nominative/bracket rules', () => {
     }
 });
 
-// ── 3. {{CONTRACT}} marker placement ──
-
-test('every style file carries the {{CONTRACT}} marker', () => {
+test('style files no longer duplicate the translation boundary', () => {
     for (const f of STYLE_FILES) {
         const src = readFileSync(join(promptsDir, f), 'utf8');
-        assert.ok(src.includes('{{CONTRACT}}'),
-            `${f} must carry the {{CONTRACT}} marker where the format section was`);
+        assert.ok(!src.includes('### Translation boundary'),
+            `${f} must not re-state the translation boundary (it lives in the contract)`);
     }
 });
 
-test('language.md and hybrid.md are untouched (no marker needed)', () => {
-    for (const f of ['language.md', 'hybrid.md']) {
+test('hybrid.md carries the lens envelope only (no format/translation rules)', () => {
+    const src = readFileSync(join(promptsDir, 'hybrid.md'), 'utf8');
+    assert.ok(!src.includes('### Common format'),
+        'hybrid.md must not re-state the common format rules (they live in the contracts)');
+    assert.ok(!src.includes('Translation boundary'),
+        'hybrid.md must not re-state the translation boundary (it lives in the contracts)');
+});
+
+// ── 2. {{CONTRACT}} marker placement ──
+
+test('live style surfaces carry no contract marker', () => {
+    for (const f of STYLE_FILES) {
         const p = join(promptsDir, f);
         assert.ok(existsSync(p), `${f} must still exist`);
         const src = readFileSync(p, 'utf8');
-        // These keep their own format rules — they must NOT have the marker.
-        assert.ok(!src.includes('{{CONTRACT}}'), `${f} must keep its own format rules`);
+        // Style files are vibe-only: the format rules ride the user-message
+        // contract (generator.js _CONTRACT_TAIL), never a {{CONTRACT}} marker.
+        assert.ok(!src.includes('{{CONTRACT}}'), `${f} must not carry the contract marker`);
     }
 });
 
-// ── 4. Contract text equals what the old per-style sections contained ──
-// Sanity: the marker replacement in loadPromptStyle is lossless — the contract
-// string itself must not contain leftover {{...}} placeholders that would be
+// ── 3. Contract text sanity ──
+// The contract string itself must not contain leftover {{...}} placeholders that would be
 // emitted raw.
 
 test('FOOTNOTE_CONTRACT has no unresolved {{placeholders}}', () => {

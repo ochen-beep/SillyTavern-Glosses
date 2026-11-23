@@ -26,7 +26,7 @@
  * floatingPanelEnabled instead of `collapsed`).
  */
 
-import { S, saveSettings, t, warn, debounce } from '../core.js';
+import { S, saveSettings, t, warn, debounce, updatePanelModeSnapshot } from '../core.js';
 import { whenSendFormReady } from './dom-ready.js';
 import { ensureFloatingLauncher, removeFloatingLauncher } from './floating-launcher.js';
 
@@ -155,6 +155,7 @@ async function toggleLauncherPanelNow() {
         // Reset the persisted hide too so a later re-enable starts fresh (visible).
         S().floatingPanelEnabled = false;
         S().floatingPanelHidden = false;
+        updatePanelModeSnapshot();
         saveSettings();
         updatePanel();
         ensureLauncher();
@@ -170,12 +171,14 @@ async function toggleLauncherPanelNow() {
         // updatePanel() itself rebuilds the panel if it was destroyed (chat
         // switch mid-✕), so no local panel-existence branch is needed.
         S().floatingPanelHidden = false;
+        updatePanelModeSnapshot();
         saveSettings();
         updatePanel();
     } else {
         // Disabled in settings — first click enables (fresh, visible).
         S().floatingPanelEnabled = true;
         S().floatingPanelHidden = false;
+        updatePanelModeSnapshot();
         saveSettings();
         updatePanel();
     }

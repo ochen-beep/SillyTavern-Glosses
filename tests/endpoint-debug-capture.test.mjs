@@ -41,7 +41,9 @@ function stubNetwork() {
 }
 
 test('debugMode off: request/response keep metadata only, no bodies', async () => {
-    setup({ customEndpoint: 'https://api.example.com/v1' }); // no debugMode → default false
+    // stream:false pins these tests to the JSON transport — they cover debug
+    // capture shapes, not the SSE path (see streaming.test.mjs).
+    setup({ customEndpoint: 'https://api.example.com/v1', stream: false }); // no debugMode → default false
     const restore = stubNetwork();
     try {
         lastCustomEndpointDebug.request = null;
@@ -75,7 +77,7 @@ test('debugMode off: request/response keep metadata only, no bodies', async () =
 });
 
 test('debugMode on: full request/response bodies are captured', async () => {
-    setup({ customEndpoint: 'https://api.example.com/v1', debugMode: true });
+    setup({ customEndpoint: 'https://api.example.com/v1', debugMode: true, stream: false });
     const restore = stubNetwork();
     try {
         lastCustomEndpointDebug.request = null;

@@ -111,3 +111,11 @@ test('computeContextSelectors returns the surrounding context, trimmed', () => {
     assert.equal(prefix, 'много слов перед');
     assert.equal(suffix, 'и несколько слов после якоря');
 });
+
+test('findFuzzySpan resolves after emoji (UTF-16 vs code-point map alignment)', () => {
+    const text = '😀 Она увидела фонарь над рекой';
+    const hit = findFuzzySpan(text, 'фонарьь');
+    assert.ok(hit, 'typo anchor still resolves');
+    assert.deepEqual({ text: hit.text, start: hit.start, end: hit.end },
+        { text: 'фонарь', start: 15, end: 21 });
+});

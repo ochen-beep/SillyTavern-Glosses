@@ -7,12 +7,12 @@
  * flow in src/ui/window.js, which resolves each target against the focused
  * variant's text and commits through the normal payload store.
  */
-import { parseResponse } from './parser.js';
+import { parseResponse, MAX_ANCHOR_LENGTH } from './parser.js';
 import { normalizeAnchorKey } from './anchor-utils.js';
 import { beginGenerationEpoch, isEpochCurrent } from './core.js';
 import { rebindTargeted } from './domain/rebind.js';
 
-const MAX_TARGETS = 20;
+export const MAX_TARGETS = 20;
 const keyOf = normalizeAnchorKey;
 
 /**
@@ -53,10 +53,17 @@ function footnoteText(value) {
 }
 
 export function validateTargetedResponse(parsed, targets) {
-    const byKey = new Map(targets.map(target => [keyOf(target), target]));
+    // Same anchor-length cap as the regular validation path: a longer target
+    // is invalid input, not a footnote.
+    const usable = [];
+    let invalidCount = 0;
+    for (const target of targets) {
+        if (target.length > MAX_ANCHOR_LENGTH) invalidCount++;
+        else usable.push(target);
+    }
+    const byKey = new Map(usable.map(target => [keyOf(target), target]));
     const used = new Set();
     const accepted = [];
-    let invalidCount = 0;
     const source = Array.isArray(parsed) ? parsed : parsed?.footnotes;
     for (const candidate of source || []) {
         if (!candidate || typeof candidate !== 'object') { invalidCount++; continue; }
@@ -67,7 +74,7 @@ export function validateTargetedResponse(parsed, targets) {
         used.add(key);
         accepted.push({ anchor: target, text: candidate.text });
     }
-    const footnotes = targets.filter(target => used.has(keyOf(target))).map((target, index) => {
+    const footnotes = usable.filter(target => used.has(keyOf(target))).map((target, index) => {
         const found = accepted.find(fn => keyOf(fn.anchor) === keyOf(target));
         // Body WITHOUT a numeric prefix — targeted entries are marked by a
         // symbol derived from their position at render time, never by digits.
@@ -75,7 +82,7 @@ export function validateTargetedResponse(parsed, targets) {
     });
     return {
         footnotes,
-        missingTargets: targets.filter(target => !used.has(keyOf(target))),
+        missingTargets: usable.filter(target => !used.has(keyOf(target))),
         invalidCount,
     };
 }
@@ -85,6 +92,7 @@ export function buildTargetedPrompt({ targets, style = '', outputLanguage = '', 
     return `[Targeted footnotes]\nGenerate exactly one footnote for each submitted target, in the same order.\n` +
         `Targets are authoritative and need not occur in the chat post. Do not add, merge, or rename targets.\n` +
         `Return only JSON: {"footnotes":[{"anchor":"submitted target","text":"Label (cat.) — explanation"}]}\n` +
+        `Start each Label with a capital letter: nominative case, 1–4 words, never the full target clause (a quoted foreign phrase serves as its own label); capitalize the category code and end it with a dot. Separate label and code from the body with a spaced em-dash ( — ) — the footnote renders as a title plus a body split at it, so start the body with a capital letter as a standalone sentence. If a target quotes a foreign-language phrase, the body must open with its translation.\n` +
         (outputLanguage ? `[Output language: ${outputLanguage}]\n` : '') +
         (style ? `[Style]\n${style}\n` : '') +
         (context ? `[Reference context]\n${context}\n` : '') + `[Submitted targets]\n${list}`;

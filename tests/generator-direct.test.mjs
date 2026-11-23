@@ -6,12 +6,13 @@ import { resetCtx, makeMessage } from './helpers/stub-runtime.mjs';
 import { loadSettings } from '../src/core.js';
 import {
     DIRECT_FOOTNOTE_CONTRACT,
-    buildContextBlocks,
+    DIRECT_FOOTNOTE_CONTRACT_AUTO,
     buildUserPrompt,
     generateFootnotes,
     _testClearApiOverride,
     _testSetApiOverride,
 } from '../src/generator.js';
+import { buildContextBlocks } from '../src/context-blocks.js';
 import { digestFor, getVariantFootnotes, listFootnoteSets, saveFootnotes, togglePoolExcluded, saveForcedIgnore } from '../src/cache.js';
 import { contentDigest } from '../src/domain/message-identity.js';
 
@@ -38,6 +39,33 @@ test('direct contract describes only the footnotes payload', () => {
     assert.doesNotMatch(DIRECT_FOOTNOTE_CONTRACT, /bracket notation in the "text"/);
 });
 
+// The unified footnote shape (label/code/dash/translation) lives in
+// _CONTRACT_TAIL, so BOTH contracts must carry it — it feeds the popup's
+// title/body split and the mandatory-translation behavior in every style.
+test('both contracts carry the unified label/dash/translation rules', () => {
+    for (const contract of [DIRECT_FOOTNOTE_CONTRACT, DIRECT_FOOTNOTE_CONTRACT_AUTO]) {
+        assert.match(contract, /capital letter/, 'label capitalization rule');
+        assert.match(contract, /1–4 words/, 'short nominative label rule');
+        assert.match(contract, /end it with a dot/, 'category code rule');
+        assert.match(contract, /spaced em-dash/, 'title/body separator rule');
+        assert.match(contract, /body (starts|with) a capital letter/, 'body-first-letter rule');
+        assert.match(contract, /standalone/, 'body reads as a standalone sentence');
+        assert.match(contract, /MUST get a footnote/, 'mandatory translation rule');
+        assert.match(contract, /already rendered in the narration language/, 'translation boundary rule');
+    }
+});
+
+// The advisory instruction must be CONDITIONAL-SAFE in both contracts: the
+// [Previously glossed anchors] block is itself conditional (avoidRepeat off /
+// empty pool), so an unconditional "prefer anchors not listed in the advisory"
+// would dangle a reference to a block that is not in the prompt.
+test('both contracts reference the advisory block conditionally', () => {
+    const re = /If a \[Previously glossed anchors\] block is provided below, prefer anchors not listed there/;
+    assert.match(DIRECT_FOOTNOTE_CONTRACT, re, 'fixed contract keeps the conditional advisory instruction');
+    assert.match(DIRECT_FOOTNOTE_CONTRACT_AUTO, re, 'auto contract explains the advisory block (it receives the same data)');
+    assert.doesNotMatch(DIRECT_FOOTNOTE_CONTRACT_AUTO, /reach \{N\}/, 'auto mode has no count to reach');
+});
+
 test('context keeps target first, prior advisory before background, and combines forbidden anchors', async () => {
     setup({ settings: { maxFootnotes: 3, contextDepth: 1, stopWords: 'observatory' } });
 
@@ -56,6 +84,12 @@ test('context keeps target first, prior advisory before background, and combines
     assert.ok(prompt.indexOf('[Previously glossed anchors') < prompt.indexOf('[Earlier in the scene'));
     assert.match(prompt, /exactly 3 distinct footnotes/);
     assert.doesNotMatch(prompt, /candidate pool|PHASE 1|post_context/i);
+});
+
+test('footnote count contract honors the raised cap (100)', async () => {
+    setup({ settings: { maxFootnotes: 100 } });
+    const prompt = await buildUserPrompt(1, 0);
+    assert.match(prompt, /exactly 100 distinct footnotes/);
 });
 
 test('direct response is persisted once and forced anchors are rejected', async () => {

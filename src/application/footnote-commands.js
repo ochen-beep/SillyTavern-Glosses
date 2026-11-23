@@ -135,7 +135,10 @@ export function editFootnote(command) {
             const contextOk = validateContext ? validateContext() : true;
             if (!epochOk || !contextOk || itemIndex < 0) return null;
             const updated = entries.map((item, index) =>
-                index === itemIndex ? { ...item, text: trimmed } : item);
+                // `edited` marks the text as user-written: regeneration commits
+                // (saveFootnotes / saveTargeted) carry it over the fresh model
+                // wording instead of letting the regen wipe the user's words.
+                index === itemIndex ? { ...item, text: trimmed, edited: true } : item);
             if (isTargeted) return reindexTargeted(updated);
             return normalizeFootnotes(updated, extractPlainText(source)) || updated;
         }, { kind });

@@ -31,6 +31,7 @@ import { createMetadataRepository } from './infrastructure/metadata-repository.j
 import {
     PAYLOAD_KEY, readRawPayload, readVerifiedPayload, stampPayload, writePayload, clearPayload,
     variantText, digestForVariant, targetedOf, payloadBelongsToOtherVariant, reindexTargeted,
+    carryEditedFootnotes,
 } from './domain/footnote-payload.js';
 import { isViableMessageText } from './domain/message-identity.js';
 import { normalizeAnchorKey } from './anchor-utils.js';
@@ -155,7 +156,11 @@ export function saveFootnotes(msgId, swipeIdx, footnotes, meta = {}) {
     const msg = msgAt(msgId);
     if (!msg || !getCtx().chatId) return false;
     const sibling = readVerifiedPayload(msg, swipeIdx);
-    const payload = stampPayload(msg, swipeIdx, footnotes, {
+    // Every regular commit is a FULL replacement of the footnote set — without
+    // this merge a regeneration would wipe the user's hand-edited texts. The
+    // merge is a no-op unless some stored entry carries the `edited` flag.
+    const merged = carryEditedFootnotes(sibling?.footnotes ?? [], footnotes, variantText(msg, swipeIdx));
+    const payload = stampPayload(msg, swipeIdx, merged, {
         ...meta,
         targeted: Array.isArray(meta.targeted) ? meta.targeted : targetedOf(sibling),
     });
@@ -182,7 +187,8 @@ const TARGETED_CAP = 40;
  * @param {string} msgId
  * @param {number} swipeIdx
  * @param {Array<{anchor:string, text:string, prefix?:string, suffix?:string}>} entries
- * @param {{ startDigest?: string }} [opts]
+ * @param {{ startDigest: string }} opts - live-variant digest captured when
+ *        the request was launched; a missing digest rejects the write
  * @returns {{ ok: true, targeted: Array, footnotes: Array }
  *         | { ok: false, reason: 'not-found' | 'stale' }}
  */
@@ -190,19 +196,32 @@ export function saveTargeted(msgId, swipeIdx, entries, opts = {}) {
     const msg = msgAt(msgId);
     if (!msg || !getCtx().chatId) return { ok: false, reason: 'not-found' };
     if ((msg.swipe_id ?? 0) !== (Number(swipeIdx) || 0)) return { ok: false, reason: 'stale' };
+    // startDigest is mandatory: the verified-payload read below returns null
+    // for a stale (edited, not-yet-rebound) variant, and stamping without the
+    // digest check would file a fresh empty-footnotes payload over it —
+    // silently destroying the regular footnotes. No digest → no write.
     const liveDigest = digestForVariant(msg, swipeIdx);
-    if (typeof opts.startDigest === 'string' && opts.startDigest && liveDigest !== opts.startDigest) {
+    if (!opts.startDigest || liveDigest !== opts.startDigest) {
         return { ok: false, reason: 'stale' };
     }
     const payload = readVerifiedPayload(msg, swipeIdx);
     const merged = [...targetedOf(payload)];
     const byKey = new Map(merged.map(e => [normalizeAnchorKey(e?.anchor), e]));
+    let capped = 0; // new entries dropped by TARGETED_CAP — surfaced, never silent
     for (const entry of Array.isArray(entries) ? entries : []) {
         const key = normalizeAnchorKey(entry?.anchor);
         if (!key) continue;
         const existing = byKey.get(key);
-        if (existing) merged[merged.indexOf(existing)] = entry; // replace in place
+        if (existing) {
+            // Replace in place — except when the user hand-edited this entry:
+            // their text outranks the fresh model wording (same carry rule as
+            // regular footnotes' regeneration commits).
+            merged[merged.indexOf(existing)] = existing.edited
+                ? { ...entry, text: existing.text, edited: true }
+                : entry;
+        }
         else if (merged.length < TARGETED_CAP) { byKey.set(key, entry); merged.push(entry); }
+        else capped++;
     }
     const targeted = reindexTargeted(merged);
     const stamped = stampPayload(msg, swipeIdx, payload?.footnotes ?? [], {
@@ -213,7 +232,7 @@ export function saveTargeted(msgId, swipeIdx, entries, opts = {}) {
     if (!stamped) return { ok: false, reason: 'stale' }; // non-viable text — never persist
     writePayload(msg, swipeIdx, stamped);
     _chatWriter.schedule();
-    return { ok: true, targeted: stamped.targeted, footnotes: stamped.footnotes };
+    return { ok: true, targeted: stamped.targeted, footnotes: stamped.footnotes, capped };
 }
 
 /** Merge previous and fresh orphans, deduped by normalized anchor+kind, capped. */

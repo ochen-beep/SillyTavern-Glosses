@@ -1,0 +1,126 @@
+/* ============================================================
+   Glosses v3.0 — Literary Footnotes for SillyTavern
+   style.css
+   ============================================================
+   Principles:
+   - CSS custom properties for all configurable values
+   - Theme-aware: --SmartTheme* tokens for backgrounds/borders/text
+   - No heavy animations, no backdrop-filter, no gradients
+   - Mobile-first
+   ============================================================ */
+
+:root {
+    --gls-hl-color: #ffe066;
+    --gls-hl-opacity: 1;
+    --gls-font-family: inherit;
+    --gls-font-size: 0.9em;
+    /* Panel font pair — the floating panel chrome (written by
+       applyHighlightStyles from the panelFontFamily/panelFontSize settings). */
+    --gls-panel-font-family: inherit;
+    --gls-panel-font-size: 0.9em;
+    --gls-marker-size: 0.75em;
+    --gls-popup-maxw: 420px;
+    /* Popup corner radius (popupCornerRadius setting, slider 0–20). 12px
+       reproduces the historic --gls-radius-lg look. */
+    --gls-popup-radius: 12px;
+    --gls-accent: var(--SmartThemeQuoteColor, #ffb84d);
+    --gls-accent-dim: color-mix(in srgb, var(--gls-accent) 22%, transparent);
+    --gls-accent-dim2: color-mix(in srgb, var(--gls-accent) 40%, transparent);
+    --gls-border: var(--SmartThemeBorderColor, #444);
+    /* Window/popup background. ST exposes no opaque "chrome" token; the right
+       hue lives in --SmartThemeBlurTintColor, but its alpha is theme-dependent
+       (~0 on transparent themes), which made the popup, inline block and
+       floating panel see-through. Three layers force it opaque, in priority
+       order:
+         1. JS in src/ui/theme-sync.js reads the computed tint, clamps its
+            alpha to 1, and writes a solid color back here as an inline custom
+            property on documentElement — the primary, cross-browser path.
+         2. The @supports (relative color syntax) block below re-derives the
+            same opaque color in pure CSS on modern engines (defense-in-depth).
+         3. The :root default below (translucent tint) is the last-resort
+            fallback for browsers with neither JS nor relative-color support.
+       Hue/lightness is preserved at every layer, so dark themes stay dark and
+       light themes stay light. */
+    --gls-bg: var(--SmartThemeBlurTintColor, #1e1e1e);
+    /* Floating-card surface (popup + panel): theme-sync.js writes the opaque
+       tint shifted one lightness step away from the chat background (darker on
+       dark themes, lighter on light ones), so the card separates from a
+       same-hue chat instead of blending in. Fallbacks (no JS / old tint
+       format): the unshifted opaque tint. */
+    --gls-surface: var(--gls-bg);
+    /* Card edge + lift: derived from the TEXT color, not the theme border, so
+       the outline stays visible on themes whose border matches the chat
+       background (gray-on-gray). Two-layer shadow = tight contact edge + soft
+       elevation, readable on both light and dark themes. */
+    --gls-edge: color-mix(in srgb, var(--gls-text) 24%, transparent);
+    --gls-shadow-lift: 0 2px 8px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.35);
+    /* Popup-only float shadow. Unlike the panel, the footnote popup hovers
+       directly OVER chat lines, so it gets an extra-wide soft halo: the
+       gradient fade around the card reads as empty air between the message
+       text and the footnote text — separation without a heavy frame. Layers:
+       crisp contact edge (defines the rim against text), short elevation,
+       long low-alpha penumbra (the "air"). Neutral black works on any hue;
+       on dark themes, where black shadows dissolve, separation is carried by
+       the surface shift + text-derived edge above. */
+    --gls-shadow-float:
+        0 1px 2px rgba(0, 0, 0, 0.28),
+        0 6px 16px rgba(0, 0, 0, 0.20),
+        0 20px 48px rgba(0, 0, 0, 0.30);
+    --gls-text: var(--SmartThemeBodyColor, #ddd);
+    /* Text hierarchy: fixed mixes instead of scattered per-rule opacity
+       dimming. Washed-out 0.55–0.65 alpha text failed WCAG AA contrast and
+       made the whole panel read "dim". Two de-emphasis levels only:
+       -2 (labels, secondary) and -3 (hints, metainfo). Disabled controls are
+       the sole legitimate low-contrast case. */
+    --gls-text-2: color-mix(in srgb, var(--gls-text) 86%, transparent);
+    --gls-text-3: color-mix(in srgb, var(--gls-text) 72%, transparent);
+    --gls-radius: 8px;
+    --gls-radius-sm: 6px;
+    --gls-radius-lg: 12px;
+    /* Soft elevation for the floating surfaces (popup / panel). One token so
+       both stay in sync and neither ships the hard 3px/10px drop shadow. */
+    --gls-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    /* Monospace stack for footnote numbers / counters — independent of the
+       user-chosen body font (--gls-font-family), so indices stay tabular and
+       distinct even when the body is set to serif/inherit. */
+    --gls-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    /* Soft divider between cards. Distinct from --gls-border (UI chrome):
+       derived from text color at low alpha so it tracks light/dark themes
+       without the heavy accent-tint lines the old layout used. */
+    --gls-line: color-mix(in srgb, var(--gls-text) 10%, transparent);
+    /* Unified spacing scale (no more inline margin-top / flex). 4px steps,
+       per GOV.UK-style fixed scales: related controls sit at sp-1/sp-2,
+       distinct groups separate at sp-3+, sections at sp-4. */
+    --gls-sp-1: 4px;
+    --gls-sp-2: 8px;
+    --gls-sp-3: 12px;
+    --gls-sp-4: 16px;
+}
+
+/* Keyboard focus: every interactive Glosses control shows a visible focus
+   ring (WCAG 2.4.7 / focus-appearance: 2px perimeter, offset gap so the
+   indicator holds on any theme background). Never stripped. */
+.gls-s :focus-visible,
+.gls-panel :focus-visible,
+.gls-popup :focus-visible,
+#gls_launcher:focus-visible {
+    outline: 2px solid var(--gls-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Relative color syntax: force the theme tint's alpha to 1, keeping its hue ->
+   opaque + readable on transparent themes. Where `rgb(from ...)` is unsupported,
+   --gls-bg keeps the translucent tint declared in :root above (original look).
+   Ported from DS Comments (style.css opaque-bg upgrade). */
+@supports (color: rgb(from white r g b)) {
+    :root {
+        --gls-bg: rgb(from var(--SmartThemeBlurTintColor, #1e1e1e) r g b);
+    }
+}
+
+/* Utility classes replacing inline styles */
+.gls-s-grow { flex: 1; min-width: 0; }
+.gls-s-mt-md { margin-top: var(--gls-sp-2); }
+.gls-s-resize-v { resize: vertical; }
+

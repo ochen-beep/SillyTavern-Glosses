@@ -1,0 +1,164 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Popup custom CSS editor (.gls-css-*, built by src/ui/custom-css.js).
+   Uses the shared surface/edge/text tokens, so the dialog tracks light and
+   dark themes the same way the popup and panel do.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.gls-css-overlay {
+    position: fixed;
+    /* NOT `inset: 0`: ST keeps an identity transform on <html> while <body>
+       is position:fixed (<html> collapses to 0 height), and a transformed
+       ancestor becomes the containing block for fixed descendants — `inset: 0`
+       then stretches the overlay over a 0px-tall box and the centered dialog
+       lands half off-screen (worst on phones). Viewport units always resolve
+       against the real viewport, transforms or not. */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    /* Center via auto margins: centered when it fits, flush to the start edge
+       and overlay-scrollable when it doesn't (align-items:center would clip
+       the dialog's TOP edge out of reach). */
+    overflow: auto;
+    z-index: 30000;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    padding: var(--gls-sp-4);
+    box-sizing: border-box;
+}
+.gls-css-overlay[hidden] { display: none; }
+
+.gls-css-dialog {
+    display: flex;
+    flex-direction: column;
+    margin: auto;
+    width: min(880px, 100%);
+    max-height: min(86vh, 720px);
+    max-height: min(86dvh, 720px);
+    background: var(--gls-surface, var(--gls-bg));
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-radius-lg);
+    box-shadow: var(--gls-shadow-lift);
+    overflow: hidden;
+}
+
+.gls-css-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--gls-sp-3) var(--gls-sp-4);
+    border-bottom: 1px solid var(--gls-line);
+}
+.gls-css-dialog-title { font-weight: 600; color: var(--gls-text); }
+
+.gls-css-dialog-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: var(--gls-sp-3);
+    padding: var(--gls-sp-3) var(--gls-sp-4);
+    flex: 1;
+    min-height: 0;
+}
+
+/* Editor column: a highlight <pre> UNDER a transparent-text <textarea>. Both
+   share identical font metrics and padding so glyphs align exactly; the
+   textarea owns scrolling and caret, the pre is pointer-events:none. */
+.gls-css-editor-col {
+    position: relative;
+    min-height: 0;
+    border: 1px solid var(--gls-edge);
+    border-radius: var(--gls-radius-sm);
+    overflow: hidden;
+    background: var(--gls-bg);
+}
+.gls-css-editor-col:focus-within { border-color: var(--gls-accent); }
+.gls-css-input,
+.gls-css-hl {
+    margin: 0;
+    padding: 10px 12px;
+    font-family: var(--gls-font-mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    tab-size: 4;
+    white-space: pre;
+}
+.gls-css-hl {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    color: var(--gls-text);
+}
+.gls-css-hl code {
+    font: inherit;
+    white-space: inherit;
+    /* ST core styles bare `code` (bg/border/padding/color) — neutralize all of
+       it or the highlight layer misaligns from the textarea and tints text. */
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+}
+.gls-css-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    resize: none;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: transparent;                 /* the pre shows the glyphs */
+    caret-color: var(--gls-text);
+}
+.gls-css-input:focus-visible { outline: none; } /* focus ring carried by the col's focus-within accent border */
+.gls-css-input::selection {
+    background: color-mix(in srgb, var(--gls-accent) 35%, transparent);
+    color: transparent;
+}
+/* Fallback path (no hljs): the highlight pre is hidden, so the textarea must
+   show its own glyphs again. */
+.gls-css-hl[hidden] ~ .gls-css-input { color: var(--gls-text); }
+.gls-css-hl[hidden] ~ .gls-css-input::selection {
+    color: var(--gls-text);
+}
+/* Neutral hue-mapped token colors that hold on light and dark surfaces. */
+.gls-css-hl .hljs-selector-class,
+.gls-css-hl .hljs-selector-id { color: #7fb4ff; }
+.gls-css-hl .hljs-attribute,
+.gls-css-hl .hljs-selector-tag { color: color-mix(in srgb, var(--gls-accent) 80%, var(--gls-text)); }
+.gls-css-hl .hljs-number,
+.gls-css-hl .hljs-selector-pseudo { color: #e6a06a; }
+.gls-css-hl .hljs-string { color: #9ece6a; }
+.gls-css-hl .hljs-comment { color: var(--gls-text-3); font-style: italic; }
+
+.gls-css-preview-col { min-height: 0; overflow: auto; }
+.gls-css-twin { width: 100%; }
+
+.gls-css-dialog-foot {
+    display: flex;
+    align-items: center;
+    /* Narrow phones: the three labelled buttons + status exceed 360px — wrap
+       to a second row instead of clipping ("Готово" used to fall off-screen). */
+    flex-wrap: wrap;
+    gap: var(--gls-sp-2);
+    padding: var(--gls-sp-2) var(--gls-sp-4) var(--gls-sp-3);
+    border-top: 1px solid var(--gls-line);
+}
+.gls-css-status { margin-right: auto; min-height: 1em; }
+/* Long action labels ("Insert base template") must not wrap into a 3-line button. */
+.gls-css-dialog-foot .menu_button { white-space: nowrap; }
+
+@media (max-width: 720px) {
+    .gls-css-dialog-cols { grid-template-columns: 1fr; overflow: auto; }
+    .gls-css-editor-col { min-height: 40vh; }
+    /* iOS Safari zooms the whole page when a text field with an effective
+       font-size below 16px is focused — same guard as the panel/popup fields
+       (MOBILE / TOUCH); the 12.5px editor font would zoom on every focus.
+       Bump the textarea AND the highlight pre together: they must share
+       metrics or the highlight layer misaligns from the caret. */
+    .gls-css-input,
+    .gls-css-hl { font-size: 16px; }
+}
+

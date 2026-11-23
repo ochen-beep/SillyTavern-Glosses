@@ -21,20 +21,20 @@
  */
 
 import {
-    state, MODULE_NAME, DISPLAY_NAME, META_KEY, LF_CUSTOM_SOUND,
+    state, META_KEY, LF_CUSTOM_SOUND,
     DEFAULT_SOUND_NAME,
     loadSettings, saveSettings, flushSettings,
     getCtx, log, warn, error, t,
 } from './src/core.js';
 import { deleteUserFile } from './src/user-files.js';
+import { removeHighlights, uninstallMarkerDelegation, resetLazyInjector } from './src/renderer.js';
+import { applyHighlightStyles } from './src/ui/highlight-styles.js';
+import { closePopup } from './src/ui/footnote-popup.js';
 import {
-    applyHighlightStyles, removeHighlights, closePopup,
-    uninstallMarkerDelegation, resetLazyInjector,
-} from './src/renderer.js';
-import {
-    destroyPanel, updatePanel, initViewportSync, disconnectViewportSync,
-    clearTargetedTabState,
+    destroyPanel, updatePanel, getPanelElement,
 } from './src/ui/window.js';
+import { initViewportSync, disconnectViewportSync } from './src/ui/panel-layout.js';
+import { clearTargetedTabState } from './src/ui/panel-targeted-tab.js';
 import {
     bindEvents, unbindEvents, initScrollObserver, disconnectScrollObserver,
 } from './src/events.js';
@@ -149,6 +149,10 @@ const _onVisibilityChange = () => {
     flushWriters().catch(() => { /* non-critical */ });
 };
 
+// pagehide fires on every unload path with visibilityState already 'hidden';
+// the guard keeps one entry point for both signals.
+const _onPageHide = () => _onVisibilityChange();
+
 async function init(isCancelled = () => false) {
     if (isCancelled()) return;
     initIconSprite();
@@ -203,7 +207,7 @@ async function init(isCancelled = () => false) {
 
     // Live mobile↔desktop reflow on resize/rotate so the panel never gets
     // stuck in a layout that doesn't fit the viewport.
-    initViewportSync();
+    initViewportSync(getPanelElement);
     if (isCancelled()) return;
 
     if (state.settings.floatingPanelEnabled) {
@@ -220,9 +224,13 @@ async function init(isCancelled = () => false) {
     // prevents data loss if the user closes the tab right after generating.
     // Registered with the stable module-scope reference so cleanup() can
     // remove it and a later enable re-binds cleanly (spec §5.4).
+    // pagehide rides the same flusher: it is the more reliable unload signal
+    // (an instant F5 can land before/without a usable visibilitychange pass,
+    // and the host's 1 s settings debounce otherwise loses the mutation).
     if (!_visibilityBound) {
         _visibilityBound = true;
         document.addEventListener('visibilitychange', _onVisibilityChange);
+        window.addEventListener('pagehide', _onPageHide);
     }
 
     registerSlashCommands();
@@ -287,17 +295,10 @@ function cleanup() {
     closeCssEditor();
     removeCustomCssTags();
 
-    // Unwrap every marker span in the chat (restore original text nodes).
-    document.querySelectorAll('.gls-marker').forEach(span => {
-        const parent = span.parentNode;
-        if (!parent) return;
-        let txt = '';
-        for (const child of span.childNodes) {
-            if (child.nodeType === Node.TEXT_NODE) txt += child.nodeValue;
-        }
-        parent.replaceChild(document.createTextNode(txt), span);
-    });
-
+    // Full per-message teardown via the shared remover: unwrap markers,
+    // strip the under-post inline footnote blocks (a markers-only unwrap
+    // left them visible after a disable) and normalize the text nodes.
+    document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
     document.querySelectorAll('.gls-regen-btn').forEach(btn => btn.remove());
     document.getElementById('gls_settings_container')?.remove();
     _settingsPanelLoaded = false;
@@ -306,5 +307,6 @@ function cleanup() {
     // flushing settings on every page-hide (spec §5.4). Reset the guard so
     // the next enable re-binds the fresh module-scope handler cleanly.
     document.removeEventListener('visibilitychange', _onVisibilityChange);
+    window.removeEventListener('pagehide', _onPageHide);
     _visibilityBound = false;
 }

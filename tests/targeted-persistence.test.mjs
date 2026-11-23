@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 
 import './helpers/stub-runtime.mjs';
 import { resetCtx, makeMessage } from './helpers/stub-runtime.mjs';
-import { loadSettings } from '../src/core.js';
+import { loadSettings, getCtx } from '../src/core.js';
 import {
     digestFor, getVariantFootnotes, getVariantPayload, saveFootnotes,
     saveTargeted, mutateFootnotes, rebindVariant, listFootnoteSets,
@@ -273,4 +273,19 @@ test('validateTargetedResponse emits prefix-free bodies ready for persistence', 
     assert.equal(result.footnotes[0].text, 'Astrolabe (instr.) — a device.');
     const resolved = resolveTargetedAnchors(result.footnotes.map(f => ({ anchor: f.anchor, text: f.text })), POST);
     assert.ok(resolved[0].prefix !== undefined, 'resolved against the post text');
+});
+
+test('saveTargeted without startDigest never overwrites a stale variant', () => {
+    setupChat();
+    saveFootnotes(0, 0, [
+        { index: 1, anchor: 'astrolabe', text: '¹ Astrolabe (instr.) — a device.', prefix: 'held the', suffix: 'beside' },
+    ]);
+    assert.equal(getVariantFootnotes(0, 0).length, 1, 'regular footnote stored');
+
+    // Edit the variant text: the stored payload is now stale (digest mismatch).
+    getCtx().chat[0].mes = POST + ' The night deepened over the observatory.';
+
+    const rejected = saveTargeted(0, 0, [{ anchor: 'astrolabe', text: 'custom note' }]);
+    assert.deepEqual(rejected, { ok: false, reason: 'stale' });
+    assert.equal(getVariantFootnotes(0, 0).length, 1, 'regular footnote NOT wiped');
 });

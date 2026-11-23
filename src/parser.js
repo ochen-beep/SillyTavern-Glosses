@@ -20,6 +20,11 @@ import { findAnchorInText, normalizeAnchorKey } from './anchor-utils.js';
 const _SUP_TO_DIGIT = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
 const _DIGIT_TO_SUP = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
+/** Anchor length cap shared by the regular and targeted validation paths
+ *  (models legitimately quote long verbatim clauses; longer strings are
+ *  invalid model output or user input, not anchors). */
+export const MAX_ANCHOR_LENGTH = 400;
+
 export function superscriptToIndex(value) {
     const digits = [...String(value || '')].map(ch => _SUP_TO_DIGIT[ch] ?? '').join('');
     return parseInt(digits, 10) || NaN;
@@ -156,6 +161,51 @@ function tryRepairJson(text) {
     return result;
 }
 
+// ── Proxy hard-wrap recovery ──
+// Some proxies (observed: gemini_chat → gemini-4-argon) hard-wrap the raw JSON
+// text at a fixed column width, inserting bare '\n' ANYWHERE — mid-word inside
+// anchors ("Тимо\nти"), mid-key ("footnotes\n":), mid-value. The insertion never
+// consumes characters (a space at the wrap point is preserved on the next line),
+// so the original text is restored by simply DELETING the inserted newlines.
+// tryRepairJson alone is not enough: it escapes the newlines, the JSON parses,
+// but the envelope key stays "footnotes\n" and every anchor is silently mangled.
+//
+// Detection signal: a newline inside a KEY. Models never emit that; only a
+// transport-level wrap does. When any key in the parsed tree contains \r/\n we
+// strip \r\n from ALL keys and ALL string values in the tree.
+
+function jsonHasSplitKey(value) {
+    if (Array.isArray(value)) return value.some(jsonHasSplitKey);
+    if (value && typeof value === 'object') {
+        return Object.entries(value).some(([k, v]) => /[\r\n]/.test(k) || jsonHasSplitKey(v));
+    }
+    return false;
+}
+
+function dewrapHardWrappedJson(value) {
+    if (Array.isArray(value)) return value.map(dewrapHardWrappedJson);
+    if (value && typeof value === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(value)) {
+            out[k.replace(/[\r\n]+/g, '')] = dewrapHardWrappedJson(v);
+        }
+        return out;
+    }
+    if (typeof value === 'string') return value.replace(/[\r\n]+/g, '');
+    return value;
+}
+
+/**
+ * JSON.parse wrapper shared by every repair tier: after a successful parse,
+ * detect proxy hard-wrap (split key) and de-wrap the whole tree. Returns null
+ * on parse failure.
+ */
+function parseMaybeDewrapped(text) {
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch { return null; }
+    return (parsed && jsonHasSplitKey(parsed)) ? dewrapHardWrappedJson(parsed) : parsed;
+}
+
 /**
  * Find the matching closing brace/bracket for the one at `start`, tracking
  * string context and escape sequences. Returns index of the matching close, or -1.
@@ -196,12 +246,9 @@ function extractObjectsFromText(text) {
         const end = findMatchingBrace(text, start);
         if (end === -1) { i = start + 1; continue; }
         const objText = text.slice(start, end + 1);
-        let obj = null;
-        try { obj = JSON.parse(objText); }
-        catch {
-            try { obj = JSON.parse(tryRepairJson(objText)); }
-            catch { /* skip this object */ }
-        }
+        // parseMaybeDewrapped never throws (null on failure) — try the raw
+        // slice first, then the repaired slice.
+        const obj = parseMaybeDewrapped(objText) ?? parseMaybeDewrapped(tryRepairJson(objText));
         if (obj && typeof obj === 'object' && !Array.isArray(obj)) objects.push(obj);
         i = end + 1;
     }
@@ -261,9 +308,15 @@ export function parseResponse(raw) {
             // poison the WHOLE footnotes array instead of one bad entry.
             const anchor = String(f.anchor ?? '').trim();
             let text = String(f.text ?? '').trim();
-            // The "anchor" must stay verbatim; brackets inside text would
-            // duplicate the anchor, so strip them when present.
-            if (anchor) text = text.replace(/\s*\[[^\]]+\]/g, '');
+            // The "anchor" must stay verbatim; a bracket group duplicating the
+            // anchor is noise. PAR-2: strip ONLY groups whose normalized
+            // content equals the anchor — legitimate brackets in footnote text
+            // (IPA, "[прим.]") survive.
+            if (anchor) {
+                const anchorKey = normalizeAnchorKey(anchor);
+                text = text.replace(/\s*\[([^\]]+)\]/g, (m, inner) =>
+                    normalizeAnchorKey(inner) === anchorKey ? '' : m);
+            }
             return { index: parseInt(f.index) || 1, anchor, text };
         }).filter(f => f && f.text);
         if (footnotes.length && (!best || footnotes.length > best.footnotes.length)) {
@@ -289,12 +342,11 @@ export function parseResponse(raw) {
  */
 function parseJsonWithRepair(text) {
     // ── Attempt 1: direct parse ──
-    let parsed = null;
-    try { parsed = JSON.parse(text); } catch { /* escalate */ }
+    let parsed = parseMaybeDewrapped(text);
 
     // ── Attempt 2: repair + parse ──
     if (!parsed) {
-        try { parsed = JSON.parse(tryRepairJson(text)); } catch { /* escalate */ }
+        parsed = parseMaybeDewrapped(tryRepairJson(text));
     }
 
     // A top-level object with a footnotes array is a usable response.
@@ -326,8 +378,7 @@ function parseJsonWithRepair(text) {
                 let repaired = truncated;
                 if (openBraces > 0) repaired += '}';
                 repaired += ']';
-                try { return JSON.parse(repaired); }
-                catch { return JSON.parse(tryRepairJson(repaired)); }
+                return parseMaybeDewrapped(repaired) ?? parseMaybeDewrapped(tryRepairJson(repaired));
             }
         }
     } catch { /* fall through */ }
@@ -365,10 +416,11 @@ function parseTextFootnoteLine(line) {
         const anchorMatch = body.match(/^(.+?)\s*[\u2013\u2014(]/u);
         if (anchorMatch) {
             anchor = anchorMatch[1].trim();
-            // Cap kept in sync with validateFootnotes' 'too long' guard. With
-            // EXACTLY N count pressure (buildUserPrompt), the model emits short
-            // discrete anchors (< 60), so this fires only on junk. See
-            // 2026-07-02-glosses-hybrid-exactly-n-design.md §4.
+            // This caps the LABEL-derived anchor of the text-fallback path
+            // (the part before the dash), not quoted clauses — labels are
+            // inherently short, so > 60 means junk. NOT in sync with the JSON
+            // validation cap (that one caps quoted anchors; PAR-1 raised it
+            // to 400). See 2026-07-02-glosses-hybrid-exactly-n-design.md §4.
             if (anchor.length > 60) anchor = '';
         }
     }
@@ -442,11 +494,28 @@ export function validateFootnotesAgainstText(parsed, postText, forcedIgnore = []
         }))
         .filter(f => {
             if (!f.text || !f.anchor) { dropped.push({ anchor: f.anchor, reason: 'empty' }); return false; }
-            if (f.anchor.length > 120) { dropped.push({ anchor: f.anchor, reason: 'too long' }); return false; }
+            // Anchor length cap: 120 → 400 (models legitimately quote long
+            // verbatim clauses; the contract asks for clauses).
+            if (f.anchor.length > MAX_ANCHOR_LENGTH) { dropped.push({ anchor: f.anchor, reason: 'too long' }); return false; }
+
+            // The user's forbidden list bans the PHRASE, whether or not it is
+            // in the post — a banned phrase never becomes a footnote.
+            const modelKey = normalizeAnchorKey(f.anchor);
+            if (forbidden.has(modelKey)) { dropped.push({ anchor: f.anchor, reason: 'forced ignore' }); return false; }
 
             const hit = findAnchorInText(postText, f.anchor)
                 ?? (typeof resolveFallback === 'function' ? resolveFallback(f.anchor) : null);
-            if (!hit) { dropped.push({ anchor: f.anchor, reason: 'not found' }); return false; }
+            if (!hit) {
+                // B#3 (owner decision): an anchor the post does not contain is
+                // kept as a FLOATING footnote (no marker, "not anchored" badge
+                // in the panel) instead of being dropped — the user sees
+                // everything the model returned. Duplicates among floating
+                // entries still collapse.
+                if (seen.has(modelKey)) { dropped.push({ anchor: f.anchor, reason: 'dup' }); return false; }
+                seen.add(modelKey);
+                f.floating = true;
+                return true;
+            }
             f.anchor = hit.text;
             const key = normalizeAnchorKey(f.anchor);
             if (forbidden.has(key)) { dropped.push({ anchor: f.anchor, reason: 'forced ignore' }); return false; }

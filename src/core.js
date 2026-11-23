@@ -24,6 +24,23 @@ export const MOBILE_BREAKPOINT = 768;
 // cache.js fingerprint). Mirrors DS Comments' guard.
 export const MIN_POST_LENGTH = 5;
 
+// Hard ceiling for the "Max footnotes per message" setting. Single source for
+// the loadSettings clamp and generator.getTargetFootnoteCount; settings.html's
+// #gls_max_footnotes max attribute must stay in sync (enforced by
+// tests/settings-html-contract.test.mjs).
+export const MAX_FOOTNOTES_CAP = 100;
+
+// Hard ceiling for the "Context depth" setting. Single source for the
+// loadSettings clamp; settings.html's #gls_context_depth max attribute must
+// stay in sync (enforced by the same contract test).
+export const CONTEXT_DEPTH_MAX = 50;
+
+// The six built-in hybrid lens ids (prompts/lenses/<id>.md). Single source:
+// loadSettings coerces builtinLensOverrides against this list, generator.js
+// assembles lens blocks from it, and the settings.html lens-row markup must
+// stay in sync with it.
+export const HYBRID_BUILTIN_LENSES = ['language', 'pratchett', 'canon', 'academic', 'meta', 'expansion'];
+
 // Chat-metadata key under ctx.chatMetadata for chat-scoped Glosses settings.
 export const META_KEY = 'gls_data';
 
@@ -82,21 +99,42 @@ export const DEFAULT_SETTINGS = Object.freeze({
     glossUserMessages: false,
     source: '',
     selectedProfile: '',
-    promptStyle: 'pratchett50',
-    customPrompt: '',
-    // §6.1: short-name preset that bundles a few settings at once. Empty =
-    // manual mode (no preset active; the user edits each field). Set via the
-    // Presets dropdown at the top of the Prompt accordion. Selecting a
-    // preset merges its fields into S(); any manual edit of those fields
-    // clears selectedPreset back to ''.
-    selectedPreset: '',
+    // SSE streaming for BOTH transports (CM profile + custom fetch). Default
+    // ON: proxies behind Cloudflare kill long non-streamed replies (HTTP 524
+    // at ~100 s) and some gateways only answer correctly as a stream. No
+    // auto-fallback stream→non-stream (a retried request can double-charge a
+    // paid call) and no progressive rendering — footnote parsing needs the
+    // full text, so chunks accumulate into one string (connection.js).
+    stream: true,
+    // The single-style dropdowns and presets were removed: the hybrid lens
+    // constructor covers every former style, so the prompt is always built
+    // from the active lens set. The field stays for older stored settings and
+    // is coerced to 'hybrid' on load.
+    promptStyle: 'hybrid',
     // Language of footnote TEXT ('ru' | 'en'). Default 'ru' per user. Replaces
     // the old heuristic (document.documentElement.lang). See
     // 2026-07-02-glosses-anchor-count-language-design.md §3.
     outputLanguage: 'ru',
     maxFootnotes: 5,
+    // When true, the numeric maxFootnotes setting is ignored: the prompt
+    // contract asks the model to decide how many honest anchors the post
+    // deserves (no count pressure, no slice-to-N at commit). The number field
+    // is disabled in settings while this is on (settings-sync).
+    autoFootnoteCount: false,
     targetLanguage: 'en',
     cefrLevel: 'auto',
+    // Custom target language (targetLanguage === 'custom'): the prompt gets the
+    // name; the footnote code gets the short label (empty → derived tag).
+    customTargetName: '',
+    customTargetLabel: '',
+    // Language lens direction: 'forward' = narration → study language (teach
+    // translations of the post's words), 'reverse' = the post IS in the study
+    // language, explain its non-obvious words in the output language.
+    languageDirection: 'forward',
+    // Language lens extras: brief grammar notes (gender, part of speech) and a
+    // short usage example at the end of the footnote body.
+    languageGrammarNotes: false,
+    languageUsageExample: false,
     // Hybrid footnote style (6th promptStyle): which lenses are active. The
     // Language lens reuses targetLanguage / cefrLevel above. See spec
     // 2026-07-02-glosses-hybrid-mode-design.md.
@@ -117,7 +155,17 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // to footnote + label + format quirk) — interpolated with {{OUTPUT_LANGUAGE}}
     // only (no lang/CEFR tokens). See spec / generator.js hybrid branch.
     customLenses: [],
+    // User rewrites of the BUILT-IN hybrid lens templates (lens id → raw
+    // template, same token surface as the bundled prompts/lenses/<id>.md).
+    // '' / missing key = the bundled file is used. Written only by the lens
+    // editor (settings-sync); Reset deletes the key.
+    builtinLensOverrides: {},
     displayMode: 'both',
+    // Under-post block header motif (how the collapsed disclosure separates
+    // itself from the text): 'rule' = short left-aligned accent bar (the
+    // print footnote-separator convention), 'asterism' = ⁂ break glyph,
+    // 'hairline' = full-width top line (wiki style).
+    blockHeadStyle: 'rule',
     highlightColor: '#ffe066',
     highlightOpacity: 40,
     highlightStyle: 'background',
@@ -148,13 +196,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
     //   --gls-radius-lg look; 0 = square "slab", 18+ = soft bubble.
     // - popupDensity: body padding + line-height. 'comfortable' = historic
     //   sp-3/sp-4/sp-2 paddings; 'compact' saves vertical space (mobile,
-    //   long footnotes).
-    // - popupShadow: 'strong' = the wide float halo (historic), 'soft' = a
-    //   shorter lighter pair for light themes where big shadows read dirty,
-    //   'none' = flat.
+    //   long footnotes). The former popupShadow knob is retired: the float
+    //   halo is part of the popup's look and was barely distinguishable.
     popupCornerRadius: 12,
     popupDensity: 'comfortable',
-    popupShadow: 'strong',
     // Popup skin (Level 2 — color + decoration bundles): 'adaptive' keeps the
     // theme-derived surface/edge (historic behavior); the others override the
     // popup's color tokens with a fixed palette and layered background
@@ -185,6 +230,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // path. Survives page reloads and server restarts (it rides the regular
     // extension settings), replacing the old session-only display:none hide.
     floatingPanelHidden: false,
+    // Pre-panel-mode {enabled, hidden} pair, persisted while displayMode==='panel'
+    // so leaving the mode restores the user's own choice even after a reload or
+    // server restart that happened inside the mode (the in-memory snapshot dies
+    // with the tab). Written on entering the mode and by explicit panel controls;
+    // cleared on leaving the mode. See updatePanelModeSnapshot.
+    panelModeSnapshot: null,
     soundEnabled: true,
     soundVolume: 30,
     // soundName: a bundled filename OR '__custom__' (a data-URL blob in
@@ -314,32 +365,65 @@ export function loadSettings() {
         state.settings.outputLanguage = DEFAULT_SETTINGS.outputLanguage;
         settingsChanged = true;
     }
+    // Language-mode enum/strings: direction guard; custom-language fields are
+    // free-form strings defaulted by DEFAULT_SETTINGS (generation gates on an
+    // empty name — see generator.customLanguageIssue).
+    if (!['forward', 'reverse'].includes(state.settings.languageDirection)) {
+        state.settings.languageDirection = DEFAULT_SETTINGS.languageDirection;
+        settingsChanged = true;
+    }
     // Launcher mode enum — guard against stale/hand-edited values.
     if (!['bar', 'floating', 'both'].includes(state.settings.launcherMode)) {
         state.settings.launcherMode = DEFAULT_SETTINGS.launcherMode;
         settingsChanged = true;
     }
     // Numeric range guards — mirror the min/max contract the inputs declare in
-    // settings.html (max footnotes 1–20, context depth 0–50). Native number
-    // validation doesn't stop typed values, so a persisted 0/25 would otherwise
-    // survive reloads and show in the UI even though the prompt builder clamps.
+    // settings.html (max footnotes 1–MAX_FOOTNOTES_CAP, context depth
+    // 0–CONTEXT_DEPTH_MAX). Native number validation doesn't stop typed
+    // values, so a persisted 0/250 would otherwise survive reloads and show
+    // in the UI even though the prompt builder clamps.
     const maxFn = parseInt(state.settings.maxFootnotes, 10);
-    if (!Number.isFinite(maxFn) || maxFn < 1 || maxFn > 20) {
+    if (!Number.isFinite(maxFn) || maxFn < 1 || maxFn > MAX_FOOTNOTES_CAP) {
         state.settings.maxFootnotes = Number.isFinite(maxFn)
-            ? Math.min(20, Math.max(1, maxFn))
+            ? Math.min(MAX_FOOTNOTES_CAP, Math.max(1, maxFn))
             : DEFAULT_SETTINGS.maxFootnotes;
         settingsChanged = true;
     }
+    if (typeof state.settings.autoFootnoteCount !== 'boolean') {
+        state.settings.autoFootnoteCount = false;
+        settingsChanged = true;
+    }
+    // stream flag: boolean false stays OFF (explicit opt-out), everything else
+    // — including old saves without the key (lodash.merge already supplies the
+    // default true) and hand-edited junk — lands ON.
+    if (typeof state.settings.stream !== 'boolean') {
+        state.settings.stream = DEFAULT_SETTINGS.stream;
+        settingsChanged = true;
+    }
     const ctxDepth = parseInt(state.settings.contextDepth, 10);
-    if (!Number.isFinite(ctxDepth) || ctxDepth < 0 || ctxDepth > 50) {
+    if (!Number.isFinite(ctxDepth) || ctxDepth < 0 || ctxDepth > CONTEXT_DEPTH_MAX) {
         state.settings.contextDepth = Number.isFinite(ctxDepth)
-            ? Math.min(50, Math.max(0, ctxDepth))
+            ? Math.min(CONTEXT_DEPTH_MAX, Math.max(0, ctxDepth))
             : DEFAULT_SETTINGS.contextDepth;
         settingsChanged = true;
     }
-    // Hybrid ALL became a manual configuration; retain every setting it applied.
-    if (state.settings.selectedPreset === 'hybrid-all-ru') {
+    // Single-style UI removed: every stored style value maps onto the hybrid
+    // lens constructor (its built-in lenses cover the former presets), and the
+    // preset field is retired outright.
+    if (state.settings.promptStyle !== 'hybrid') {
+        state.settings.promptStyle = 'hybrid';
+        settingsChanged = true;
+    }
+    if (state.settings.selectedPreset) {
         state.settings.selectedPreset = '';
+        settingsChanged = true;
+    }
+    // Panel-mode snapshot: shape-guard against stale/hand-edited values. It is
+    // an internal write-through field (updatePanelModeSnapshot / the displayMode
+    // binder), not a user-facing setting.
+    const snap = state.settings.panelModeSnapshot;
+    if (snap !== null && (typeof snap !== 'object' || typeof snap.enabled !== 'boolean' || typeof snap.hidden !== 'boolean')) {
+        state.settings.panelModeSnapshot = null;
         settingsChanged = true;
     }
     // Hybrid lenses — guard against stale/hand-edited values: ensure the
@@ -368,6 +452,22 @@ export function loadSettings() {
         // Drop entries with no id AND no name — unselectable junk from a
         // hand-edit or a partial save.
         .filter(c => c.id || c.name);
+    // Built-in lens overrides — keep only string bodies for known lens ids;
+    // an empty/whitespace body means "use the bundled template".
+    if (!state.settings.builtinLensOverrides || typeof state.settings.builtinLensOverrides !== 'object') {
+        state.settings.builtinLensOverrides = {};
+        settingsChanged = true;
+    } else {
+        const knownLenses = new Set(HYBRID_BUILTIN_LENSES);
+        const clean = {};
+        for (const [k, v] of Object.entries(state.settings.builtinLensOverrides)) {
+            if (knownLenses.has(k) && typeof v === 'string' && v.trim()) clean[k] = v;
+        }
+        if (Object.keys(clean).length !== Object.keys(state.settings.builtinLensOverrides).length) {
+            settingsChanged = true;
+        }
+        state.settings.builtinLensOverrides = clean;
+    }
     // Popup custom CSS layer — coerce junk from hand-edited settings: the CSS
     // must be a string and the toggle a boolean (mirrors the launcherMode
     // guard above; a repaired value persists via settingsChanged).
@@ -448,19 +548,43 @@ export async function flushSettings() {
     ctx.saveSettingsDebounced();
 }
 
+/**
+ * Persist the pre-panel-mode {enabled, hidden} pair while displayMode==='panel'.
+ * Called from the explicit panel controls (settings checkbox, panel ✕, launcher
+ * toggle) so the snapshot tracks the user's LATEST explicit choice instead of
+ * the forced entry state; the displayMode binder writes the entry snapshot and
+ * clears it on exit. Outside panel mode this is a no-op — the pair must not
+ * leak past the mode that forced it.
+ */
+export function updatePanelModeSnapshot() {
+    const s = S();
+    if (s.displayMode !== 'panel') return;
+    s.panelModeSnapshot = { enabled: !!s.floatingPanelEnabled, hidden: !!s.floatingPanelHidden };
+    saveSettings();
+}
+
 // ── Custom-endpoint API key (localforage; kept out of the settings JSON) ──
 
+// P2: the key changes at most once per settings edit, but with auto-generate
+// on, checkSourceConfigured() read it from IndexedDB per rendered message
+// (and again per request). A null-undefined memo keeps IndexedDB untouched on
+// the hot path; setApiKey() invalidates (and seeds the new value directly).
+let _apiKeyMemo;   // undefined = cold; string (incl. '') = warm
+
 export async function getApiKey() {
+    if (_apiKeyMemo !== undefined) return _apiKeyMemo;
     try {
-        return (await SillyTavern.libs.localforage.getItem(LF_API_KEY)) || '';
-    } catch { return ''; }
+        _apiKeyMemo = (await SillyTavern.libs.localforage.getItem(LF_API_KEY)) || '';
+    } catch { return ''; }   // unreadable store — stay cold so the next call retries
+    return _apiKeyMemo;
 }
 
 export async function setApiKey(key) {
     try {
         if (key) await SillyTavern.libs.localforage.setItem(LF_API_KEY, key);
         else     await SillyTavern.libs.localforage.removeItem(LF_API_KEY);
-    } catch { /* non-critical */ }
+        _apiKeyMemo = key || '';
+    } catch { /* non-critical; keep the memo cold so nothing claims a stale key */ }
 }
 
 // ── Confirmation / Input modals (ST Popup, native fallback) ──
@@ -475,6 +599,9 @@ const _notificationTimes = new Map();
 export function notifyUser(level, message, dedupeKey = message) {
     const now = Date.now();
     if (now - (_notificationTimes.get(dedupeKey) || 0) < 5000) return false;
+    // F4: the map otherwise grows by one entry per distinct dedupeKey, forever.
+    // Clearing costs at most one dedup window — bounded is what matters.
+    if (_notificationTimes.size > 64) _notificationTimes.clear();
     _notificationTimes.set(dedupeKey, now);
     globalThis.toastr?.[level]?.(message, DISPLAY_NAME);
     return true;
@@ -593,6 +720,14 @@ export function extractPlainText(htmlString) {
         .replace(/\[ILST:[^\]]*]/gi, '')
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, '\n');
+    // S3: DOMParser over the detached innerHTML div — elements like
+    // <img src> in a post would otherwise START loading during extraction.
+    // Node tests lack DOMParser, so the div path stays as the fallback.
+    if (typeof DOMParser !== 'undefined') {
+        try {
+            return (new DOMParser().parseFromString(raw, 'text/html').body.textContent || '').trim();
+        } catch { /* fall through to the div path */ }
+    }
     _plainTextDiv.innerHTML = raw;
     const text = (_plainTextDiv.textContent || '').trim();
     _plainTextDiv.textContent = '';
@@ -623,7 +758,7 @@ export function escapeHtml(str) {
 // bodies. The footnote mini-markdown only produces div/span/strong/em/code/
 // del/br, so legitimate output is unchanged.
 const _sanitizeCache = new Map();
-const _sanitizeMax = 64;
+const _sanitizeMax = 256;   // P4: 64 < the 100-footnote cap — full sets thrashed
 export function sanitize(html) {
     try {
         if (_sanitizeCache.has(html)) {

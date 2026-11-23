@@ -1,0 +1,106 @@
+/* ══════════════════════════════════════════════════════════
+   FLOATING LAUNCHER (FAB — src/ui/floating-launcher.js)
+   Draggable round toggle for the floating panel; mounted when
+   settings.launcherMode is 'floating' | 'both'. Position is set
+   inline by JS (persisted in localStorage as {left, top}).
+   ══════════════════════════════════════════════════════════ */
+
+.gls_fab {
+    /* 2999 — above the floating panel (2998) so it stays clickable over it (the
+       FAB is the panel's toggle), but just below ST's own chrome (left-nav
+       drawer 3000, top bar 3005) so it never blocks host settings, and below
+       the footnote popup (9000) and ST's #dialogue_popup (9999). Drag/restore
+       clamp the FAB below the top bar (floating-launcher.js) so it can't be
+       parked and lost underneath it. Locked by contract in
+       tests/floating-launcher.test.mjs. */
+    position: fixed;
+    z-index: 2999;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--gls-bg);
+    border: 1px solid var(--gls-border);
+    color: var(--gls-text);
+    box-shadow: var(--gls-shadow);
+    cursor: pointer;
+    user-select: none;
+    font-size: 16px; /* FA glyph sizing */
+    touch-action: none; -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+@media (hover: hover) {
+    .gls_fab:hover {
+        background: color-mix(in srgb, var(--gls-accent) 18%, var(--gls-bg));
+        border-color: color-mix(in srgb, var(--gls-accent) 55%, transparent);
+    }
+}
+.gls_fab:focus-visible {
+    outline: 2px solid var(--gls-accent);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+/* Panel is open — the FAB is the toggle, so it stays visible and is
+   accent-highlighted rather than hiding. */
+.gls_fab.gls_fab_active {
+    background: color-mix(in srgb, var(--gls-accent) 28%, var(--gls-bg));
+    border-color: color-mix(in srgb, var(--gls-accent) 55%, transparent);
+    color: var(--gls-accent);
+}
+/* UX: set while the panel is open AND the FAB overlaps the panel header —
+   taps pass through to the header controls underneath (the z-order FAB 2999 >
+   panel 2998 is contract-locked; the dimming shows the FAB is temporarily
+   inert). Cleared whenever the panel closes or the FAB moves. */
+.gls_fab.gls_fab--passthrough {
+    pointer-events: none;
+    opacity: 0.55;
+}
+.gls_fab.gls_fab_dragging {
+    transition: none !important;
+    cursor: grabbing !important;
+    will-change: left, top;
+}
+
+/* ══════════════════════════════════════════════════════════
+   QUICK-BAR LAUNCHER (#gls_launcher — src/ui/launcher.js)
+   A bare div.qr--button collapses to the fa-superscript glyph width
+   (~29px) — visibly narrower than every neighboring quick-bar control.
+   Pin it to the same square footprint as the rest of the row.
+   ══════════════════════════════════════════════════════════ */
+
+#gls_launcher {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+}
+
+/* Generation in progress — launchers and the in-post regen icon share one
+   slow glow pulse (busy.js toggles .gls_generating on #gls_launcher/#gls_fab,
+   renderer.js toggles .gls-busy on the regen icon). Color/opacity/drop-shadow
+   only — no scale, so nothing in the layout breathes. */
+.gls_launcher.gls_generating,
+.gls_fab.gls_generating {
+    animation: gls_pulse 2.4s ease-in-out infinite;
+}
+@keyframes gls_pulse {
+    0%, 100% {
+        color: var(--gls-accent);
+        opacity: .7;
+        filter: drop-shadow(0 0 2px color-mix(in srgb, var(--gls-accent) 30%, transparent));
+    }
+    50% {
+        color: color-mix(in srgb, var(--gls-accent) 70%, #fff);
+        opacity: 1;
+        filter: drop-shadow(0 0 9px color-mix(in srgb, var(--gls-accent) 75%, transparent));
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gls_launcher.gls_generating,
+    .gls_fab.gls_generating,
+    .mes_button.gls-regen-btn.gls-busy i {
+        animation: none; opacity: 0.8;
+    }
+}
+

@@ -33,6 +33,19 @@ test('target prompt makes submitted targets authoritative', () => {
     assert.doesNotMatch(prompt, /candidate pool/i);
 });
 
+// The targeted flow has no other contract carrier: hybrid.md no longer holds
+// format rules, so the inline contract must teach the unified label shape and
+// the mandatory translation itself.
+test('target prompt carries the unified label/dash/translation rules', () => {
+    const prompt = buildTargetedPrompt({ targets: ['term'], outputLanguage: 'English' });
+    assert.match(prompt, /capital letter/);
+    assert.match(prompt, /1–4 words/);
+    assert.match(prompt, /end it with a dot/);
+    assert.match(prompt, /spaced em-dash/);
+    assert.match(prompt, /body with a capital letter/);
+    assert.match(prompt, /open with its translation/);
+});
+
 test('targeted generation uses request and does not persist', async () => {
     let calls = 0;
     const result = await generateTargetedFootnotes({
@@ -80,4 +93,18 @@ test('targeted result becomes stale after its generation epoch changes', async (
     const result = await pending;
     assert.equal(result.stale, true);
     assert.deepEqual(result.footnotes, []);
+});
+
+test('a target beyond the 400-char anchor cap is rejected, not anchored', async () => {
+    const long = 'x'.repeat(410);
+    const result = await generateTargetedFootnotes({
+        targets: [long, 'short'].join('\n'),
+        request: async () => JSON.stringify({ footnotes: [
+            { anchor: long, text: 'too long' },
+            { anchor: 'short', text: 'Short note' },
+        ] }),
+    });
+    assert.deepEqual(result.footnotes.map(fn => fn.anchor), ['short']);
+    assert.deepEqual(result.missingTargets, []);
+    assert.equal(result.invalidCount, 2); // over-cap target + its unmatched echo candidate
 });

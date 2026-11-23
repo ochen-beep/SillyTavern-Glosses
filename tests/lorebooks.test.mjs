@@ -11,7 +11,7 @@ import {
     collectAutomaticLore,
     LORE_SCAN_MAX_CONTEXT,
 } from '../src/lorebooks.js';
-import { buildContextBlocks } from '../src/generator.js';
+import { buildContextBlocks } from '../src/context-blocks.js';
 
 const POST = 'Aurelia opened the astrolabe beside the old observatory.';
 

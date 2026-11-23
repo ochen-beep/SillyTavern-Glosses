@@ -6,6 +6,9 @@
  * Settings → Behavior → "Auto-generate on new messages" is ON. These tests
  * walk EVERY ST event Glosses subscribes to against EVERY message state that
  * matters and assert the API is never touched while the toggle is off.
+ * (Merged from the retired auto-generate-gate.test.mjs: the default itself
+ * is OFF on a fresh install, the persisted choice survives loadSettings, and
+ * the control proves the gated path is otherwise live.)
  *
  * The last tests pin the toggle-off-mid-flight contract: flipping the toggle
  * aborts in-flight AUTO runs (their results never commit), while runs the
@@ -182,6 +185,39 @@ const STATES = {
     'hidden message': stateHidden,
 };
 
+// ── the default itself ──
+// (Merged from the retired gate file: with the matrix above proving every
+// automatic entry point is shut while the toggle is off, these pin the
+// default and the persistence contract, plus a control that the gated path
+// is otherwise live — the zeroes are the gate working, not a broken setup.)
+
+test('fresh install: autoGenerate defaults to OFF (opt-in)', () => {
+    unbindEvents();
+    // No persisted Glosses blob at all — what the first enable sees.
+    resetCtx({
+        chat: [],
+        chatMetadata: {},
+        extensionSettings: {},
+    });
+    loadSettings();
+    assert.equal(state.settings.autoGenerate, false,
+        'a fresh install must not auto-spend the user’s API quota');
+});
+
+test('persisted choice survives: explicit autoGenerate true/false is kept on load', () => {
+    unbindEvents();
+    for (const persisted of [true, false]) {
+        resetCtx({
+            chat: [],
+            chatMetadata: {},
+            extensionSettings: { Glosses: { autoGenerate: persisted } },
+        });
+        loadSettings();
+        assert.equal(state.settings.autoGenerate, persisted,
+            'loadSettings must keep the user’s explicit toggle value');
+    }
+});
+
 // ── the matrix ──
 
 for (const [label, make] of Object.entries(STATES)) {
@@ -213,6 +249,24 @@ test('autoGenerate off: a second consecutive event storm still stays quiet', asy
         });
         assert.equal(calls, 0);
         assert.equal(getVariantFootnotes('0', 0), null);
+    } finally {
+        unbindEvents();
+    }
+});
+
+// ── control: the gated path is otherwise live ──
+
+test('control: autoGenerate on — the same render path generates exactly once', async () => {
+    unbindEvents();
+    state.configWarned = false;
+    const handlers = bindAllEvents([makeMessage({ mes: TEXT_A })], settings(true));
+    try {
+        const calls = await withApiCounter(async () => {
+            await Promise.all((handlers.get('CHARACTER_MESSAGE_RENDERED') || []).map(fn => fn('0')));
+            await new Promise(r => setTimeout(r, 200));
+        });
+        assert.equal(calls, 1, 'the gated path is otherwise live: one API call');
+        assert.ok(getVariantFootnotes('0', 0)?.length, 'payload persisted');
     } finally {
         unbindEvents();
     }

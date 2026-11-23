@@ -8,7 +8,7 @@
  * in try/catch so a missing API on older builds degrades gracefully.
  */
 
-import { state, S, getCtx, saveSettings, log, warn, t } from './core.js';
+import { state, S, getCtx, saveSettings, showConfirmModal, log, warn, t } from './core.js';
 import { clearAll, stats } from './cache.js';
 import { removeHighlights, restoreHighlightsAll } from './renderer.js';
 import { isAnnotatableMsg } from './domain/message-identity.js';
@@ -107,8 +107,14 @@ export function registerSlashCommands() {
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
             name: 'glosses_clear',
             helpString: t('Clear all footnotes cache for the current chat'),
-            callback: () => {
+            callback: async () => {
                 if (!state.runtimeActive) return t('Glosses is disabled');
+                // Destructive and chat-wide: every GUI path to clearAll
+                // confirms (pool manager, panel header) — the slash command
+                // was the only unguarded one.
+                if (!await showConfirmModal(t('Delete ALL footnotes in this chat?'))) {
+                    return t('Cancelled');
+                }
                 clearAll();
                 document.querySelectorAll('.mes[mesid]').forEach(el => removeHighlights(el));
                 panelInvalidate();

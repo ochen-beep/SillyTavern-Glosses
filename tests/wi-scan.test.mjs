@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import './helpers/stub-runtime.mjs';
 import { resetCtx, makeMessage } from './helpers/stub-runtime.mjs';
 import { loadSettings } from '../src/core.js';
-import { buildContextBlocks, buildLoreScanInput } from '../src/generator.js';
+import { buildContextBlocks, buildLoreScanInput } from '../src/context-blocks.js';
 
 const POST = 'Aurelia opened the astrolabe beside the old observatory.';
 

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 // module-eval time. Replaces the old hack of rewriting parser.js's import line.
 import './helpers/stub-runtime.mjs';
 import {
-    superscriptToIndex, indexToSuperscript, extractPostTextFromPrompt,
+    superscriptToIndex, indexToSuperscript, extractPostTextFromPrompt, parseResponse,
     validateFootnotes, validateFootnotesAgainstText,
 } from '../src/parser.js';
 import { findFuzzySpan } from '../src/text-index.js';
@@ -56,10 +56,13 @@ test('direct validation is exact-only, preserves source slice, and deduplicates 
     const result = validateFootnotes({ footnotes: [
         { index: 1, anchor: 'кот', text: '¹ Cat (noun) — explanation' },
         { index: 2, anchor: 'КОТ', text: '² Cat (noun) — duplicate' },
-        { index: 3, anchor: 'Коты', text: '³ Cats (noun) — inflection must fail' },
-        { index: 4, anchor: 'скот', text: '⁴ Cattle (noun) — boundary must fail' },
+        { index: 3, anchor: 'Коты', text: '³ Cats (noun) — inflection' },
+        { index: 4, anchor: 'скот', text: '⁴ Cattle (noun) — boundary' },
     ] }, prompt);
-    assert.deepEqual(result.map(f => f.anchor), ['Кот']);
+    // The resolved dup ('КОТ') drops; the two misses stay as FLOATING entries
+    // (B#3) — the user sees them, they just have no marker.
+    assert.deepEqual(result.filter(f => !f.floating).map(f => f.anchor), ['Кот']);
+    assert.deepEqual(result.filter(f => f.floating).map(f => f.anchor), ['Коты', 'скот']);
 });
 
 test('direct validation accepts typographic exact match and ignores legacy fields', () => {
@@ -106,11 +109,44 @@ test('against-text validation can rescue anchors through the fallback resolver',
     assert.equal(result[0].anchor, 'сурьмой');
 });
 
-test('against-text validation drops anchors neither exact nor resolvable', () => {
+test('against-text validation keeps unresolvable anchors as floating entries', () => {
     const post = 'Натёрла сурьмой глаза.';
     const result = validateFootnotesAgainstText({ footnotes: [
         { anchor: 'телескоп', text: '¹ Телескоп (опт.) — прибор' },
     ] }, post, [], (anchor) => findFuzzySpan(post, anchor));
-    assert.equal(result, null);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].floating, true);
+    assert.equal(result[0].anchor, 'телескоп');
 });
 
+
+test('anchor length cap: 400 passes, 401 drops (PAR-1)', () => {
+    const long = 'к'.repeat(200) + ' ' + 'м'.repeat(197);   // 398-char verbatim phrase
+    const post = `Начало. ${long} Конец.`;
+    const ok = validateFootnotesAgainstText({ footnotes: [{ anchor: long, text: '¹ Длинная фраза.' }] }, post);
+    assert.equal(ok.length, 1, 'a long verbatim anchor passes under the 400 cap');
+    const tooLong = 'я'.repeat(401);
+    const dropped = validateFootnotesAgainstText({ footnotes: [
+        { anchor: long, text: '¹ ok.' },
+        { anchor: tooLong, text: '² too long.' },
+    ] }, post);
+    assert.equal(dropped.length, 1, '401 chars still drop');
+    assert.equal(dropped[0].anchor, long);
+});
+
+test('bracket-strip removes only the group duplicating the anchor (PAR-2)', () => {
+    // The strip lives in parseResponse's normalize stage (not validation) —
+    // drive it through the JSON entry point.
+    const json = JSON.stringify({ footnotes: [
+        { anchor: 'гусарский бивуак', text: '¹ Бивуак [гусарский бивуак] — см. [прим. переводчика] ниже.' },
+        { anchor: 'бивуак', text: '² Бивуак [Бивуак] — лагерь.' },
+        { anchor: '', text: '³ Без якоря [скобки нетронуты] — текст.' },
+    ] });
+    const parsed = parseResponse(json);
+    assert.equal(parsed.footnotes[0].text, '¹ Бивуак — см. [прим. переводчика] ниже.',
+        'only the anchor-duplicating bracket is stripped; legit brackets survive');
+    assert.equal(parsed.footnotes[1].text, '² Бивуак — лагерь.',
+        'normalized variants (case) collapse too');
+    assert.equal(parsed.footnotes[2].text, '³ Без якоря [скобки нетронуты] — текст.',
+        'no anchor → no stripping at all');
+});

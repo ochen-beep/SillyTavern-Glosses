@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import './helpers/stub-runtime.mjs';
 import { resetCtx } from './helpers/stub-runtime.mjs';
 import { deriveSurfaceColor } from '../src/ui/theme-sync.js';
-import { positionPopup } from '../src/renderer.js';
+import { positionPopup } from '../src/ui/footnote-popup.js';
 import { loadSettings, S } from '../src/core.js';
 
 function freshSettingsContext() {
@@ -162,7 +162,7 @@ test('positionPopup: horizontal nudge keeps the popup inside the viewport', () =
 // the layout viewport (Android), and visualViewport.offsetTop/.height when it
 // only shrinks the visual viewport inside it (iOS).
 
-import { clampPopupPosition } from '../src/renderer.js';
+import { clampPopupPosition } from '../src/ui/footnote-popup.js';
 
 test('clampPopupPosition: pulls a popup parked under the keyboard back into the band', () => {
     // 390x420 visible band; the popup sat at top=500 before the keyboard opened.
